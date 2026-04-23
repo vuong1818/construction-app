@@ -1,5 +1,5 @@
 // expo-file-system removed — using fetch + arrayBuffer for reliable binary upload
-// expo-print removed — PDF generated server-side
+// expo-print removed — view rendered server-side
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -7,7 +7,9 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -128,56 +130,14 @@ const SIGNATURE_HTML = `
 </html>
 `;
 
-// ─── Embedded document HTML (shown in-app so loading never fails) ─────────────
-const DOCUMENT_HTML = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<style>
-  body { font-family: Arial, sans-serif; font-size: 15px; line-height: 1.7; padding: 20px 18px; color: #111; }
-  h1  { font-size: 22px; font-weight: 900; margin-bottom: 16px; }
-  h2  { font-size: 13px; font-weight: 900; margin-top: 24px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-  p   { margin-bottom: 12px; }
-  ul  { margin-left: 22px; margin-bottom: 12px; }
-  li  { margin-bottom: 5px; }
-  hr  { border: none; border-top: 1px solid #999; margin: 24px 0; }
-</style>
-</head>
-<body>
-<h1>NGUYEN MEP, LLC</h1>
-<h2>Safety Manual Acknowledgment</h2>
-<p>I acknowledge that I have received, read, and understand the Company Safety Manual, including all safety policies, procedures, and OSHA-related requirements applicable to my work.</p>
-<p>I understand that construction work involves inherent hazards, including but not limited to falls, electrical hazards, heavy equipment operation, trenching, and exposure to potentially dangerous materials. I agree to follow all safety rules, use required personal protective equipment (PPE), and comply with all safety instructions, training, and jobsite requirements at all times.</p>
-<p>I agree to:</p>
-<ul>
-  <li>Follow all Company safety policies and OSHA regulations</li>
-  <li>Properly use and maintain all required PPE</li>
-  <li>Report unsafe conditions, incidents, or injuries immediately</li>
-  <li>Stop work when conditions are unsafe and notify a supervisor</li>
-</ul>
-<p>I understand that failure to follow safety rules and procedures may result in disciplinary action, up to and including termination.</p>
-<p>I further acknowledge that the Company provides safety guidelines, training, and supervision to promote a safe work environment. However, I understand that my safety depends on my own actions and compliance. I agree that the Company shall not be held liable for any injuries, damages, or losses resulting from my failure to follow the Safety Manual, training, or safety instructions.</p>
-<p>By signing below, I confirm that I have had the opportunity to ask questions and that I fully understand and agree to comply with the contents of the Safety Manual.</p>
-<hr />
-<h2>Acuse de Recibo del Manual de Seguridad (Construcción)</h2>
-<p>Yo reconozco que he recibido, leído y entendido el Manual de Seguridad de la Empresa, incluyendo todas las políticas, procedimientos y requisitos de OSHA aplicables a mi trabajo.</p>
-<p>Entiendo que el trabajo de construcción implica riesgos inherentes, incluyendo, entre otros, caídas, riesgos eléctricos, operación de maquinaria pesada, excavaciones y exposición a materiales peligrosos. Acepto cumplir con todas las reglas de seguridad, usar el equipo de protección personal (EPP) requerido y seguir todas las instrucciones y requisitos de seguridad en todo momento.</p>
-<p>Acepto:</p>
-<ul>
-  <li>Cumplir con todas las políticas de seguridad de la empresa y regulaciones de OSHA</li>
-  <li>Usar y mantener adecuadamente todo el EPP requerido</li>
-  <li>Reportar inmediatamente condiciones inseguras, incidentes o lesiones</li>
-  <li>Detener el trabajo cuando existan condiciones inseguras y notificar a un supervisor</li>
-</ul>
-<p>Entiendo que el incumplimiento de las normas de seguridad puede resultar en medidas disciplinarias, incluyendo la terminación del empleo.</p>
-<p>Asimismo, reconozco que la Empresa proporciona lineamientos, capacitación y supervisión para promover un ambiente de trabajo seguro. Sin embargo, entiendo que mi seguridad depende de mis propias acciones y cumplimiento. Acepto que la Empresa no será responsable por lesiones, daños o pérdidas que resulten de mi incumplimiento del Manual de Seguridad.</p>
-<p>Al firmar abajo, confirmo que he tenido la oportunidad de hacer preguntas y que entiendo y acepto cumplir con el contenido del Manual de Seguridad.</p>
-</body>
-</html>`;
-
 // ─── PDF template ─────────────────────────────────────────────────────────────
-function buildPdfHtml(workerName: string, signedAt: string, sigDataUrl: string): string {
+function buildPdfHtml(
+  workerName: string,
+  topic: string,
+  weekStart: string,
+  signedAt: string,
+  sigDataUrl: string
+): string {
   return `
 <!DOCTYPE html>
 <html>
@@ -185,65 +145,58 @@ function buildPdfHtml(workerName: string, signedAt: string, sigDataUrl: string):
 <meta charset="UTF-8">
 <style>
   body { font-family: Arial, sans-serif; margin: 48px 52px; font-size: 13px; line-height: 1.65; color: #000; }
-  h1 { font-size: 26px; font-weight: 900; margin-bottom: 22px; }
+  h1 { font-size: 26px; font-weight: 900; margin-bottom: 6px; }
+  .subtitle { font-size: 15px; color: #444; margin-bottom: 22px; }
   h2 { font-size: 13px; font-weight: 900; margin-top: 28px; margin-bottom: 10px; text-transform: uppercase; }
   p { margin-bottom: 13px; }
   ul { margin-left: 28px; margin-bottom: 13px; }
   li { margin-bottom: 6px; }
   hr { border: none; border-top: 1px solid #000; margin: 28px 0; }
+  .topic-box { background: #f5f5f5; border-left: 4px solid #16356B; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px; }
+  .topic-label { font-size: 11px; font-weight: 900; text-transform: uppercase; color: #555; margin-bottom: 4px; }
+  .topic-text { font-size: 16px; font-weight: 700; color: #111; }
   .sig-block { margin-top: 32px; }
   .sig-row { display: flex; align-items: flex-end; margin-bottom: 14px; gap: 12px; }
   .sig-label { font-weight: 700; white-space: nowrap; }
   .sig-val { border-bottom: 1px solid #555; flex: 1; padding-bottom: 2px; min-width: 200px; }
   .sig-img { margin-top: 8px; border: 1px solid #ccc; max-width: 320px; max-height: 100px; display:block; }
-  .page-num { text-align: right; color: #666; font-size: 11px; margin-top: 40px; }
 </style>
 </head>
 <body>
 
 <h1>NGUYEN MEP, LLC</h1>
+<div class="subtitle">Weekly Safety Meeting Acknowledgement</div>
 
-<h2>Safety Manual Acknowledgment</h2>
+<div class="topic-box">
+  <div class="topic-label">This Week's Safety Topic</div>
+  <div class="topic-text">${topic}</div>
+</div>
 
-<p>I acknowledge that I have received, read, and understand the Company Safety Manual, including all safety policies, procedures, and OSHA-related requirements applicable to my work.</p>
+<p>I acknowledge that I attended and participated in the weekly safety meeting for the week of <strong>${weekStart}</strong>. I have reviewed and understood the safety topic presented, and I agree to apply this knowledge in my day-to-day work activities.</p>
 
-<p>I understand that construction work involves inherent hazards, including but not limited to falls, electrical hazards, heavy equipment operation, trenching, and exposure to potentially dangerous materials. I agree to follow all safety rules, use required personal protective equipment (PPE), and comply with all safety instructions, training, and jobsite requirements at all times.</p>
-
-<p>I agree to:</p>
+<p>I understand that:</p>
 <ul>
-  <li>Follow all Company safety policies and OSHA regulations</li>
-  <li>Properly use and maintain all required PPE</li>
-  <li>Report unsafe conditions, incidents, or injuries immediately</li>
-  <li>Stop work when conditions are unsafe and notify a supervisor</li>
+  <li>Regular safety meetings are required as part of my employment</li>
+  <li>I am responsible for understanding and applying the safety information provided</li>
+  <li>I must ask questions if any safety information is unclear to me</li>
+  <li>Failure to attend or acknowledge weekly safety meetings may affect my ability to clock in</li>
 </ul>
 
-<p>I understand that failure to follow safety rules and procedures may result in disciplinary action, up to and including termination.</p>
-
-<p>I further acknowledge that the Company provides safety guidelines, training, and supervision to promote a safe work environment. However, I understand that my safety depends on my own actions and compliance. I agree that the Company shall not be held liable for any injuries, damages, or losses resulting from my failure to follow the Safety Manual, training, or safety instructions.</p>
-
-<p>By signing below, I confirm that I have had the opportunity to ask questions and that I fully understand and agree to comply with the contents of the Safety Manual.</p>
+<p>By signing below, I confirm that I have attended this week's safety meeting and understood the topic discussed.</p>
 
 <hr />
 
-<h2>Acuse de Recibo del Manual de Seguridad (Construcción)</h2>
+<h2>Reconocimiento de Reunión Semanal de Seguridad</h2>
 
-<p>Yo reconozco que he recibido, leído y entendido el Manual de Seguridad de la Empresa, incluyendo todas las políticas, procedimientos y requisitos de OSHA aplicables a mi trabajo.</p>
+<p>Reconozco que asistí y participé en la reunión semanal de seguridad de la semana del <strong>${weekStart}</strong>. He revisado y comprendido el tema de seguridad presentado, y acepto aplicar este conocimiento en mis actividades laborales diarias.</p>
 
-<p>Entiendo que el trabajo de construcción implica riesgos inherentes, incluyendo, entre otros, caídas, riesgos eléctricos, operación de maquinaria pesada, excavaciones y exposición a materiales peligrosos. Acepto cumplir con todas las reglas de seguridad, usar el equipo de protección personal (EPP) requerido y seguir todas las instrucciones y requisitos de seguridad en todo momento.</p>
-
-<p>Acepto:</p>
+<p>Entiendo que:</p>
 <ul>
-  <li>Cumplir con todas las políticas de seguridad de la empresa y regulaciones de OSHA</li>
-  <li>Usar y mantener adecuadamente todo el EPP requerido</li>
-  <li>Reportar inmediatamente condiciones inseguras, incidentes o lesiones</li>
-  <li>Detener el trabajo cuando existan condiciones inseguras y notificar a un supervisor</li>
+  <li>Las reuniones de seguridad regulares son un requisito de mi empleo</li>
+  <li>Soy responsable de comprender y aplicar la información de seguridad proporcionada</li>
+  <li>Debo hacer preguntas si alguna información de seguridad no me queda clara</li>
+  <li>No asistir o no reconocer las reuniones de seguridad semanales puede afectar mi capacidad de registrar mi entrada</li>
 </ul>
-
-<p>Entiendo que el incumplimiento de las normas de seguridad puede resultar en medidas disciplinarias, incluyendo la terminación del empleo.</p>
-
-<p>Asimismo, reconozco que la Empresa proporciona lineamientos, capacitación y supervisión para promover un ambiente de trabajo seguro. Sin embargo, entiendo que mi seguridad depende de mis propias acciones y cumplimiento. Acepto que la Empresa no será responsable por lesiones, daños o pérdidas que resulten de mi incumplimiento del Manual de Seguridad, la capacitación o las instrucciones de seguridad.</p>
-
-<p>Al firmar abajo, confirmo que he tenido la oportunidad de hacer preguntas y que entiendo y acepto cumplir con el contenido del Manual de Seguridad.</p>
 
 <div class="sig-block">
   <div class="sig-row">
@@ -251,39 +204,42 @@ function buildPdfHtml(workerName: string, signedAt: string, sigDataUrl: string):
     <span class="sig-val">${workerName}</span>
   </div>
   <div class="sig-row">
-    <span class="sig-label">Date / Fecha:</span>
+    <span class="sig-label">Week of / Semana de:</span>
+    <span class="sig-val">${weekStart}</span>
+  </div>
+  <div class="sig-row">
+    <span class="sig-label">Date Signed / Fecha:</span>
     <span class="sig-val">${signedAt}</span>
   </div>
   <div>
-    <span class="sig-label">Signature:</span>
+    <span class="sig-label">Signature / Firma:</span>
     <img src="${sigDataUrl}" class="sig-img" />
   </div>
 </div>
 
-<div class="page-num">Page 2 of 2</div>
 </body>
 </html>
 `;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ManualDoc = {
+type WeeklyTopic = {
   id: number;
-  title: string | null;
+  week_start: string;
+  topic: string | null;
   pdf_url: string | null;
-  document_type: string | null;
-  is_active: boolean | null;
+  video_url: string | null;
 };
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
-export default function SafetyManualScreen() {
-  const [loading, setLoading]           = useState(true);
-  const [saving, setSaving]             = useState(false);
-  const [manual, setManual]             = useState<ManualDoc | null>(null);
-  const [alreadySigned, setAlreadySigned] = useState(false);
-  const [companyEmail, setCompanyEmail] = useState<string | null>(null);
+export default function WeeklySafetyMeetingScreen() {
+  const [loading, setLoading]               = useState(true);
+  const [saving, setSaving]                 = useState(false);
+  const [topicRow, setTopicRow]             = useState<WeeklyTopic | null>(null);
+  const [alreadySigned, setAlreadySigned]   = useState(false);
+  const [companyEmail, setCompanyEmail]     = useState<string | null>(null);
 
-  // Signature flow state
+  // Signature flow
   const [showSignModal, setShowSignModal]   = useState(false);
   const [sigStep, setSigStep]               = useState<'pad' | 'confirm'>('pad');
   const [workerName, setWorkerName]         = useState('');
@@ -291,7 +247,7 @@ export default function SafetyManualScreen() {
 
   const webviewRef = useRef<WebView>(null);
 
-  useEffect(() => { loadManual(); }, []);
+  useEffect(() => { loadMeeting(); }, []);
 
   function getStartOfWeek(date = new Date()) {
     const d = new Date(date);
@@ -309,82 +265,75 @@ export default function SafetyManualScreen() {
     return `${yyyy}-${mm}-${dd}`;
   }
 
-  async function loadManual() {
+  async function loadMeeting() {
     try {
       setLoading(true);
-      // Use getSession() — reads local storage, no network call, won't fail with AuthSessionMissingError
+
+      // Use getSession() — reads local storage, won't fail with AuthSessionMissingError
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) {
-        Alert.alert('Session Expired', 'Please log in again to continue.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
-        setLoading(false);
-        return;
-      }
+      if (!user) throw new Error('Session expired. Please log in again.');
 
-      // Pre-fill worker name from profile (silent — never crashes)
-      try {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('full_name, first_name, last_name')
-          .eq('id', user.id)
-          .maybeSingle();
-        const name =
-          profileData?.full_name ||
-          [profileData?.first_name, profileData?.last_name].filter(Boolean).join(' ') ||
-          '';
-        if (name) setWorkerName(name);
-      } catch (e) { console.warn('Profile load skipped:', e); }
+      // Pre-fill worker name from profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('full_name, first_name, last_name')
+        .eq('id', user.id)
+        .maybeSingle();
 
-      // Load company email for auto-send (silent)
-      try {
-        const { data: settingsData } = await supabase
-          .from('company_settings')
-          .select('company_email')
-          .order('id', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        setCompanyEmail(settingsData?.company_email || null);
-      } catch (e) { console.warn('Settings load skipped:', e); }
+      const name =
+        profileData?.full_name ||
+        [profileData?.first_name, profileData?.last_name].filter(Boolean).join(' ') ||
+        '';
+      if (name) setWorkerName(name);
 
-      // Look up the active safety manual document record (optional — document text is embedded)
-      try {
-        const { data: manualData } = await supabase
-          .from('safety_documents')
-          .select('id, title, pdf_url, document_type, is_active')
-          .eq('document_type', 'company_safety_manual')
-          .eq('is_active', true)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        setManual((manualData as ManualDoc) || null);
-      } catch (e) { console.warn('Manual doc lookup skipped:', e); }
+      // Load company email for auto-send
+      const { data: settingsData } = await supabase
+        .from('company_settings')
+        .select('company_email')
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      setCompanyEmail(settingsData?.company_email || null);
 
-      // Check if already signed this week (works with or without a manual_document_id)
-      try {
-        const weekStart = formatDateOnly(getStartOfWeek());
-        let query = supabase
-          .from('safety_manual_acknowledgements')
+      const weekStart = formatDateOnly(getStartOfWeek());
+
+      const { data: topicData, error: topicError } = await supabase
+        .from('weekly_safety_topics')
+        .select('id, week_start, topic, pdf_url, video_url')
+        .eq('week_start', weekStart)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (topicError && topicError.code !== 'PGRST116') throw topicError;
+      setTopicRow((topicData as WeeklyTopic) || null);
+
+      if (topicData?.id) {
+        const { data: ackData, error: ackError } = await supabase
+          .from('weekly_meeting_acknowledgements')
           .select('id, signed_name')
           .eq('worker_id', user.id)
+          .eq('topic_id', topicData.id)
           .eq('week_start', weekStart)
-          .limit(1);
+          .limit(1)
+          .maybeSingle();
 
-        const { data: ackData } = await query.maybeSingle();
+        if (ackError && ackError.code !== 'PGRST116') throw ackError;
         setAlreadySigned(!!ackData);
-        if (ackData?.signed_name) setWorkerName(prev => ackData.signed_name || prev);
-      } catch (e) { console.warn('Ack check skipped:', e); }
-
+        if (ackData?.signed_name) setWorkerName(ackData.signed_name);
+      } else {
+        setAlreadySigned(false);
+      }
     } catch (error) {
-      // Auth or unexpected error — still show document, just log
-      console.error('loadManual outer error:', error);
+      console.error('Error loading weekly meeting:', error);
+      Alert.alert('Error', 'Could not load weekly safety meeting.');
     } finally {
       setLoading(false);
     }
   }
 
-  // Called when WebView posts a message (signature captured or empty)
+  // WebView signature message handler
   function handleWebViewMessage(event: any) {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
@@ -418,42 +367,48 @@ export default function SafetyManualScreen() {
       Alert.alert('Missing Signature', 'Please draw your signature.');
       return;
     }
+    if (!topicRow?.id) {
+      Alert.alert('Error', 'No weekly safety topic found.');
+      return;
+    }
 
     try {
       setSaving(true);
+
       const { data: { session: sess } } = await supabase.auth.getSession();
       const user = sess?.user;
       if (!user) throw new Error('Session expired. Please log in again.');
 
-      const weekStart   = formatDateOnly(getStartOfWeek());
-      const now         = new Date();
-      const signedAt    = now.toLocaleDateString('en-US', {
+      const weekStart = topicRow.week_start;
+      const topic = topicRow.topic || 'Weekly Safety Meeting';
+      const now = new Date();
+      const signedAt = now.toLocaleDateString('en-US', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit',
       });
 
-      // Build upsert payload — manual_document_id is optional (null if no DB record found)
-      const upsertPayload: any = {
-        worker_id:      user.id,
-        week_start:     weekStart,
-        signed_name:    workerName.trim(),
-        signature_text: signatureDataUrl,
-        signed_at:      now.toISOString(),
-      };
-      if (manual?.id) upsertPayload.manual_document_id = manual.id;
-
-      // Save the acknowledgement — get the row ID back so we can build the view URL
+      // Save the acknowledgement and get the row ID to build the view URL
       const { data: ackData, error: upsertError } = await supabase
-        .from('safety_manual_acknowledgements')
-        .upsert(upsertPayload, { onConflict: 'worker_id,week_start' })
+        .from('weekly_meeting_acknowledgements')
+        .upsert(
+          {
+            worker_id:      user.id,
+            topic_id:       topicRow.id,
+            week_start:     weekStart,
+            signed_name:    workerName.trim(),
+            signature_text: signatureDataUrl,
+            signed_at:      now.toISOString(),
+          },
+          { onConflict: 'worker_id,topic_id,week_start' }
+        )
         .select('id')
         .single();
       if (upsertError) throw upsertError;
 
       // Build the server-side view URL (renders HTML page from stored signature)
-      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=manual`;
+      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=meeting`;
       await supabase
-        .from('safety_manual_acknowledgements')
+        .from('weekly_meeting_acknowledgements')
         .update({ pdf_url: pdfUrl })
         .eq('id', ackData.id);
 
@@ -469,13 +424,15 @@ export default function SafetyManualScreen() {
             workerName: workerName.trim(),
             signedAt,
             pdfUrl,
-            type: 'manual',
+            type: 'meeting',
             companyEmail,
+            topic,
+            weekStart,
           }),
         }).catch(() => { /* silent — email failure never blocks the worker */ });
       }
 
-      Alert.alert('Signed', 'Safety Manual acknowledgement complete.', [
+      Alert.alert('Signed', 'Weekly Safety Meeting acknowledgement complete.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {
@@ -491,35 +448,89 @@ export default function SafetyManualScreen() {
     return (
       <View style={s.centered}>
         <ActivityIndicator size="large" />
-        <Text style={s.loadingText}>Loading safety manual...</Text>
+        <Text style={s.loadingText}>Loading weekly safety meeting...</Text>
+      </View>
+    );
+  }
+
+  if (!topicRow) {
+    return (
+      <View style={s.centered}>
+        <Text style={s.errorTitle}>No Weekly Topic Posted</Text>
+        <Text style={s.errorText}>
+          A manager has not posted this week's safety topic yet. Check back later.
+        </Text>
+        <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
+          <Text style={s.closeButtonText}>Close</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <View style={s.container}>
-      {/* Status badge */}
-      <View style={[s.badge, alreadySigned ? s.badgeGreen : s.badgeRed]}>
-        <Text style={s.badgeText}>{alreadySigned ? '✓ Acknowledged This Week' : '⚠ Signature Required — Read and sign below'}</Text>
-      </View>
+      <ScrollView contentContainerStyle={s.scroll}>
+        {/* Topic card */}
+        <View style={s.topicCard}>
+          <Text style={s.topicLabel}>This Week's Topic</Text>
+          <Text style={s.topicText}>{topicRow.topic || 'Weekly Safety Topic'}</Text>
+        </View>
 
-      {/* Inline document viewer — always shows embedded text, no external PDF needed */}
-      <View style={s.docViewerWrap}>
-        <WebView
-          source={{ html: DOCUMENT_HTML }}
-          style={s.docViewer}
-          scrollEnabled
-          javaScriptEnabled={false}
-          originWhitelist={['*']}
-          showsVerticalScrollIndicator
-        />
-      </View>
+        {/* Status badge */}
+        <View style={[s.badge, alreadySigned ? s.badgeGreen : s.badgeRed]}>
+          <Text style={s.badgeText}>
+            {alreadySigned ? '✓ Acknowledged This Week' : '⚠ Signature Required'}
+          </Text>
+        </View>
 
-      {/* Bottom bar — fixed */}
+        {/* Reference document / video links */}
+        {topicRow.pdf_url ? (
+          <TouchableOpacity
+            style={s.openPdfButton}
+            onPress={() => Linking.openURL(topicRow.pdf_url!)}
+          >
+            <Text style={s.openPdfIcon}>📄</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.openPdfText}>Open Reference Document</Text>
+              <Text style={s.openPdfSub}>Opens in your browser</Text>
+            </View>
+            <Text style={s.openPdfArrow}>›</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {topicRow.video_url ? (
+          <TouchableOpacity
+            style={[s.openPdfButton, { borderColor: '#19B6D2' }]}
+            onPress={() => Linking.openURL(topicRow.video_url!)}
+          >
+            <Text style={s.openPdfIcon}>▶️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.openPdfText, { color: '#19B6D2' }]}>Watch Training Video</Text>
+              <Text style={s.openPdfSub}>Opens in your browser</Text>
+            </View>
+            <Text style={s.openPdfArrow}>›</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {!topicRow.pdf_url && !topicRow.video_url && (
+          <View style={s.noPdfBox}>
+            <Text style={s.noPdfText}>No reference document or video attached for this topic.</Text>
+          </View>
+        )}
+
+        {!alreadySigned && (
+          <View style={s.instructionBox}>
+            <Text style={s.instructionText}>
+              Review the topic above, then tap "Sign Weekly Meeting" below to acknowledge attendance.
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
       <View style={s.bottomBar}>
         {!alreadySigned && (
           <TouchableOpacity style={s.signButton} onPress={openSignModal}>
-            <Text style={s.signButtonText}>✍️  Sign Safety Manual</Text>
+            <Text style={s.signButtonText}>Sign Weekly Meeting</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
@@ -528,35 +539,43 @@ export default function SafetyManualScreen() {
       </View>
 
       {/* ── Signature Modal ── */}
-      <Modal visible={showSignModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeSignModal}>
+      <Modal
+        visible={showSignModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={closeSignModal}
+      >
         <View style={s.modalWrap}>
 
           {/* Header */}
           <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Sign Safety Manual</Text>
-            <TouchableOpacity onPress={closeSignModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={s.modalTitle}>Sign Weekly Safety Meeting</Text>
+            <TouchableOpacity
+              onPress={closeSignModal}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
               <Text style={s.modalClose}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Worker name — read-only, pulled from profile */}
+          {/* Worker name — read-only from profile */}
           <View style={s.nameSection}>
             <Text style={s.fieldLabel}>Signing As</Text>
             <View style={s.nameDisplay}>
               <Text style={s.nameDisplayText}>{workerName || 'Unknown Worker'}</Text>
             </View>
-            <Text style={s.nameSub}>Name is pulled from your profile. Contact your manager to update it.</Text>
+            <Text style={s.nameSub}>
+              Name is pulled from your profile. Contact your manager to update it.
+            </Text>
           </View>
 
           {sigStep === 'pad' ? (
             <>
-              {/* Signature instructions */}
               <View style={s.padLabelRow}>
                 <Text style={s.fieldLabel}>Signature</Text>
                 <Text style={s.padHint}>Draw your signature in the box below</Text>
               </View>
 
-              {/* Signature WebView canvas */}
               <View style={s.canvasWrap}>
                 <WebView
                   ref={webviewRef}
@@ -573,7 +592,6 @@ export default function SafetyManualScreen() {
             </>
           ) : (
             <>
-              {/* Signature preview */}
               <View style={s.previewSection}>
                 <Text style={s.fieldLabel}>Signature Preview</Text>
                 <View style={s.previewBox}>
@@ -584,12 +602,14 @@ export default function SafetyManualScreen() {
                     />
                   ) : null}
                 </View>
-                <TouchableOpacity onPress={() => { setSigStep('pad'); setSignatureDataUrl(null); }} style={s.redrawButton}>
+                <TouchableOpacity
+                  onPress={() => { setSigStep('pad'); setSignatureDataUrl(null); }}
+                  style={s.redrawButton}
+                >
                   <Text style={s.redrawText}>Redraw Signature</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Confirm button */}
               <View style={s.confirmSection}>
                 <TouchableOpacity
                   style={[s.confirmButton, saving && s.disabledButton]}
@@ -614,21 +634,35 @@ export default function SafetyManualScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container:   { flex: 1, backgroundColor: '#D6E8FF' },
+  scroll:      { padding: 16, gap: 12 },
   centered:    { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', padding: 24 },
   loadingText: { marginTop: 12, color: '#555' },
   errorTitle:  { fontSize: 20, fontWeight: '800', marginBottom: 8, color: '#111' },
   errorText:   { color: '#555', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-  badge:       { margin: 12, marginBottom: 0, alignSelf: 'stretch', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+  topicCard:   { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e5e7eb' },
+  topicLabel:  { fontSize: 11, fontWeight: '800', color: '#64748B', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  topicText:   { color: '#0F172A', lineHeight: 24, fontWeight: '700', fontSize: 17 },
+  badge:       { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   badgeGreen:  { backgroundColor: '#dff6e6' },
   badgeRed:    { backgroundColor: '#fde7e7' },
-  badgeText:   { fontSize: 13, fontWeight: '800', color: '#222', textAlign: 'center' },
+  badgeText:   { fontSize: 13, fontWeight: '800', color: '#222' },
 
-  // Inline document viewer
-  docViewerWrap: { flex: 1, margin: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#fff' },
-  docViewer:     { flex: 1, backgroundColor: '#fff' },
+  // Open PDF row
+  openPdfButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#E2E8F0', gap: 12 },
+  openPdfIcon:   { fontSize: 28 },
+  openPdfText:   { fontSize: 15, fontWeight: '800', color: '#16356B' },
+  openPdfSub:    { fontSize: 12, color: '#64748B', marginTop: 2 },
+  openPdfArrow:  { fontSize: 22, color: '#94A3B8', fontWeight: '700' },
+
+  noPdfBox:    { borderRadius: 12, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e5e7eb', alignItems: 'center', padding: 16 },
+  noPdfText:   { color: '#555', textAlign: 'center' },
+
+  // Instruction
+  instructionBox:  { backgroundColor: '#FFF8E1', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FFE082' },
+  instructionText: { color: '#7B5800', fontSize: 13, lineHeight: 20, fontWeight: '600', textAlign: 'center' },
 
   bottomBar:   { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: '#e6e8ec', backgroundColor: '#fff', gap: 10 },
-  signButton:  { backgroundColor: '#16356B', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  signButton:  { backgroundColor: '#dc2626', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   signButtonText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   closeButton: { backgroundColor: '#1f2937', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   closeButtonText: { color: '#fff', fontSize: 16, fontWeight: '800' },

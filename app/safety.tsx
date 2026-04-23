@@ -66,87 +66,62 @@ export default function SafetyScreen() {
     try {
       setLoading(true);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      // Use getSession() — reads local storage, no network call, won't fail offline
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) { setLoading(false); return; }
 
-      if (userError) throw userError;
-      if (!user) throw new Error('User not authenticated');
-
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-      setProfile(profileData as Profile);
+      // Load profile (silent — never crash the status screen)
+      try {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', user.id)
+          .single();
+        if (profileData) setProfile(profileData as Profile);
+      } catch (e) { console.warn('Profile load skipped:', e); }
 
       const weekStart = formatDateOnly(getStartOfWeek());
 
-      const { data: activeManual, error: activeManualError } = await supabase
-        .from('safety_documents')
-        .select('id')
-        .eq('document_type', 'company_safety_manual')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (activeManualError && activeManualError.code !== 'PGRST116') {
-        throw activeManualError;
-      }
-
-      if (activeManual?.id) {
-        const { data: manualAck, error: manualAckError } = await supabase
+      // Check manual signed — by worker_id + week_start only (works even without a manual document record)
+      try {
+        const { data: manualAck } = await supabase
           .from('safety_manual_acknowledgements')
           .select('id')
-          .eq('user_id', user.id)
-          .eq('manual_document_id', activeManual.id)
+          .eq('worker_id', user.id)
+          .eq('week_start', weekStart)
           .limit(1)
           .maybeSingle();
-
-        if (manualAckError && manualAckError.code !== 'PGRST116') {
-          throw manualAckError;
-        }
-
         setManualSigned(!!manualAck);
-      } else {
-        setManualSigned(false);
-      }
+      } catch (e) { console.warn('Manual ack check skipped:', e); }
 
-      const { data: topicData, error: topicError } = await supabase
-        .from('weekly_safety_topics')
-        .select('*')
-        .eq('week_start', weekStart)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Load weekly topic
+      let topicId: number | null = null;
+      try {
+        const { data: topicData } = await supabase
+          .from('weekly_safety_topics')
+          .select('*')
+          .eq('week_start', weekStart)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setCurrentTopic((topicData as WeeklyTopic) || null);
+        topicId = topicData?.id || null;
+      } catch (e) { console.warn('Topic load skipped:', e); }
 
-      if (topicError && topicError.code !== 'PGRST116') {
-        throw topicError;
-      }
-
-      setCurrentTopic((topicData as WeeklyTopic) || null);
-
-      if (topicData?.id) {
-        const { data: meetingData, error: meetingError } = await supabase
+      // Check meeting signed — by worker_id + week_start (+ topic_id if available)
+      try {
+        let query = supabase
           .from('weekly_meeting_acknowledgements')
           .select('id')
-          .eq('user_id', user.id)
-          .eq('weekly_topic_id', topicData.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (meetingError && meetingError.code !== 'PGRST116') {
-          throw meetingError;
-        }
-
+          .eq('worker_id', user.id)
+          .eq('week_start', weekStart)
+          .limit(1);
+        if (topicId) query = query.eq('topic_id', topicId);
+        const { data: meetingData } = await query.maybeSingle();
         setMeetingSigned(!!meetingData);
-      } else {
-        setMeetingSigned(false);
-      }
+      } catch (e) { console.warn('Meeting ack check skipped:', e); }
+
     } catch (error) {
       console.error('Error loading safety status:', error);
     } finally {
@@ -282,7 +257,7 @@ export default function SafetyScreen() {
 
           <TouchableOpacity
             style={styles.primaryButton}
-            onPress={() => router.push('/manager/safety/meeting')}
+            onPress={() => router.push('/weekly-safety-meeting')}
           >
             <Text style={styles.primaryButtonText}>
               {meetingSigned ? 'Open Weekly Meeting' : 'Sign Weekly Meeting'}
