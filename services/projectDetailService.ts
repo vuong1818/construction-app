@@ -1,4 +1,3 @@
-import { decode as atob } from 'base-64'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Linking from 'expo-linking'
 import { supabase } from '../lib/supabase'
@@ -46,114 +45,123 @@ export function cleanFileName(name: string) {
   const parts = name.split('.')
   const ext = parts.length > 1 ? parts.pop() : ''
   const base = parts.join('.')
-
   const safeBase = base
     .normalize('NFKD')
     .replace(/[^\w\s.-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '')
-
   if (!ext) return safeBase || `file-${Date.now()}`
   return `${safeBase || `file-${Date.now()}`}.${ext.toLowerCase()}`
 }
 
 async function requireSessionUser() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session?.user) {
-    throw new Error('Please sign in first')
-  }
-
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) throw new Error('Please sign in first')
   return session.user
+}
+
+// Merge two arrays of ProjectFile, deduplicating by file_path (keep first seen)
+function mergeFiles(primary: ProjectFile[], secondary: ProjectFile[]): ProjectFile[] {
+  const seen = new Set(primary.map(f => f.file_path))
+  const extras = secondary.filter(f => f.file_path && !seen.has(f.file_path))
+  return [...primary, ...extras].sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
 }
 
 export async function loadProjectDetail(projectId: number): Promise<ProjectDetailData> {
   const { data: projectData, error: projectError } = await supabase
-    .from('projects')
-    .select('*')
-    .eq('id', projectId)
-    .single()
+    .from('projects').select('*').eq('id', projectId).single()
+  if (projectError) throw new Error(projectError.message)
 
-  if (projectError) {
-    throw new Error(projectError.message)
-  }
-
-  const [photosResult, plansResult, reportsResult] = await Promise.all([
-    supabase
-      .from('project_files')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('bucket_name', 'project-photos')
-      .order('created_at', { ascending: false }),
-
-    supabase
-      .from('project_files')
-      .select('*')
-      .eq('project_id', projectId)
-      .eq('bucket_name', 'project-plans')
-      .order('created_at', { ascending: false }),
-
-    supabase
-      .from('daily_reports')
-      .select('*')
-      .eq('project_id', projectId)
+  const [mobilePhotos, mobilePlans, webPlans, webPhotos, reportsResult] = await Promise.all([
+    // Mobile uploads (project_files table)
+    supabase.from('project_files').select('*').eq('project_id', projectId)
+      .eq('bucket_name', 'project-photos').order('created_at', { ascending: false }),
+    supabase.from('project_files').select('*').eq('project_id', projectId)
+      .eq('bucket_name', 'project-plans').order('created_at', { ascending: false }),
+    // Web portal uploads (project_plans / project_photos tables)
+    supabase.from('project_plans').select('id, project_id, name, file_path, created_at')
+      .eq('project_id', projectId).order('created_at', { ascending: false }),
+    supabase.from('project_photos').select('id, project_id, file_path, created_at')
+      .eq('project_id', projectId).order('created_at', { ascending: false }),
+    supabase.from('daily_reports').select('*').eq('project_id', projectId)
       .order('report_date', { ascending: false }),
   ])
 
-  if (photosResult.error) {
-    throw new Error(photosResult.error.message)
-  }
+  // Map web plans to ProjectFile shape
+  const webPlansNorm: ProjectFile[] = (webPlans.data || []).map((p: any) => ({
+    id: p.id,
+    file_name: p.name || (p.file_path ? p.file_path.split('/').pop() : 'plan.pdf'),
+    original_name: p.name || null,
+    file_path: p.file_path || '',
+    created_at: p.created_at,
+    bucket_name: 'project-plans',
+    file_type: 'application/pdf',
+  }))
 
-  if (plansResult.error) {
-    throw new Error(plansResult.error.message)
-  }
-
-  if (reportsResult.error) {
-    throw new Error(reportsResult.error.message)
-  }
+  // Map web photos to ProjectFile shape
+  const webPhotosNorm: ProjectFile[] = (webPhotos.data || []).map((p: any) => ({
+    id: p.id,
+    file_name: p.file_path ? p.file_path.split('/').pop() : 'photo.jpg',
+    original_name: p.file_path ? p.file_path.split('/').pop() : null,
+    file_path: p.file_path || '',
+    created_at: p.created_at,
+    bucket_name: 'project-photos',
+    file_type: 'image/jpeg',
+  }))
 
   return {
     project: projectData,
-    photos: photosResult.data || [],
-    plans: plansResult.data || [],
+    photos: mergeFiles(mobilePhotos.data || [], webPhotosNorm),
+    plans:  mergeFiles(mobilePlans.data || [],  webPlansNorm),
     reports: reportsResult.data || [],
   }
 }
 
 export async function reloadPhotos(projectId: number) {
-  const { data, error } = await supabase
-    .from('project_files')
-    .select('*')
-    .eq('project_id', projectId)
-    .eq('bucket_name', 'project-photos')
-    .order('created_at', { ascending: false })
-
-  if (error) throw new Error(error.message)
-  return data || []
+  const [mobile, web] = await Promise.all([
+    supabase.from('project_files').select('*').eq('project_id', projectId)
+      .eq('bucket_name', 'project-photos').order('created_at', { ascending: false }),
+    supabase.from('project_photos').select('id, project_id, file_path, created_at')
+      .eq('project_id', projectId).order('created_at', { ascending: false }),
+  ])
+  const webNorm: ProjectFile[] = (web.data || []).map((p: any) => ({
+    id: p.id,
+    file_name: p.file_path ? p.file_path.split('/').pop() : 'photo.jpg',
+    original_name: p.file_path ? p.file_path.split('/').pop() : null,
+    file_path: p.file_path || '',
+    created_at: p.created_at,
+    bucket_name: 'project-photos',
+    file_type: 'image/jpeg',
+  }))
+  return mergeFiles(mobile.data || [], webNorm)
 }
 
 export async function reloadPlans(projectId: number) {
-  const { data, error } = await supabase
-    .from('project_files')
-    .select('*')
-    .eq('project_id', projectId)
-    .eq('bucket_name', 'project-plans')
-    .order('created_at', { ascending: false })
-
-  if (error) throw new Error(error.message)
-  return data || []
+  const [mobile, web] = await Promise.all([
+    supabase.from('project_files').select('*').eq('project_id', projectId)
+      .eq('bucket_name', 'project-plans').order('created_at', { ascending: false }),
+    supabase.from('project_plans').select('id, project_id, name, file_path, created_at')
+      .eq('project_id', projectId).order('created_at', { ascending: false }),
+  ])
+  const webNorm: ProjectFile[] = (web.data || []).map((p: any) => ({
+    id: p.id,
+    file_name: p.name || (p.file_path ? p.file_path.split('/').pop() : 'plan.pdf'),
+    original_name: p.name || null,
+    file_path: p.file_path || '',
+    created_at: p.created_at,
+    bucket_name: 'project-plans',
+    file_type: 'application/pdf',
+  }))
+  return mergeFiles(mobile.data || [], webNorm)
 }
 
 export async function reloadReports(projectId: number) {
   const { data, error } = await supabase
-    .from('daily_reports')
-    .select('*')
-    .eq('project_id', projectId)
+    .from('daily_reports').select('*').eq('project_id', projectId)
     .order('report_date', { ascending: false })
-
   if (error) throw new Error(error.message)
   return data || []
 }
@@ -172,29 +180,14 @@ export async function uploadProjectFile(params: {
   const storageFileName = `project-${projectId}-${Date.now()}-${safeName}`
   const filePath = `project-${projectId}/${storageFileName}`
 
-  const base64 = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  })
-
-  const byteCharacters = atob(base64)
-  const byteNumbers = new Array(byteCharacters.length)
-
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i)
-  }
-
-  const byteArray = new Uint8Array(byteNumbers)
+  // fetch + arrayBuffer — reliable binary upload on React Native
+  const fileResp = await fetch(uri)
+  if (!fileResp.ok) throw new Error('Could not read file.')
+  const arrayBuffer = await fileResp.arrayBuffer()
 
   const { error: uploadError } = await supabase.storage
-    .from(bucketName)
-    .upload(filePath, byteArray, {
-      contentType: mimeType,
-      upsert: false,
-    })
-
-  if (uploadError) {
-    throw new Error(uploadError.message)
-  }
+    .from(bucketName).upload(filePath, arrayBuffer, { contentType: mimeType, upsert: false })
+  if (uploadError) throw new Error(uploadError.message)
 
   const { error: dbError } = await supabase.from('project_files').insert({
     project_id: projectId,
@@ -217,13 +210,9 @@ export function getPhotoUrl(photo: ProjectFile) {
 }
 
 export async function openPlan(plan: ProjectFile) {
+  const bucket = plan.bucket_name || 'project-plans'
   const { data, error } = await supabase.storage
-    .from(plan.bucket_name)
-    .createSignedUrl(plan.file_path, 60 * 60)
-
-  if (error || !data?.signedUrl) {
-    throw new Error('This file could not be found in storage.')
-  }
-
+    .from(bucket).createSignedUrl(plan.file_path, 60 * 60)
+  if (error || !data?.signedUrl) throw new Error('This file could not be found in storage.')
   await Linking.openURL(data.signedUrl)
 }

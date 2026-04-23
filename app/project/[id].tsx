@@ -5,15 +5,16 @@ import {
   Image,
   Modal,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',
@@ -237,14 +238,6 @@ export default function ProjectDetailScreen() {
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="file-upload-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={uploading ? 'Working...' : 'Upload Plan'}
-            onPress={uploadPlan}
-            disabled={uploading}
-          />
           <BigActionCard
             icon="file-eye-outline"
             iconBg={COLORS.tealSoft}

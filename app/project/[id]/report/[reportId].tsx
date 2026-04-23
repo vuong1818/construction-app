@@ -3,11 +3,12 @@ import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../../../lib/supabase'
 
 type DailyReport = {
@@ -22,7 +23,7 @@ type DailyReport = {
 }
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',

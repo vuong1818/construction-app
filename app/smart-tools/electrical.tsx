@@ -5,15 +5,16 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 const C = {
-  bg: '#F6F8FB',
+  bg: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',

@@ -3,16 +3,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useNewReport } from '../../../hooks/useNewReport'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   text: '#0F172A',

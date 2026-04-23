@@ -1,9 +1,10 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { Pressable, SafeAreaView, ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',
@@ -19,7 +20,6 @@ const CATEGORIES = [
     icon: 'lightning-bolt' as const,
     label: 'Electrical',
     desc: 'Ampacity, conduit fill, voltage drop, fault current, box fill',
-    count: '6 calculators',
     iconBg: '#FFF8E1',
     iconColor: '#F9A825',
     accent: '#F9A825',
@@ -29,7 +29,6 @@ const CATEGORIES = [
     icon: 'pipe' as const,
     label: 'Plumbing',
     desc: 'Pipe sizing, fixture units, DWV, gas pipe, pressure loss',
-    count: '5 calculators',
     iconBg: '#E3F2FD',
     iconColor: '#1565C0',
     accent: '#1565C0',
@@ -39,7 +38,6 @@ const CATEGORIES = [
     icon: 'snowflake' as const,
     label: 'Mechanical',
     desc: 'HVAC load, duct sizing, refrigerant P-T, ventilation, CFM/tons, duct conversion',
-    count: '6 calculators',
     iconBg: '#E8F5E9',
     iconColor: '#2E7D32',
     accent: '#2E7D32',
@@ -49,7 +47,6 @@ const CATEGORIES = [
     icon: 'office-building' as const,
     label: 'Building',
     desc: 'Concrete, span tables, footing reference, material estimator',
-    count: '4 calculators',
     iconBg: '#F3E5F5',
     iconColor: '#6A1B9A',
     accent: '#6A1B9A',
@@ -106,18 +103,7 @@ export default function SmartToolsIndex() {
                 <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800' }}>
                   {cat.label}
                 </Text>
-                <View
-                  style={{
-                    backgroundColor: cat.iconBg,
-                    borderRadius: 100,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                  }}
-                >
-                  <Text style={{ color: cat.accent, fontSize: 11, fontWeight: '700' }}>
-                    {cat.count}
-                  </Text>
-                </View>
+  
               </View>
               <Text style={{ color: COLORS.subtext, fontSize: 13, lineHeight: 18 }}>{cat.desc}</Text>
             </View>

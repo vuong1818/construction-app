@@ -4,16 +4,17 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useManagerSummary } from '../../hooks/useManagerSummary'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',
@@ -299,9 +300,9 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Plans"
-          subtitle="Add, rename, update, and delete project PDF plans."
-          icon="file-pdf-box"
+          title="Projects & Plans"
+          subtitle="Create projects, upload and delete PDF plans, manage project status."
+          icon="briefcase-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
           onPress={() => router.push('/manager/plans')}

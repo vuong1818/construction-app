@@ -5,11 +5,12 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { supabase } from '../lib/supabase'
 
@@ -23,7 +24,7 @@ type Project = {
 }
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',

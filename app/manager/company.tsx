@@ -7,16 +7,17 @@ import {
   Alert,
   Image,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',
@@ -40,6 +41,7 @@ type CompanySettings = {
   ein_number: string | null
   sales_tax_id: string | null
   logo_url: string | null
+  company_email: string | null
 }
 
 type FormState = {
@@ -51,6 +53,7 @@ type FormState = {
   ein_number: string
   sales_tax_id: string
   logo_url: string
+  company_email: string
 }
 
 const EMPTY_FORM: FormState = {
@@ -62,6 +65,7 @@ const EMPTY_FORM: FormState = {
   ein_number: '',
   sales_tax_id: '',
   logo_url: '',
+  company_email: '',
 }
 
 function Field({
@@ -69,11 +73,15 @@ function Field({
   value,
   onChangeText,
   placeholder,
+  keyboardType,
+  autoCapitalize,
 }: {
   label: string
   value: string
   onChangeText: (text: string) => void
   placeholder?: string
+  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad'
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters'
 }) {
   return (
     <View style={{ marginBottom: 14 }}>
@@ -92,7 +100,8 @@ function Field({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={COLORS.subtext}
-        autoCapitalize="words"
+        autoCapitalize={autoCapitalize ?? 'words'}
+        keyboardType={keyboardType ?? 'default'}
         style={{
           backgroundColor: COLORS.white,
           borderWidth: 1,
@@ -204,7 +213,7 @@ export default function CompanyScreen() {
 
       const { data, error } = await supabase
         .from('company_settings')
-        .select('id, company_name, street, city, state, zip, ein_number, sales_tax_id, logo_url')
+        .select('id, company_name, street, city, state, zip, ein_number, sales_tax_id, logo_url, company_email')
         .order('id', { ascending: true })
         .limit(1)
         .maybeSingle()
@@ -225,6 +234,7 @@ export default function CompanyScreen() {
           ein_number: data.ein_number || '',
           sales_tax_id: data.sales_tax_id || '',
           logo_url: data.logo_url || '',
+          company_email: data.company_email || '',
         })
       } else {
         setSettingsId(null)
@@ -251,6 +261,7 @@ export default function CompanyScreen() {
         ein_number: form.ein_number.trim() || null,
         sales_tax_id: form.sales_tax_id.trim() || null,
         logo_url: form.logo_url.trim() || null,
+        company_email: form.company_email.trim() || null,
       })
       .select('id')
       .single()
@@ -281,6 +292,7 @@ export default function CompanyScreen() {
         ein_number: form.ein_number.trim() || null,
         sales_tax_id: form.sales_tax_id.trim() || null,
         logo_url: form.logo_url.trim() || null,
+        company_email: form.company_email.trim() || null,
       }
 
       if (settingsId) {
@@ -583,6 +595,15 @@ export default function CompanyScreen() {
             value={form.sales_tax_id}
             onChangeText={(text) => setField('sales_tax_id', text)}
             placeholder="Sales tax ID"
+          />
+
+          <Field
+            label="Company Email"
+            value={form.company_email}
+            onChangeText={(text) => setField('company_email', text)}
+            placeholder="company@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
           />
         </View>
 

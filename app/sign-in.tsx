@@ -8,12 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { supabase } from '../lib/supabase'
 
@@ -152,8 +153,28 @@ export default function SignInScreen() {
     }
   }
 
-  function handleForgotPassword() {
-    Alert.alert('Forgot Password', 'Password reset can be added next.')
+  async function handleForgotPassword() {
+    const emailToReset = email.trim().toLowerCase()
+    if (!emailToReset) {
+      Alert.alert(
+        'Enter Your Email First',
+        'Type your email address in the field above, then tap "Forgot password?" to receive a reset link.'
+      )
+      return
+    }
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset)
+      if (error) throw error
+      Alert.alert(
+        'Check Your Email 📬',
+        `A password reset link has been sent to ${emailToReset}.\n\nCheck your inbox (and spam folder).`
+      )
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not send reset email. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

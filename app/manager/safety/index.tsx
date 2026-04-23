@@ -8,12 +8,12 @@ import {
   Modal,
   Pressable,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -178,12 +178,17 @@ function DocChip({
   )
 }
 
-// ─── Open PDF in browser ──────────────────────────────────────────────────────
+// ─── Open URL in browser ──────────────────────────────────────────────────────
 async function openPdf(url: string) {
   try {
-    await Linking.openURL(url)
+    const supported = await Linking.canOpenURL(url)
+    if (supported) {
+      await Linking.openURL(url)
+    } else {
+      Alert.alert('Cannot Open', 'No browser available to open this link. Visit nguyenmep.com/portal/safety on a desktop browser to view signed documents.')
+    }
   } catch {
-    Alert.alert('Error', 'Could not open PDF.')
+    Alert.alert('Error', 'Could not open link.')
   }
 }
 
@@ -637,7 +642,7 @@ export default function ManagerSafetyScreen() {
             <Pressable onPress={() => {
               if (!viewingAck) return
               const url = `https://nguyenmep.com/portal/view-ack?id=${viewingAck.id}&type=${viewingAckType}`
-              Linking.openURL(url)
+              openPdf(url)
             }}>
               <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 Print</Text>
             </Pressable>

@@ -9,11 +9,12 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
+  
   ScrollView,
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { t } from '../../lib/i18n'
 import { getSavedLanguage, saveLanguage } from '../../lib/language'
@@ -40,12 +41,13 @@ type TimeEntry = {
 type Profile = {
   full_name: string | null
   role: string | null
+  wage: number | null
 }
 
 type Language = 'en' | 'es'
 
 const COLORS = {
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   navy: '#16356B',
   teal: '#19B6D2',
@@ -114,6 +116,18 @@ export default function HomeScreen() {
     weekEnd.setHours(23, 59, 59, 999)
 
     return { weekStart, weekEnd }
+  }
+
+  // Safety acks are stored with Monday-based week_start (matches safety-manual.tsx / weekly-safety-meeting.tsx).
+  // Must use the same calculation here or the lookup will never find the row.
+  function getSafetyWeekStart(): string {
+    const now = new Date()
+    const day = now.getDay()          // 0=Sun … 6=Sat
+    const diff = day === 0 ? -6 : 1 - day  // go back to Monday
+    const monday = new Date(now)
+    monday.setDate(now.getDate() + diff)
+    monday.setHours(0, 0, 0, 0)
+    return monday.toISOString().split('T')[0]
   }
 
   function getTodayRange() {
@@ -189,7 +203,7 @@ export default function HomeScreen() {
 
       const profileResult = await supabase
         .from('profiles')
-        .select('full_name, role')
+        .select('full_name, role, wage')
         .eq('id', currentUserId)
         .maybeSingle()
 
@@ -219,7 +233,8 @@ export default function HomeScreen() {
       }
 
       const { weekStart, weekEnd } = getWorkWeekRange()
-      const currentWeekStart = weekStartDateString(weekStart)
+      // Safety acks use Monday-based week_start — must match what safety-manual.tsx writes
+      const safetyWeekStart = getSafetyWeekStart()
 
       const weeklyResult = await supabase
         .from('time_entries')
@@ -259,14 +274,14 @@ export default function HomeScreen() {
           .from('safety_manual_acknowledgements')
           .select('id')
           .eq('worker_id', currentUserId)
-          .eq('week_start', currentWeekStart)
+          .eq('week_start', safetyWeekStart)  // Monday-based to match signing screens
           .maybeSingle(),
 
         supabase
           .from('weekly_meeting_acknowledgements')
           .select('id')
           .eq('worker_id', currentUserId)
-          .eq('week_start', currentWeekStart)
+          .eq('week_start', safetyWeekStart)  // Monday-based to match signing screens
           .maybeSingle(),
       ])
 
@@ -606,6 +621,11 @@ export default function HomeScreen() {
           <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800' }}>
             {formatHours(weeklyTotalHours)} hrs
           </Text>
+          {profile?.wage ? (
+            <Text style={{ color: '#19B6D2', fontSize: 20, fontWeight: '700', marginTop: 4 }}>
+              ${(weeklyTotalHours * profile.wage).toFixed(2)} earned
+            </Text>
+          ) : null}
         </View>
 
         <View
@@ -706,7 +726,7 @@ export default function HomeScreen() {
         </View>
 
         <Pressable
-          onPress={() => router.push('/smart-tools/index')}
+          onPress={() => router.push('/smart-tools')}
           style={{
             backgroundColor: COLORS.navy,
             borderRadius: 24,
@@ -752,9 +772,17 @@ export default function HomeScreen() {
               padding: 20,
             }}
           >
-            <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
-              {t(language, 'clockInClockOut')}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text }}>
+                {t(language, 'clockInClockOut')}
+              </Text>
+              <Pressable
+                onPress={() => setClockModalVisible(false)}
+                style={{ backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 }}
+              >
+                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>✕ Close</Text>
+              </Pressable>
+            </View>
 
             {!safetyCompleted() ? (
               <View
@@ -877,14 +905,11 @@ export default function HomeScreen() {
                   {t(language, 'clockOut')}
                 </Text>
               </Pressable>
-
               <Pressable
                 onPress={() => setClockModalVisible(false)}
-                style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center' }}
+                style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}
               >
-                <Text style={{ color: COLORS.subtext, fontSize: 15, fontWeight: '600' }}>
-                  {t(language, 'close')}
-                </Text>
+                <Text style={{ color: COLORS.subtext, fontSize: 16, fontWeight: '700' }}>Cancel</Text>
               </Pressable>
             </View>
           </View>
