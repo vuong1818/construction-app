@@ -1,10 +1,7 @@
 import { Redirect } from 'expo-router'
 import { useEffect, useState } from 'react'
-import {
-  ActivityIndicator,
-  SafeAreaView,
-  Text,
-} from 'react-native'
+import { ActivityIndicator, Text, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
 
 export default function IndexScreen() {
@@ -43,7 +40,7 @@ export default function IndexScreen() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#F6F8FB',
+          backgroundColor: '#D6E8FF',
         }}
       >
         <ActivityIndicator size="large" color="#19B6D2" />
