@@ -1,0 +1,17 @@
+export const COLORS = {
+  background: '#F6F8FB',
+  card: '#FFFFFF',
+  navy: '#16356B',
+  teal: '#19B6D2',
+  tealSoft: '#E7F9FC',
+  navySoft: '#EAF0F8',
+  red: '#EF4444',
+  text: '#0F172A',
+  subtext: '#64748B',
+  border: '#E2E8F0',
+  white: '#FFFFFF',
+  green: '#22C55E',
+  dangerSoft: '#FEF2F2',
+  disabled: '#94A3B8',
+  disabledSoft: '#CBD5E1',
+}
