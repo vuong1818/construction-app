@@ -300,6 +300,15 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
+          title="Tasks"
+          subtitle="All open tasks across active projects, sorted by overdue first."
+          icon="format-list-checks"
+          iconBg={COLORS.navySoft}
+          iconColor={COLORS.navy}
+          onPress={() => router.push('/manager/tasks')}
+        />
+
+        <ManagerCard
           title="Reports"
           subtitle="Browse reports by project and modify or delete daily reports."
           icon="clipboard-text-outline"

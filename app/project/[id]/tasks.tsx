@@ -33,15 +33,24 @@ const COLORS = {
   white: '#FFFFFF',
 }
 
-type Status = 'assigned' | 'in_progress' | 'done'
+type Status = 'assigned' | 'in_progress' | 'completed'
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string }> = {
   assigned:    { label: 'Assigned',    color: '#1565C0', bg: '#E3F2FD' },
   in_progress: { label: 'In Progress', color: '#E65100', bg: '#FFF3E0' },
-  done:        { label: 'Done',        color: '#2E7D32', bg: '#E8F5E9' },
+  completed:   { label: 'Completed',   color: '#2E7D32', bg: '#E8F5E9' },
 }
 
-const STATUS_ORDER: Status[] = ['assigned', 'in_progress', 'done']
+// Sort: in_progress first, then assigned, then completed (overdue is bumped above all in code).
+const STATUS_ORDER: Status[] = ['in_progress', 'assigned', 'completed']
+
+const OVERDUE_BADGE = { label: 'Overdue', color: '#C62828', bg: '#FFEBEE' }
+
+export function isTaskOverdue(t: { task_date: string | null; status: Status }): boolean {
+  if (!t.task_date || t.status === 'completed') return false
+  const due = new Date(t.task_date + 'T23:59:59')
+  return due < new Date()
+}
 
 type Task = {
   id: number
@@ -135,10 +144,13 @@ export default function ProjectTasksScreen() {
       const visible = manager ? allTasks : allTasks.filter(t => t.assigned_to === session.user.id)
       // Sort: status priority, then date desc
       visible.sort((a, b) => {
+        const oa = isTaskOverdue(a) ? -1 : 0
+        const ob = isTaskOverdue(b) ? -1 : 0
+        if (oa !== ob) return oa - ob
         const sa = STATUS_ORDER.indexOf(a.status)
         const sb = STATUS_ORDER.indexOf(b.status)
         if (sa !== sb) return sa - sb
-        return (b.task_date || '').localeCompare(a.task_date || '')
+        return (a.task_date || '').localeCompare(b.task_date || '')
       })
       setTasks(visible)
 
@@ -329,6 +341,7 @@ export default function ProjectTasksScreen() {
           tasks.map(task => {
             const cfg = STATUS_CONFIG[task.status]
             const editable = canEdit(task)
+            const overdue = isTaskOverdue(task)
             return (
               <Pressable
                 key={task.id}
@@ -337,7 +350,8 @@ export default function ProjectTasksScreen() {
                   backgroundColor: COLORS.card,
                   borderRadius: 22,
                   borderWidth: 1,
-                  borderColor: COLORS.border,
+                  borderColor: overdue ? '#C62828' : COLORS.border,
+                  borderLeftWidth: overdue ? 4 : 1,
                   padding: 16,
                   marginBottom: 12,
                 }}
@@ -348,7 +362,16 @@ export default function ProjectTasksScreen() {
                       {cfg.label.toUpperCase()}
                     </Text>
                   </View>
-                  <Text style={{ color: COLORS.subtext, fontSize: 12 }}>📅 {formatDate(task.task_date)}</Text>
+                  {overdue && (
+                    <View style={{ backgroundColor: OVERDUE_BADGE.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100 }}>
+                      <Text style={{ color: OVERDUE_BADGE.color, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 }}>
+                        {`⚠ ${OVERDUE_BADGE.label.toUpperCase()}`}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={{ color: overdue ? OVERDUE_BADGE.color : COLORS.subtext, fontSize: 12, fontWeight: overdue ? '700' : '400' }}>
+                    📅 Due {formatDate(task.task_date)}
+                  </Text>
                   {isManager && (
                     <Text style={{ color: COLORS.subtext, fontSize: 12 }}>👤 {profileName(task.assigned_to)}</Text>
                   )}
@@ -407,8 +430,8 @@ export default function ProjectTasksScreen() {
                 {editing ? (editingFieldsLocked ? 'Update Task' : 'Edit Task') : 'New Task'}
               </Text>
 
-              {/* Date */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>Date</Text>
+              {/* Due Date */}
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>Due Date</Text>
               {editingFieldsLocked ? (
                 <Text style={{ color: COLORS.text, marginBottom: 16 }}>{formatDate(form.task_date)}</Text>
               ) : (
