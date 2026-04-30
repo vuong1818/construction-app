@@ -129,12 +129,19 @@ export default function ManagerPlansScreen() {
   async function loadPlans(projectId: number) {
     setPlansLoading(true)
     const { data } = await supabase
-      .from('project_files')
-      .select('id, project_id, file_name, original_name, file_path, created_at')
+      .from('project_plans')
+      .select('id, project_id, name, file_path, created_at')
       .eq('project_id', projectId)
-      .eq('bucket_name', 'project-plans')
       .order('created_at', { ascending: false })
-    setPlans((data as Plan[]) || [])
+    const rows: Plan[] = (data || []).map((p: any) => ({
+      id: p.id,
+      project_id: p.project_id,
+      file_name: p.file_path ? p.file_path.split('/').pop() : (p.name || 'plan.pdf'),
+      original_name: p.name || null,
+      file_path: p.file_path || '',
+      created_at: p.created_at,
+    }))
+    setPlans(rows)
     setPlansLoading(false)
   }
 
@@ -174,14 +181,13 @@ export default function ManagerPlansScreen() {
       )
       if (uploadResult.status >= 400) throw new Error(`Upload failed: ${uploadResult.body}`)
 
-      const { error: dbErr } = await supabase.from('project_files').insert({
+      const fileUrl = supabase.storage.from('project-plans').getPublicUrl(filePath).data.publicUrl
+      const { error: dbErr } = await supabase.from('project_plans').insert({
         project_id: projectId,
-        uploaded_by: session.user.id,
-        bucket_name: 'project-plans',
-        file_name: storageFileName,
-        original_name: file.name || 'Plan',
+        name: file.name || 'Plan',
+        plan_type: null,
+        file_url: fileUrl,
         file_path: filePath,
-        file_type: 'application/pdf',
       })
       if (dbErr) throw dbErr
 
@@ -214,7 +220,7 @@ export default function ManagerPlansScreen() {
         onPress: async () => {
           try {
             await supabase.storage.from('project-plans').remove([plan.file_path])
-            const { error } = await supabase.from('project_files').delete().eq('id', plan.id)
+            const { error } = await supabase.from('project_plans').delete().eq('id', plan.id)
             if (error) throw error
             setPlans(prev => prev.filter(p => p.id !== plan.id))
           } catch (err: any) {
