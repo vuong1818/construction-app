@@ -309,6 +309,15 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
+          title="Finance"
+          subtitle="Per-project contract, change orders, expenses, and net totals."
+          icon="cash-multiple"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          onPress={() => router.push('/manager/finance')}
+        />
+
+        <ManagerCard
           title="Reports"
           subtitle="Browse reports by project and modify or delete daily reports."
           icon="clipboard-text-outline"

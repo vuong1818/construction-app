@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
+import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { supabase } from '../../lib/supabase'
 import type { DocType } from '../../services/projectDetailService'
@@ -154,6 +155,19 @@ function BigActionCard({
   )
 }
 
+function fmtMoney(n: number): string {
+  return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+function FinanceRow({ label, value, tint, bold = false }: { label: string; value: number; tint: string; bold?: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+      <Text style={{ color: COLORS.subtext, fontSize: 13, fontWeight: bold ? '700' : '500' }}>{label}</Text>
+      <Text style={{ color: tint, fontSize: 14, fontWeight: bold ? '900' : '700' }}>{fmtMoney(value)}</Text>
+    </View>
+  )
+}
+
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -192,6 +206,8 @@ export default function ProjectDetailScreen() {
     prevPhoto,
     currentPhotoUrl,
   } = useProjectDetail(Number.isFinite(projectId) ? projectId : undefined)
+
+  const { totals: financeTotals } = useProjectFinance(Number.isFinite(projectId) ? projectId : undefined)
 
   const [isManager, setIsManager] = useState(false)
   useEffect(() => {
@@ -429,6 +445,36 @@ export default function ProjectDetailScreen() {
             onPress={openReportsViewer}
           />
         </View>
+
+        {isManager && (
+          <>
+            <SectionTitle
+              icon="cash-multiple"
+              iconBg={COLORS.tealSoft}
+              iconColor={COLORS.teal}
+              title="Finance"
+            />
+            <View
+              style={{
+                backgroundColor: COLORS.card,
+                borderRadius: 22,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+            >
+              <FinanceRow label="Contract"       value={financeTotals.contract}      tint="#1565C0" />
+              <FinanceRow label="Change Orders"  value={financeTotals.changeOrders}  tint="#E65100" />
+              <FinanceRow label="Total Contract" value={financeTotals.totalContract} tint="#2E7D32" bold />
+              <FinanceRow label="Expenses"       value={financeTotals.expenses}      tint="#C62828" />
+              <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
+              <FinanceRow label="Net" value={financeTotals.net} tint={financeTotals.net >= 0 ? '#2E7D32' : '#C62828'} bold />
+              <Text style={{ color: COLORS.subtext, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
+                Edit contract, change orders, and expenses on the web portal.
+              </Text>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <Modal
