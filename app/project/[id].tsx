@@ -22,6 +22,7 @@ const DOC_TYPE_LABELS: Record<DocType, string> = {
   submittal: 'Submittal',
   change_order: 'Change Order',
   requirements: 'Requirements',
+  admin: '🔒 Admin',
   other: 'Other',
 }
 
@@ -29,7 +30,21 @@ const DOC_TYPE_BADGE: Record<DocType, { bg: string; color: string }> = {
   submittal:    { bg: '#E3F2FD', color: '#1565C0' },
   change_order: { bg: '#FFF3E0', color: '#E65100' },
   requirements: { bg: '#F3E5F5', color: '#6A1B9A' },
+  admin:        { bg: '#FFE0E0', color: '#B71C1C' },
   other:        { bg: '#F4F7FA', color: '#555555' },
+}
+
+const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  architectural: { bg: '#E3F2FD', color: '#1565C0', label: 'Architectural' },
+  civil:         { bg: '#E0F2F1', color: '#00695C', label: 'Civil' },
+  structural:    { bg: '#FCE4EC', color: '#AD1457', label: 'Structural' },
+  electrical:    { bg: '#FFF8E1', color: '#F57F17', label: 'Electrical' },
+  mechanical:    { bg: '#EDE7F6', color: '#4527A0', label: 'Mechanical' },
+  plumbing:      { bg: '#E1F5FE', color: '#0277BD', label: 'Plumbing' },
+  redline:       { bg: '#FFEBEE', color: '#C62828', label: 'Redline' },
+  landscape:     { bg: '#E8F5E9', color: '#2E7D32', label: 'Landscape' },
+  other:         { bg: '#F4F7FA', color: '#555555', label: 'Other' },
+  mep:           { bg: '#EDE7F6', color: '#4527A0', label: 'MEP' },
 }
 
 const COLORS = {
@@ -166,6 +181,7 @@ export default function ProjectDetailScreen() {
     takePhotoWithCamera,
     uploadDocument,
     handleOpenPlan,
+    handleDeletePlan,
     handleOpenDocument,
     handleDeleteDocument,
     openPhotoViewer,
@@ -341,13 +357,17 @@ export default function ProjectDetailScreen() {
             iconColor={COLORS.navy}
             title={uploading ? 'Working...' : 'Upload Document'}
             onPress={() => {
-              Alert.alert('Document Type', 'What kind of document is this?', [
+              const buttons: any[] = [
                 { text: 'Submittal',    onPress: () => uploadDocument('submittal') },
                 { text: 'Change Order', onPress: () => uploadDocument('change_order') },
                 { text: 'Requirements', onPress: () => uploadDocument('requirements') },
-                { text: 'Other',        onPress: () => uploadDocument('other') },
-                { text: 'Cancel', style: 'cancel' },
-              ])
+              ]
+              if (isManager) {
+                buttons.push({ text: '🔒 Admin', onPress: () => uploadDocument('admin') })
+              }
+              buttons.push({ text: 'Other', onPress: () => uploadDocument('other') })
+              buttons.push({ text: 'Cancel', style: 'cancel' })
+              Alert.alert('Document Type', 'What kind of document is this?', buttons)
             }}
             disabled={uploading}
           />
@@ -432,27 +452,56 @@ export default function ProjectDetailScreen() {
             </Text>
 
             <ScrollView>
-              {plans.map((plan) => (
-                <Pressable
-                  key={plan.id}
-                  onPress={() => {
-                    setPlansModalVisible(false)
-                    handleOpenPlan(plan)
-                  }}
-                  style={{
-                    backgroundColor: COLORS.background,
-                    borderRadius: 14,
-                    padding: 14,
-                    marginBottom: 10,
-                    borderWidth: 1,
-                    borderColor: COLORS.border,
-                  }}
-                >
-                  <Text style={{ color: COLORS.text, fontWeight: '700' }}>
-                    {plan.original_name || plan.file_name}
-                  </Text>
-                </Pressable>
-              ))}
+              {plans.map((plan) => {
+                const badge = plan.plan_type ? PLAN_TYPE_BADGE[plan.plan_type] : null
+                return (
+                  <View
+                    key={plan.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: COLORS.background,
+                      borderRadius: 14,
+                      padding: 14,
+                      marginBottom: 10,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      gap: 10,
+                    }}
+                  >
+                    <MaterialCommunityIcons name="file-pdf-box" size={22} color={COLORS.navy} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
+                        {plan.original_name || plan.file_name}
+                      </Text>
+                      {badge && (
+                        <View style={{ alignSelf: 'flex-start', marginTop: 4, backgroundColor: badge.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
+                          <Text style={{ color: badge.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+                            {badge.label.toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setPlansModalVisible(false)
+                        handleOpenPlan(plan)
+                      }}
+                      style={{ backgroundColor: COLORS.tealSoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                    >
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 12 }}>View</Text>
+                    </Pressable>
+                    {isManager && (
+                      <Pressable
+                        onPress={() => handleDeletePlan(plan)}
+                        style={{ backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                      >
+                        <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                )
+              })}
             </ScrollView>
 
             <Pressable
@@ -502,13 +551,7 @@ export default function ProjectDetailScreen() {
                   }}
                 >
                   <MaterialCommunityIcons name="file-document-outline" size={22} color={COLORS.navy} />
-                  <Pressable
-                    onPress={() => {
-                      setDocumentsModalVisible(false)
-                      handleOpenDocument(doc)
-                    }}
-                    style={{ flex: 1 }}
-                  >
+                  <View style={{ flex: 1 }}>
                     <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
                       {doc.original_name || doc.file_name}
                     </Text>
@@ -526,18 +569,24 @@ export default function ProjectDetailScreen() {
                         </Text>
                       </View>
                     )}
-                  </Pressable>
+                  </View>
                   <Pressable
-                    onPress={() => handleDeleteDocument(doc)}
-                    style={{
-                      backgroundColor: '#FEF2F2',
-                      borderRadius: 10,
-                      paddingHorizontal: 10,
-                      paddingVertical: 6,
+                    onPress={() => {
+                      setDocumentsModalVisible(false)
+                      handleOpenDocument(doc)
                     }}
+                    style={{ backgroundColor: COLORS.tealSoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
                   >
-                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.red} />
+                    <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 12 }}>View</Text>
                   </Pressable>
+                  {isManager && (
+                    <Pressable
+                      onPress={() => handleDeleteDocument(doc)}
+                      style={{ backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
+                    >
+                      <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                    </Pressable>
+                  )}
                 </View>
               ))}
             </ScrollView>

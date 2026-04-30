@@ -9,6 +9,7 @@ import {
     Project,
     ProjectFile,
     deleteProjectDocument,
+    deleteProjectPlan,
     getPhotoUrl,
     loadProjectDetail,
     openDocument,
@@ -45,6 +46,7 @@ type UseProjectDetailResult = {
   uploadPlan: (planType: PlanType) => Promise<void>
   uploadDocument: (docType: DocType) => Promise<void>
   handleOpenPlan: (plan: ProjectFile) => Promise<void>
+  handleDeletePlan: (plan: ProjectFile) => void
   handleOpenDocument: (doc: ProjectFile) => Promise<void>
   handleDeleteDocument: (doc: ProjectFile) => void
   openPhotoViewer: () => void
@@ -249,6 +251,27 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     }
   }
 
+  function handleDeletePlan(plan: ProjectFile) {
+    Alert.alert(
+      'Delete Plan',
+      `Delete "${plan.original_name || plan.file_name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteProjectPlan(plan)
+              await refreshPlansOnly()
+            } catch (error: any) {
+              Alert.alert('Delete error', error?.message || 'Could not delete plan.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   async function uploadDocument(docType: DocType) {
     if (!projectId) return
 
@@ -385,6 +408,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     uploadPlan,
     uploadDocument,
     handleOpenPlan,
+    handleDeletePlan,
     handleOpenDocument,
     handleDeleteDocument,
     openPhotoViewer,

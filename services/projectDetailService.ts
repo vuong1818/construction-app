@@ -22,9 +22,10 @@ export type ProjectFile = {
   bucket_name: string
   file_type: string | null
   doc_type?: string | null
+  plan_type?: string | null
 }
 
-export type DocType = 'submittal' | 'change_order' | 'requirements' | 'other'
+export type DocType = 'submittal' | 'change_order' | 'requirements' | 'admin' | 'other'
 
 export type DailyReport = {
   id: number
@@ -90,6 +91,7 @@ function mapPlan(p: any): ProjectFile {
     created_at: p.created_at,
     bucket_name: 'project-plans',
     file_type: 'application/pdf',
+    plan_type: p.plan_type ?? null,
   }
 }
 
@@ -125,7 +127,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
   if (projectError) throw new Error(projectError.message)
 
   const [plansResult, photosResult, documentsResult, reportsResult] = await Promise.all([
-    supabase.from('project_plans').select('id, project_id, name, file_path, created_at')
+    supabase.from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('project_photos').select('id, project_id, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -201,6 +203,14 @@ export async function deleteProjectDocument(doc: ProjectFile) {
   if (error) throw new Error(error.message)
 }
 
+export async function deleteProjectPlan(plan: ProjectFile) {
+  if (plan.file_path) {
+    await supabase.storage.from('project-plans').remove([plan.file_path])
+  }
+  const { error } = await supabase.from('project_plans').delete().eq('id', plan.id)
+  if (error) throw new Error(error.message)
+}
+
 export async function openDocument(doc: ProjectFile) {
   const bucket = doc.bucket_name || DOCUMENTS_BUCKET
   const { data, error } = await supabase.storage
@@ -219,7 +229,7 @@ export async function reloadPhotos(projectId: number) {
 
 export async function reloadPlans(projectId: number) {
   const { data, error } = await supabase
-    .from('project_plans').select('id, project_id, name, file_path, created_at')
+    .from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
     .eq('project_id', projectId).order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(mapPlan)
