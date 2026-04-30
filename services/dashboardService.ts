@@ -1,12 +1,21 @@
-import * as Location from 'expo-location'
 import { supabase } from '../lib/supabase'
-import { calculateHours, getTodayRange, getWorkWeekRange } from '../lib/time'
+import { OffsiteReason } from '../lib/clockLocation'
+import { getTodayRange, getWorkWeekRange } from '../lib/time'
 import {
   getUserFullName,
   getUserProfile,
   requireSessionUser,
   signOutLocal,
 } from './authService'
+
+export type ClockLocationPayload = {
+  lat: number | null
+  lng: number | null
+  snapshotUrl: string | null
+  offsite: boolean
+  offsiteReason: OffsiteReason | null
+  offsiteNote: string | null
+}
 
 // keep your existing types
 
@@ -85,19 +94,8 @@ export async function loadDashboardData(
   }
 }
 
-async function requireLocation() {
-  const permission = await Location.requestForegroundPermissionsAsync()
-
-  if (permission.status !== 'granted') {
-    throw new Error('Please allow location access.')
-  }
-
-  return Location.getCurrentPositionAsync({})
-}
-
-export async function clockIn(projectId: number) {
+export async function clockIn(projectId: number, location: ClockLocationPayload) {
   const user = await requireSessionUser()
-  const position = await requireLocation()
   const userName = await getUserFullName(user.id)
 
   const { error } = await supabase.from('time_entries').insert({
@@ -105,8 +103,12 @@ export async function clockIn(projectId: number) {
     user_id: user.id,
     user_name: userName,
     clock_in_time: new Date().toISOString(),
-    clock_in_lat: position.coords.latitude,
-    clock_in_lng: position.coords.longitude,
+    clock_in_lat: location.lat,
+    clock_in_lng: location.lng,
+    clock_in_snapshot_url: location.snapshotUrl,
+    clock_in_offsite: location.offsite,
+    clock_in_offsite_reason: location.offsiteReason,
+    clock_in_offsite_note: location.offsiteNote,
   })
 
   if (error) {
@@ -114,15 +116,17 @@ export async function clockIn(projectId: number) {
   }
 }
 
-export async function clockOut(timeEntryId: number) {
-  const position = await requireLocation()
-
+export async function clockOut(timeEntryId: number, location: ClockLocationPayload) {
   const { error } = await supabase
     .from('time_entries')
     .update({
       clock_out_time: new Date().toISOString(),
-      clock_out_lat: position.coords.latitude,
-      clock_out_lng: position.coords.longitude,
+      clock_out_lat: location.lat,
+      clock_out_lng: location.lng,
+      clock_out_snapshot_url: location.snapshotUrl,
+      clock_out_offsite: location.offsite,
+      clock_out_offsite_reason: location.offsiteReason,
+      clock_out_offsite_note: location.offsiteNote,
     })
     .eq('id', timeEntryId)
 
@@ -133,14 +137,13 @@ export async function clockOut(timeEntryId: number) {
 
 export async function logoutAndClockOutIfNeeded(activeEntryId?: number | null) {
   if (activeEntryId) {
-    await clockOut(activeEntryId)
+    // Best-effort clock-out on logout — no location capture (background, no UI).
+    await clockOut(activeEntryId, {
+      lat: null, lng: null, snapshotUrl: null,
+      offsite: false, offsiteReason: null, offsiteNote: null,
+    })
   }
 
   await signOutLocal()
 }
 
-export function getWeeklyTotalHours(entries: TimeEntry[]) {
-  return entries.reduce((total, entry) => {
-    return total + calculateHours(entry.clock_in_time, entry.clock_out_time)
-  }, 0)
-}

@@ -6,19 +6,31 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
+import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
+import {
+  captureMapSnapshot,
+  checkGeofence,
+  LocationDeniedError,
+  OFFSITE_REASON_LABELS,
+  OffsiteReason,
+  readCurrentLocation,
+} from '../../lib/clockLocation'
 import { t } from '../../lib/i18n'
 import { getSavedLanguage, saveLanguage } from '../../lib/language'
 import { supabase } from '../../lib/supabase'
+import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
 
 type Project = {
   id: number
@@ -26,6 +38,17 @@ type Project = {
   address: string | null
   status: string | null
   description: string | null
+  latitude?: number | null
+  longitude?: number | null
+  geofence_radius_meters?: number | null
+}
+
+type OffsitePromptState = {
+  kind: 'in' | 'out'
+  distance: number
+  projectName: string
+  payload: { lat: number; lng: number; snapshotUrl: string | null }
+  noteText: string
 }
 
 type TimeEntry = {
@@ -84,6 +107,8 @@ export default function HomeScreen() {
 
   const [manualAcknowledged, setManualAcknowledged] = useState(false)
   const [meetingAcknowledged, setMeetingAcknowledged] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
 
   useEffect(() => {
     getSavedLanguage().then((saved) => {
@@ -95,6 +120,14 @@ export default function HomeScreen() {
     })
     loadDashboard()
   }, [])
+
+  // Live updates when this worker's own clock entries change (e.g. manager adjusts on web)
+  useRealtimeRefetch(
+    'time_entries',
+    loadDashboard,
+    currentUserId ? `user_id=eq.${currentUserId}` : undefined,
+    !!currentUserId,
+  )
 
   async function toggleLanguage() {
     const next = language === 'en' ? 'es' : 'en'
@@ -201,6 +234,8 @@ export default function HomeScreen() {
         return
       }
 
+      setCurrentUserId(currentUserId)
+
       const profileResult = await supabase
         .from('profiles')
         .select('full_name, role, wage')
@@ -210,7 +245,7 @@ export default function HomeScreen() {
       if (profileResult.data) {
         setProfile(profileResult.data)
       } else {
-        setProfile({ full_name: null, role: null })
+        setProfile({ full_name: null, role: null, wage: null })
       }
 
       const projectsResult = await supabase
@@ -335,21 +370,85 @@ export default function HomeScreen() {
     try {
       setClocking(true)
 
-      const userName = await getCurrentUserName(session.user.id)
+      // 1. Capture worker GPS (will throw LocationDeniedError if denied)
+      const loc = await readCurrentLocation()
 
-      const { error } = await supabase.from('time_entries').insert({
-        project_id: selectedProjectId,
-        user_id: session.user.id,
-        user_name: userName,
-        clock_in_time: new Date().toISOString(),
+      // 2. Check geofence against the selected project
+      const project = projects.find((p) => p.id === selectedProjectId)
+      const fence = checkGeofence(loc.lat, loc.lng, {
+        latitude: project?.latitude ?? null,
+        longitude: project?.longitude ?? null,
+        geofence_radius_meters: project?.geofence_radius_meters ?? null,
       })
 
-      if (error) {
-        Alert.alert(t(language, 'error'), error.message)
+      // 3. Capture map snapshot (best effort — null on failure)
+      const snapshotUrl = await captureMapSnapshot({
+        userId: session.user.id,
+        lat: loc.lat,
+        lng: loc.lng,
+        kind: 'in',
+      })
+
+      // 4a. Inside fence → clock in directly
+      if (fence.inside) {
+        await svcClockIn(selectedProjectId, {
+          lat: loc.lat, lng: loc.lng, snapshotUrl,
+          offsite: false, offsiteReason: null, offsiteNote: null,
+        })
+        Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+        setClockModalVisible(false)
+        await loadDashboard()
         return
       }
 
-      Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+      // 4b. Outside fence → ask why
+      setOffsitePrompt({
+        kind: 'in',
+        distance: fence.distanceMeters ?? 0,
+        projectName: project?.name || 'Project',
+        payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
+        noteText: '',
+      })
+    } catch (error: any) {
+      if (error instanceof LocationDeniedError) {
+        Alert.alert('Location required', 'Please allow location access to clock in.')
+      } else {
+        Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+      }
+    } finally {
+      setClocking(false)
+    }
+  }
+
+  async function confirmOffsiteClock(reason: OffsiteReason) {
+    if (!offsitePrompt) return
+
+    try {
+      setClocking(true)
+
+      const note = offsitePrompt.noteText.trim() || null
+
+      if (offsitePrompt.kind === 'in') {
+        if (!selectedProjectId) return
+        await svcClockIn(selectedProjectId, {
+          lat: offsitePrompt.payload.lat,
+          lng: offsitePrompt.payload.lng,
+          snapshotUrl: offsitePrompt.payload.snapshotUrl,
+          offsite: true, offsiteReason: reason, offsiteNote: note,
+        })
+        Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+      } else {
+        if (!activeEntry?.id) return
+        await svcClockOut(activeEntry.id, {
+          lat: offsitePrompt.payload.lat,
+          lng: offsitePrompt.payload.lng,
+          snapshotUrl: offsitePrompt.payload.snapshotUrl,
+          offsite: true, offsiteReason: reason, offsiteNote: note,
+        })
+        Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
+      }
+
+      setOffsitePrompt(null)
       setClockModalVisible(false)
       await loadDashboard()
     } catch (error: any) {
@@ -380,28 +479,55 @@ export default function HomeScreen() {
       return
     }
 
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      Alert.alert(t(language, 'error'), 'You must be signed in')
+      return
+    }
+
     try {
       setClocking(true)
 
-      const clockOutTime = new Date().toISOString()
+      const loc = await readCurrentLocation()
 
-      const { error } = await supabase
-        .from('time_entries')
-        .update({
-          clock_out_time: clockOutTime,
+      const project = projects.find((p) => p.id === activeEntry.project_id)
+      const fence = checkGeofence(loc.lat, loc.lng, {
+        latitude: project?.latitude ?? null,
+        longitude: project?.longitude ?? null,
+        geofence_radius_meters: project?.geofence_radius_meters ?? null,
+      })
+
+      const snapshotUrl = await captureMapSnapshot({
+        userId: session.user.id,
+        lat: loc.lat,
+        lng: loc.lng,
+        kind: 'out',
+      })
+
+      if (fence.inside) {
+        await svcClockOut(activeEntry.id, {
+          lat: loc.lat, lng: loc.lng, snapshotUrl,
+          offsite: false, offsiteReason: null, offsiteNote: null,
         })
-        .eq('id', activeEntry.id)
-
-      if (error) {
-        Alert.alert(t(language, 'error'), error.message)
+        Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
+        setClockModalVisible(false)
+        await loadDashboard()
         return
       }
 
-      Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
-      setClockModalVisible(false)
-      await loadDashboard()
+      setOffsitePrompt({
+        kind: 'out',
+        distance: fence.distanceMeters ?? 0,
+        projectName: project?.name || 'Project',
+        payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
+        noteText: '',
+      })
     } catch (error: any) {
-      Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+      if (error instanceof LocationDeniedError) {
+        Alert.alert('Location required', 'Please allow location access to clock out.')
+      } else {
+        Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+      }
     } finally {
       setClocking(false)
     }
@@ -854,7 +980,7 @@ export default function HomeScreen() {
                     : undefined
                 }
                 onValueChange={(value) => {
-                  if (value === null || value === undefined || value === '') {
+                  if (value === null || value === undefined) {
                     setSelectedProjectId(null)
                   } else {
                     setSelectedProjectId(Number(value))
@@ -914,6 +1040,85 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Offsite reason prompt — shown when worker clocks in/out beyond the project geofence */}
+      <Modal
+        visible={!!offsitePrompt}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOffsitePrompt(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' }}
+        >
+          <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 22, maxHeight: '90%' }}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
+              <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 6 }}>
+                You're off-site
+              </Text>
+              <Text style={{ color: COLORS.subtext, marginBottom: 16, lineHeight: 20 }}>
+                {offsitePrompt
+                  ? `${Math.round(offsitePrompt.distance)} m from ${offsitePrompt.projectName}. Tell us why you're clocking ${offsitePrompt.kind === 'in' ? 'in' : 'out'} from here.`
+                  : ''}
+              </Text>
+
+              <View style={{ gap: 10, marginBottom: 14 }}>
+                {(['supply_store', 'gas', 'other'] as OffsiteReason[]).map((r) => (
+                  <Pressable
+                    key={r}
+                    onPress={() => confirmOffsiteClock(r)}
+                    disabled={clocking}
+                    style={{
+                      backgroundColor: clocking ? '#94A3B8' : COLORS.navy,
+                      borderRadius: 16,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
+                      {OFFSITE_REASON_LABELS[r]}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>
+                Optional note
+              </Text>
+              <TextInput
+                value={offsitePrompt?.noteText || ''}
+                onChangeText={(text) =>
+                  setOffsitePrompt((prev) => (prev ? { ...prev, noteText: text } : prev))
+                }
+                placeholder="e.g. Picked up materials at Lowe's"
+                placeholderTextColor={COLORS.subtext}
+                multiline
+                style={{
+                  backgroundColor: COLORS.background,
+                  borderWidth: 1,
+                  borderColor: COLORS.border,
+                  borderRadius: 14,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  color: COLORS.text,
+                  minHeight: 80,
+                  textAlignVertical: 'top',
+                  marginBottom: 14,
+                }}
+              />
+
+              <Pressable
+                onPress={() => setOffsitePrompt(null)}
+                disabled={clocking}
+                style={{ borderRadius: 16, paddingVertical: 14, alignItems: 'center' }}
+              >
+                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   )
