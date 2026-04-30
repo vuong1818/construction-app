@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
@@ -295,6 +296,13 @@ export default function ManagerTimeClockScreen() {
       loadScreen(selectedWeek.start, selectedWeek.end)
     }
   }, [selectedWeekKey])
+
+  // Live updates while the manager is viewing a week
+  const refetchSelectedWeek = () => {
+    if (selectedWeek) loadScreen(selectedWeek.start, selectedWeek.end)
+  }
+  useRealtimeRefetch('time_entries', refetchSelectedWeek, undefined, !!selectedWeek)
+  useRealtimeRefetch('worker_week_adjustments', refetchSelectedWeek, undefined, !!selectedWeek)
 
   function setField<K extends keyof EditForm>(key: K, value: EditForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
