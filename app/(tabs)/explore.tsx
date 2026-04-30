@@ -282,16 +282,7 @@ export default function ManagerSummaryScreen() {
         </View>
 
         <ManagerCard
-          title="Workers"
-          subtitle="Update subscribed users, worker information, and user roles."
-          icon="account-group-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/workers')}
-        />
-
-        <ManagerCard
-          title="Time Clock"
+          title="Time and Payroll"
           subtitle="Choose a work week, review worker totals, and modify hours, gas, and receipts."
           icon="clock-outline"
           iconBg={COLORS.navySoft}
@@ -318,6 +309,15 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
+          title="Inspections"
+          subtitle="Update inspection status, dates, and notes for each project."
+          icon="clipboard-check-outline"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          onPress={() => router.push('/manager/inspections')}
+        />
+
+        <ManagerCard
           title="Safety"
           subtitle="Enter weekly safety topic and review weekly acknowledgements."
           icon="shield-check-outline"
@@ -327,12 +327,12 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Company"
-          subtitle="Set up company information and add, change, or delete the company logo."
-          icon="office-building-cog-outline"
+          title="Settings"
+          subtitle="Manage workers and company information."
+          icon="cog-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/company')}
+          onPress={() => router.push('/manager/settings')}
         />
       </ScrollView>
     </SafeAreaView>
