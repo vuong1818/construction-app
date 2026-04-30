@@ -1,17 +1,20 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Image,
   Modal,
   Pressable,
-  
+
   ScrollView,
   Text,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
+import { formatProjectAddress } from '../../lib/formatAddress'
+import { supabase } from '../../lib/supabase'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -129,6 +132,7 @@ export default function ProjectDetailScreen() {
     project,
     photos,
     plans,
+    documents,
     reports,
     loading,
     uploading,
@@ -136,21 +140,38 @@ export default function ProjectDetailScreen() {
     plansModalVisible,
     reportsModalVisible,
     photosModalVisible,
+    documentsModalVisible,
     selectedPhotoIndex,
     setPlansModalVisible,
     setReportsModalVisible,
     setPhotosModalVisible,
+    setDocumentsModalVisible,
     pickPhotoFromLibrary,
     takePhotoWithCamera,
     uploadPlan,
+    uploadDocument,
     handleOpenPlan,
+    handleOpenDocument,
+    handleDeleteDocument,
     openPhotoViewer,
     openPlansViewer,
     openReportsViewer,
+    openDocumentsViewer,
     nextPhoto,
     prevPhoto,
     currentPhotoUrl,
   } = useProjectDetail(Number.isFinite(projectId) ? projectId : undefined)
+
+  const [isManager, setIsManager] = useState(false)
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data } = await supabase
+        .from('profiles').select('role').eq('id', session.user.id).single()
+      setIsManager(data?.role === 'manager')
+    })()
+  }, [])
 
   if (loading) {
     return (
@@ -213,12 +234,32 @@ export default function ProjectDetailScreen() {
             marginBottom: 8,
           }}
         >
-          <Text style={{ fontSize: 28, fontWeight: '800', color: COLORS.navy, marginBottom: 8 }}>
-            {project.name}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ flex: 1, fontSize: 28, fontWeight: '800', color: COLORS.navy }}>
+              {project.name}
+            </Text>
+            {isManager && (
+              <Pressable
+                onPress={() => router.push(`/project/${id}/edit`)}
+                style={{
+                  marginLeft: 12,
+                  backgroundColor: COLORS.tealSoft,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={16} color={COLORS.teal} />
+                <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 13 }}>Edit</Text>
+              </Pressable>
+            )}
+          </View>
 
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
-            Address: {project.address || 'No address'}
+            Address: {formatProjectAddress(project) || 'No address'}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
@@ -228,6 +269,23 @@ export default function ProjectDetailScreen() {
           <Text style={{ color: COLORS.subtext }}>
             {project.description || 'No description'}
           </Text>
+        </View>
+
+        <SectionTitle
+          icon="format-list-checks"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          title="Tasks"
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="clipboard-list-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title="Open Tasks"
+            onPress={() => router.push(`/project/${id}/tasks`)}
+          />
         </View>
 
         <SectionTitle
@@ -244,6 +302,31 @@ export default function ProjectDetailScreen() {
             iconColor={COLORS.teal}
             title="View Plans"
             onPress={openPlansViewer}
+          />
+        </View>
+
+        <SectionTitle
+          icon="folder-outline"
+          iconBg={COLORS.navySoft}
+          iconColor={COLORS.navy}
+          title="Documents"
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="file-document-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title="View Documents"
+            onPress={openDocumentsViewer}
+          />
+          <BigActionCard
+            icon="file-upload-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            title={uploading ? 'Working...' : 'Upload Document'}
+            onPress={uploadDocument}
+            disabled={uploading}
           />
         </View>
 
@@ -351,6 +434,79 @@ export default function ProjectDetailScreen() {
 
             <Pressable
               onPress={() => setPlansModalVisible(false)}
+              style={{ alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={documentsModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDocumentsModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.4)', justifyContent: 'flex-end' }}>
+          <View
+            style={{
+              backgroundColor: COLORS.card,
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              padding: 20,
+              maxHeight: '70%',
+            }}
+          >
+            <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
+              Documents
+            </Text>
+
+            <ScrollView>
+              {documents.map((doc) => (
+                <View
+                  key={doc.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: COLORS.background,
+                    borderRadius: 14,
+                    padding: 14,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    gap: 10,
+                  }}
+                >
+                  <MaterialCommunityIcons name="file-document-outline" size={22} color={COLORS.navy} />
+                  <Pressable
+                    onPress={() => {
+                      setDocumentsModalVisible(false)
+                      handleOpenDocument(doc)
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
+                      {doc.original_name || doc.file_name}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => handleDeleteDocument(doc)}
+                    style={{
+                      backgroundColor: '#FEF2F2',
+                      borderRadius: 10,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={COLORS.red} />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+
+            <Pressable
+              onPress={() => setDocumentsModalVisible(false)}
               style={{ alignItems: 'center', paddingVertical: 14 }}
             >
               <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>Close</Text>

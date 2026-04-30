@@ -6,12 +6,16 @@ import {
     DailyReport,
     Project,
     ProjectFile,
+    deleteProjectDocument,
     getPhotoUrl,
     loadProjectDetail,
+    openDocument,
     openPlan,
+    reloadDocuments,
     reloadPhotos,
     reloadPlans,
     reloadReports,
+    uploadProjectDocument,
     uploadProjectFile,
 } from '../services/projectDetailService'
 
@@ -19,6 +23,7 @@ type UseProjectDetailResult = {
   project: Project | null
   photos: ProjectFile[]
   plans: ProjectFile[]
+  documents: ProjectFile[]
   reports: DailyReport[]
   loading: boolean
   uploading: boolean
@@ -26,18 +31,24 @@ type UseProjectDetailResult = {
   plansModalVisible: boolean
   reportsModalVisible: boolean
   photosModalVisible: boolean
+  documentsModalVisible: boolean
   selectedPhotoIndex: number
   setPlansModalVisible: (value: boolean) => void
   setReportsModalVisible: (value: boolean) => void
   setPhotosModalVisible: (value: boolean) => void
+  setDocumentsModalVisible: (value: boolean) => void
   refreshAll: () => Promise<void>
   pickPhotoFromLibrary: () => Promise<void>
   takePhotoWithCamera: () => Promise<void>
   uploadPlan: () => Promise<void>
+  uploadDocument: () => Promise<void>
   handleOpenPlan: (plan: ProjectFile) => Promise<void>
+  handleOpenDocument: (doc: ProjectFile) => Promise<void>
+  handleDeleteDocument: (doc: ProjectFile) => void
   openPhotoViewer: () => void
   openPlansViewer: () => void
   openReportsViewer: () => void
+  openDocumentsViewer: () => void
   nextPhoto: () => void
   prevPhoto: () => void
   currentPhotoUrl: string | null
@@ -47,6 +58,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
   const [project, setProject] = useState<Project | null>(null)
   const [photos, setPhotos] = useState<ProjectFile[]>([])
   const [plans, setPlans] = useState<ProjectFile[]>([])
+  const [documents, setDocuments] = useState<ProjectFile[]>([])
   const [reports, setReports] = useState<DailyReport[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -54,6 +66,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
   const [plansModalVisible, setPlansModalVisible] = useState(false)
   const [reportsModalVisible, setReportsModalVisible] = useState(false)
   const [photosModalVisible, setPhotosModalVisible] = useState(false)
+  const [documentsModalVisible, setDocumentsModalVisible] = useState(false)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
 
   const refreshAll = useCallback(async () => {
@@ -67,12 +80,14 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
       setProject(data.project)
       setPhotos(data.photos)
       setPlans(data.plans)
+      setDocuments(data.documents)
       setReports(data.reports)
     } catch (error: any) {
       setErrorMessage(error?.message || 'Failed to load project.')
       setProject(null)
       setPhotos([])
       setPlans([])
+      setDocuments([])
       setReports([])
     } finally {
       setLoading(false)
@@ -99,6 +114,12 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     if (!projectId) return
     const nextReports = await reloadReports(projectId)
     setReports(nextReports)
+  }
+
+  async function refreshDocumentsOnly() {
+    if (!projectId) return
+    const nextDocuments = await reloadDocuments(projectId)
+    setDocuments(nextDocuments)
   }
 
   async function pickPhotoFromLibrary() {
@@ -225,6 +246,67 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     }
   }
 
+  async function uploadDocument() {
+    if (!projectId) return
+
+    const result = await DocumentPicker.getDocumentAsync({
+      type: '*/*',
+      copyToCacheDirectory: true,
+      multiple: false,
+    })
+
+    if (result.canceled || !result.assets?.length) return
+
+    try {
+      setUploading(true)
+
+      const asset = result.assets[0]
+
+      await uploadProjectDocument({
+        projectId,
+        uri: asset.uri,
+        originalName: asset.name || `document-${Date.now()}`,
+        mimeType: asset.mimeType || 'application/octet-stream',
+      })
+
+      await refreshDocumentsOnly()
+      Alert.alert('Success', 'Document uploaded')
+    } catch (error: any) {
+      Alert.alert('Upload error', error?.message || 'Something went wrong')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function handleOpenDocument(doc: ProjectFile) {
+    try {
+      await openDocument(doc)
+    } catch (error: any) {
+      Alert.alert('Missing File', error?.message || 'Could not open document.')
+    }
+  }
+
+  function handleDeleteDocument(doc: ProjectFile) {
+    Alert.alert(
+      'Delete Document',
+      `Delete "${doc.original_name || doc.file_name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteProjectDocument(doc)
+              await refreshDocumentsOnly()
+            } catch (error: any) {
+              Alert.alert('Delete error', error?.message || 'Could not delete document.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   function openPhotoViewer() {
     if (photos.length === 0) {
       Alert.alert('Photos', 'There are no photos to view yet.')
@@ -253,6 +335,15 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     setReportsModalVisible(true)
   }
 
+  function openDocumentsViewer() {
+    if (documents.length === 0) {
+      Alert.alert('Documents', 'There are no documents to view yet.')
+      return
+    }
+
+    setDocumentsModalVisible(true)
+  }
+
   function nextPhoto() {
     setSelectedPhotoIndex((prev) => (prev + 1) % photos.length)
   }
@@ -270,6 +361,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     project,
     photos,
     plans,
+    documents,
     reports,
     loading,
     uploading,
@@ -277,18 +369,24 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     plansModalVisible,
     reportsModalVisible,
     photosModalVisible,
+    documentsModalVisible,
     selectedPhotoIndex,
     setPlansModalVisible,
     setReportsModalVisible,
     setPhotosModalVisible,
+    setDocumentsModalVisible,
     refreshAll,
     pickPhotoFromLibrary,
     takePhotoWithCamera,
     uploadPlan,
+    uploadDocument,
     handleOpenPlan,
+    handleOpenDocument,
+    handleDeleteDocument,
     openPhotoViewer,
     openPlansViewer,
     openReportsViewer,
+    openDocumentsViewer,
     nextPhoto,
     prevPhoto,
     currentPhotoUrl,
