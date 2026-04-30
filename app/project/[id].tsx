@@ -10,6 +10,7 @@ import {
 
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -205,7 +206,14 @@ export default function ProjectDetailScreen() {
     nextPhoto,
     prevPhoto,
     currentPhotoUrl,
+    savePhotoCaption,
   } = useProjectDetail(Number.isFinite(projectId) ? projectId : undefined)
+
+  // Caption editor state for the photos modal
+  const [captionEditing, setCaptionEditing] = useState(false)
+  const [captionDraft, setCaptionDraft] = useState('')
+  const [captionSaving, setCaptionSaving] = useState(false)
+  useEffect(() => { setCaptionEditing(false) }, [selectedPhotoIndex])
 
   const { totals: financeTotals } = useProjectFinance(Number.isFinite(projectId) ? projectId : undefined)
 
@@ -756,6 +764,67 @@ export default function ProjectDetailScreen() {
               >
                 {photos[selectedPhotoIndex].original_name || photos[selectedPhotoIndex].file_name}
               </Text>
+
+              {/* Caption editor */}
+              <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 12 }}>
+                {captionEditing ? (
+                  <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 }}>
+                    <TextInput
+                      autoFocus
+                      multiline
+                      value={captionDraft}
+                      onChangeText={setCaptionDraft}
+                      placeholder="Add a note about this photo..."
+                      placeholderTextColor="#aaa"
+                      style={{ color: '#FFFFFF', fontSize: 14, minHeight: 50 }}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                      <Pressable
+                        disabled={captionSaving}
+                        onPress={async () => {
+                          if (!photos[selectedPhotoIndex]) return
+                          setCaptionSaving(true)
+                          try {
+                            await savePhotoCaption(photos[selectedPhotoIndex].id, captionDraft)
+                            setCaptionEditing(false)
+                          } finally { setCaptionSaving(false) }
+                        }}
+                        style={{ backgroundColor: '#19B6D2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{captionSaving ? 'Saving...' : 'Save'}</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => setCaptionEditing(false)}
+                        style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                      >
+                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      if (!isManager) return
+                      setCaptionDraft(photos[selectedPhotoIndex]?.caption || '')
+                      setCaptionEditing(true)
+                    }}
+                    style={{
+                      backgroundColor: 'rgba(255,255,255,0.08)',
+                      borderRadius: 10,
+                      padding: 10,
+                      flexDirection: 'row',
+                      gap: 8,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <MaterialCommunityIcons name="note-text-outline" size={18} color="#FFFFFF" />
+                    <Text style={{ color: photos[selectedPhotoIndex]?.caption ? '#FFFFFF' : '#aaa', fontSize: 14, flex: 1 }}>
+                      {photos[selectedPhotoIndex]?.caption || (isManager ? 'Tap to add a note' : 'No note')}
+                    </Text>
+                    {isManager && <Text style={{ color: '#19B6D2', fontWeight: '700', fontSize: 12 }}>{photos[selectedPhotoIndex]?.caption ? 'Edit' : 'Add'}</Text>}
+                  </Pressable>
+                )}
+              </View>
 
               <View
                 style={{

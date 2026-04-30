@@ -76,6 +76,9 @@ type ProjectRow = {
   latitude: number | null
   longitude: number | null
   geofence_radius_meters: number | null
+  owner_name: string | null
+  owner_company: string | null
+  owner_address: string | null
 } & Record<PermitKey, string | null>
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -230,6 +233,9 @@ export default function ProjectEditScreen() {
         permit_plumbing: project.permit_plumbing?.trim() || null,
         permit_backflow: project.permit_backflow?.trim() || null,
         permit_civil: project.permit_civil?.trim() || null,
+        owner_name:    project.owner_name?.trim()    || null,
+        owner_company: project.owner_company?.trim() || null,
+        owner_address: project.owner_address?.trim() || null,
         latitude: project.latitude,
         longitude: project.longitude,
         // Read radius from the dedicated input string (miles), convert at save time
@@ -374,6 +380,22 @@ export default function ProjectEditScreen() {
                 )
               })}
             </View>
+          </View>
+
+          {/* Owner Information */}
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
+            <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 4 }}>
+              Owner Information
+            </Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+              Used by all pay applications, warranty letters, and lien waivers for this project.
+            </Text>
+            <FieldLabel>Owner Name</FieldLabel>
+            <TextField value={project.owner_name || ''} onChangeText={t => setField('owner_name', t)} />
+            <FieldLabel>Owner Company</FieldLabel>
+            <TextField value={project.owner_company || ''} onChangeText={t => setField('owner_company', t)} />
+            <FieldLabel>Owner Address</FieldLabel>
+            <TextField value={project.owner_address || ''} onChangeText={t => setField('owner_address', t)} multiline placeholder="Street, City, State Zip" />
           </View>
 
           {/* Permit Numbers */}

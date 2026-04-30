@@ -18,6 +18,7 @@ import {
     reloadPhotos,
     reloadPlans,
     reloadReports,
+    updatePhotoCaption,
     uploadProjectDocument,
     uploadProjectFile,
 } from '../services/projectDetailService'
@@ -56,6 +57,7 @@ type UseProjectDetailResult = {
   nextPhoto: () => void
   prevPhoto: () => void
   currentPhotoUrl: string | null
+  savePhotoCaption: (photoId: number, caption: string) => Promise<void>
 }
 
 export function useProjectDetail(projectId?: number): UseProjectDetailResult {
@@ -371,6 +373,17 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     setDocumentsModalVisible(true)
   }
 
+  async function savePhotoCaption(photoId: number, caption: string) {
+    try {
+      const trimmed = caption.trim()
+      await updatePhotoCaption(photoId, trimmed.length === 0 ? null : trimmed)
+      setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, caption: trimmed.length === 0 ? null : trimmed } : p))
+    } catch (e: any) {
+      Alert.alert('Save error', e?.message || 'Could not save the photo note.')
+      throw e
+    }
+  }
+
   function nextPhoto() {
     setSelectedPhotoIndex((prev) => (prev + 1) % photos.length)
   }
@@ -418,5 +431,6 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     nextPhoto,
     prevPhoto,
     currentPhotoUrl,
+    savePhotoCaption,
   }
 }

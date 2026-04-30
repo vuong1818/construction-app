@@ -23,6 +23,7 @@ export type ProjectFile = {
   file_type: string | null
   doc_type?: string | null
   plan_type?: string | null
+  caption?: string | null
 }
 
 export type DocType = 'submittal' | 'change_order' | 'requirements' | 'admin' | 'other'
@@ -55,6 +56,11 @@ export type PlanType =
   | 'redline' | 'landscape' | 'other'
 
 const DOCUMENTS_BUCKET = 'project-files'
+const ADMIN_DOCS_BUCKET = 'admin-documents'
+
+function bucketForDocType(docType?: string | null) {
+  return docType === 'admin' ? ADMIN_DOCS_BUCKET : DOCUMENTS_BUCKET
+}
 
 // Build the public-bucket URL for a given storage path. Mirrors the format
 // the web portal stores in *_url columns so backfilled rows look the same.
@@ -105,6 +111,7 @@ function mapPhoto(p: any): ProjectFile {
     created_at: p.created_at,
     bucket_name: 'project-photos',
     file_type: 'image/jpeg',
+    caption: p.caption ?? null,
   }
 }
 
@@ -115,7 +122,7 @@ function mapDocument(d: any): ProjectFile {
     original_name: d.name || null,
     file_path: d.file_path || '',
     created_at: d.created_at,
-    bucket_name: DOCUMENTS_BUCKET,
+    bucket_name: bucketForDocType(d.doc_type),
     file_type: null,
     doc_type: d.doc_type ?? null,
   }
@@ -129,7 +136,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
   const [plansResult, photosResult, documentsResult, reportsResult] = await Promise.all([
     supabase.from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
-    supabase.from('project_photos').select('id, project_id, file_path, created_at')
+    supabase.from('project_photos').select('id, project_id, file_path, caption, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('project_documents').select('id, project_id, name, doc_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -169,35 +176,40 @@ export async function uploadProjectDocument(params: {
   const safeName = cleanFileName(originalName)
   const storageFileName = `project-${projectId}-${Date.now()}-${safeName}`
   const filePath = `project-${projectId}/${storageFileName}`
+  const bucket = bucketForDocType(docType)
 
   const fileResp = await fetch(uri)
   if (!fileResp.ok) throw new Error('Could not read file.')
   const arrayBuffer = await fileResp.arrayBuffer()
 
   const { error: uploadError } = await supabase.storage
-    .from(DOCUMENTS_BUCKET)
+    .from(bucket)
     .upload(filePath, arrayBuffer, { contentType: mimeType, upsert: false })
   if (uploadError) throw new Error(uploadError.message)
 
-  const { data: urlData } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(filePath)
+  // Public bucket → store stable URL. Private (admin) bucket → null, fetched via signed URL on demand.
+  const fileUrl = bucket === ADMIN_DOCS_BUCKET
+    ? null
+    : supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl
 
   const { error: dbError } = await supabase.from('project_documents').insert({
     project_id: projectId,
     name: originalName,
     doc_type: docType,
-    file_url: urlData.publicUrl,
+    file_url: fileUrl,
     file_path: filePath,
   })
 
   if (dbError) {
-    await supabase.storage.from(DOCUMENTS_BUCKET).remove([filePath])
+    await supabase.storage.from(bucket).remove([filePath])
     throw new Error(dbError.message)
   }
 }
 
 export async function deleteProjectDocument(doc: ProjectFile) {
+  const bucket = doc.bucket_name || bucketForDocType(doc.doc_type)
   if (doc.file_path) {
-    await supabase.storage.from(DOCUMENTS_BUCKET).remove([doc.file_path])
+    await supabase.storage.from(bucket).remove([doc.file_path])
   }
   const { error } = await supabase.from('project_documents').delete().eq('id', doc.id)
   if (error) throw new Error(error.message)
@@ -221,10 +233,18 @@ export async function openDocument(doc: ProjectFile) {
 
 export async function reloadPhotos(projectId: number) {
   const { data, error } = await supabase
-    .from('project_photos').select('id, project_id, file_path, created_at')
+    .from('project_photos').select('id, project_id, file_path, caption, created_at')
     .eq('project_id', projectId).order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(mapPhoto)
+}
+
+export async function updatePhotoCaption(photoId: number, caption: string | null) {
+  const { error } = await supabase
+    .from('project_photos')
+    .update({ caption: caption ?? null })
+    .eq('id', photoId)
+  if (error) throw new Error(error.message)
 }
 
 export async function reloadPlans(projectId: number) {
