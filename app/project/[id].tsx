@@ -436,6 +436,23 @@ export default function ProjectDetailScreen() {
         </View>
 
         <SectionTitle
+          icon="receipt-text-outline"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          title="Expenses"
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="cash-plus"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={isManager ? 'View / Add Expenses' : 'My Expenses'}
+            onPress={() => router.push(`/project/${id}/expenses`)}
+          />
+        </View>
+
+        <SectionTitle
           icon="clipboard-text-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
