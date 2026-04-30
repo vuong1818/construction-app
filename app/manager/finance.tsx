@@ -36,8 +36,8 @@ const COLORS = {
 
 type Project = { id: number; name: string; status: string | null; contract_amount: number | null }
 type ChangeOrder = { id: number; project_id: number; amount: number }
-type Expense = { id: number; project_id: number; amount: number }
-type PayApp = { id: number; project_id: number }
+type Expense = { id: number; project_id: number; amount: number; is_paid: boolean | null; payment_method: string | null }
+type PayApp = { id: number; project_id: number; retainage_pct: number | null; amount_paid: number | null }
 type PayAppLine = { pay_app_id: number; from_previous: number; this_period: number; materials_stored: number }
 
 function fmtMoney(n: number): string {
@@ -66,8 +66,8 @@ export default function ManagerFinanceScreen() {
     const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),
       supabase.from('project_change_orders').select('id, project_id, amount'),
-      supabase.from('project_expenses').select('id, project_id, amount'),
-      supabase.from('project_pay_apps').select('id, project_id'),
+      supabase.from('project_expenses').select('id, project_id, amount, is_paid, payment_method'),
+      supabase.from('project_pay_apps').select('id, project_id, retainage_pct, amount_paid'),
     ])
     setProjects((pr as Project[]) || [])
     setChangeOrders((co as ChangeOrder[]) || [])
@@ -94,24 +94,38 @@ export default function ManagerFinanceScreen() {
   useRealtimeRefetch('project_pay_apps',      load, undefined, !loading)
   useRealtimeRefetch('projects',              load, undefined, !loading)
 
-  // Map pay_app_id -> project_id, then sum D+E+F for that project's apps
-  const appToProject = new Map(payApps.map(a => [a.id, a.project_id]))
-  const billedByProject = new Map<number, number>()
+  // Per-app billed (sum of D+E+F) and outstanding (netBilled - amount_paid)
+  const completedByApp = new Map<number, number>()
   payAppLines.forEach(l => {
-    const pid = appToProject.get(l.pay_app_id)
-    if (!pid) return
     const v = (Number(l.from_previous) || 0) + (Number(l.this_period) || 0) + (Number(l.materials_stored) || 0)
-    billedByProject.set(pid, (billedByProject.get(pid) || 0) + v)
+    completedByApp.set(l.pay_app_id, (completedByApp.get(l.pay_app_id) || 0) + v)
   })
+
+  const billedByProject = new Map<number, number>()
+  const arByProject     = new Map<number, number>()
+  payApps.forEach(a => {
+    const completed = completedByApp.get(a.id) || 0
+    const netBilled = completed * (1 - (Number(a.retainage_pct) || 0) / 100)
+    const outstanding = Math.max(0, netBilled - (Number(a.amount_paid) || 0))
+    billedByProject.set(a.project_id, (billedByProject.get(a.project_id) || 0) + completed)
+    arByProject.set(a.project_id,     (arByProject.get(a.project_id)     || 0) + outstanding)
+  })
+
   const payAppCountByProject = payApps.reduce<Record<number, number>>((acc, a) => {
     acc[a.project_id] = (acc[a.project_id] || 0) + 1
     return acc
   }, {})
 
+  function isExpUnpaid(e: Expense): boolean {
+    return e.is_paid === false || e.payment_method === 'account_payable'
+  }
+
   const rows = projects.map(p => {
     const base = Number(p.contract_amount) || 0
     const co   = changeOrders.filter(c => c.project_id === p.id).reduce((s, c) => s + (Number(c.amount) || 0), 0)
-    const exp  = expenses.filter(e => e.project_id === p.id).reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    const projExps = expenses.filter(e => e.project_id === p.id)
+    const exp  = projExps.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    const ap   = projExps.filter(isExpUnpaid).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     return {
       project: p,
       contract: base,
@@ -121,6 +135,8 @@ export default function ManagerFinanceScreen() {
       net: base + co - exp,
       payAppCount: payAppCountByProject[p.id] || 0,
       billedToDate: billedByProject.get(p.id) || 0,
+      accountsReceivable: arByProject.get(p.id) || 0,
+      accountsPayable: ap,
     }
   })
 
@@ -131,9 +147,11 @@ export default function ManagerFinanceScreen() {
       acc.totalContract += r.totalContract
       acc.expenses += r.expenses
       acc.net += r.net
+      acc.accountsReceivable += r.accountsReceivable
+      acc.accountsPayable    += r.accountsPayable
       return acc
     },
-    { contract: 0, changeOrders: 0, totalContract: 0, expenses: 0, net: 0 },
+    { contract: 0, changeOrders: 0, totalContract: 0, expenses: 0, net: 0, accountsReceivable: 0, accountsPayable: 0 },
   )
 
   if (loading) {
@@ -178,6 +196,8 @@ export default function ManagerFinanceScreen() {
           <Tile label="Change Orders" value={fmtMoney(totals.changeOrders)}  bg={COLORS.orangeSoft} color={COLORS.orange} />
           <Tile label="Total Contract" value={fmtMoney(totals.totalContract)} bg={COLORS.greenSoft}  color={COLORS.green} />
           <Tile label="Expenses"      value={fmtMoney(totals.expenses)}      bg={COLORS.redSoft}    color={COLORS.red} />
+          <Tile label="A/R"           value={fmtMoney(totals.accountsReceivable)} bg={COLORS.orangeSoft} color={COLORS.orange} />
+          <Tile label="A/P"           value={fmtMoney(totals.accountsPayable)}    bg={COLORS.redSoft}    color={COLORS.red} />
           <Tile label="Net"           value={fmtMoney(totals.net)}           bg={totals.net >= 0 ? COLORS.greenSoft : COLORS.redSoft} color={totals.net >= 0 ? COLORS.green : COLORS.red} />
         </View>
 
@@ -217,6 +237,12 @@ export default function ManagerFinanceScreen() {
               <Row label="Net" value={fmtMoney(r.net)} color={r.net >= 0 ? COLORS.green : COLORS.red} bold />
               {r.payAppCount > 0 && (
                 <Row label={`Pay Apps (${r.payAppCount}) — Billed`} value={fmtMoney(r.billedToDate)} color={COLORS.blue} />
+              )}
+              {r.accountsReceivable > 0 && (
+                <Row label="A/R Outstanding" value={fmtMoney(r.accountsReceivable)} color={COLORS.orange} />
+              )}
+              {r.accountsPayable > 0 && (
+                <Row label="A/P Unpaid Bills" value={fmtMoney(r.accountsPayable)} color={COLORS.red} />
               )}
             </Pressable>
           ))

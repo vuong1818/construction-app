@@ -475,6 +475,12 @@ export default function ProjectDetailScreen() {
               <FinanceRow label="Change Orders"  value={financeTotals.changeOrders}  tint="#E65100" />
               <FinanceRow label="Total Contract" value={financeTotals.totalContract} tint="#2E7D32" bold />
               <FinanceRow label="Expenses"       value={financeTotals.expenses}      tint="#C62828" />
+              {financeTotals.accountsReceivable > 0 && (
+                <FinanceRow label="A/R (Outstanding)" value={financeTotals.accountsReceivable} tint="#E65100" />
+              )}
+              {financeTotals.accountsPayable > 0 && (
+                <FinanceRow label="A/P (Unpaid Bills)" value={financeTotals.accountsPayable} tint="#C62828" />
+              )}
               <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
               <FinanceRow label="Net" value={financeTotals.net} tint={financeTotals.net >= 0 ? '#2E7D32' : '#C62828'} bold />
               {financeTotals.payAppCount > 0 && (
