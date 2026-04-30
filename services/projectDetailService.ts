@@ -24,6 +24,7 @@ export type ProjectFile = {
   doc_type?: string | null
   plan_type?: string | null
   caption?: string | null
+  uploaded_by?: string | null
 }
 
 export type DocType = 'submittal' | 'change_order' | 'requirements' | 'admin' | 'other'
@@ -112,6 +113,7 @@ function mapPhoto(p: any): ProjectFile {
     bucket_name: 'project-photos',
     file_type: 'image/jpeg',
     caption: p.caption ?? null,
+    uploaded_by: p.uploaded_by ?? null,
   }
 }
 
@@ -136,7 +138,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
   const [plansResult, photosResult, documentsResult, reportsResult] = await Promise.all([
     supabase.from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
-    supabase.from('project_photos').select('id, project_id, file_path, caption, created_at')
+    supabase.from('project_photos').select('id, project_id, file_path, caption, uploaded_by, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('project_documents').select('id, project_id, name, doc_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -247,6 +249,17 @@ export async function updatePhotoCaption(photoId: number, caption: string | null
   if (error) throw new Error(error.message)
 }
 
+// Delete the storage object first, then the row. RLS gates whether the
+// caller is allowed to delete each — workers can only delete photos they
+// uploaded, managers can delete any.
+export async function deleteProjectPhoto(photo: ProjectFile) {
+  if (photo.file_path) {
+    await supabase.storage.from('project-photos').remove([photo.file_path])
+  }
+  const { error } = await supabase.from('project_photos').delete().eq('id', photo.id)
+  if (error) throw new Error(error.message)
+}
+
 export async function reloadPlans(projectId: number) {
   const { data, error } = await supabase
     .from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
@@ -272,7 +285,7 @@ export async function uploadProjectFile(params: {
   planType?: PlanType | null
 }) {
   const { projectId, uri, originalName, bucketName, mimeType, planType } = params
-  await requireSessionUser()
+  const user = await requireSessionUser()
 
   const safeName = cleanFileName(originalName)
   const storageFileName = `project-${projectId}-${Date.now()}-${safeName}`
@@ -302,6 +315,7 @@ export async function uploadProjectFile(params: {
         project_id: projectId,
         file_url: fileUrl,
         file_path: filePath,
+        uploaded_by: user.id,
       })
 
   const { error: dbError } = await insert

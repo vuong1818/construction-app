@@ -9,6 +9,7 @@ import {
     Project,
     ProjectFile,
     deleteProjectDocument,
+    deleteProjectPhoto,
     deleteProjectPlan,
     getPhotoUrl,
     loadProjectDetail,
@@ -22,6 +23,7 @@ import {
     uploadProjectDocument,
     uploadProjectFile,
 } from '../services/projectDetailService'
+import { supabase } from '../lib/supabase'
 
 type UseProjectDetailResult = {
   project: Project | null
@@ -58,6 +60,8 @@ type UseProjectDetailResult = {
   prevPhoto: () => void
   currentPhotoUrl: string | null
   savePhotoCaption: (photoId: number, caption: string) => Promise<void>
+  handleDeletePhoto: (photo: ProjectFile) => void
+  currentUserId: string | null
 }
 
 export function useProjectDetail(projectId?: number): UseProjectDetailResult {
@@ -74,6 +78,14 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
   const [photosModalVisible, setPhotosModalVisible] = useState(false)
   const [documentsModalVisible, setDocumentsModalVisible] = useState(false)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setCurrentUserId(session?.user?.id ?? null)
+    })()
+  }, [])
 
   const refreshAll = useCallback(async () => {
     if (!projectId) return
@@ -373,6 +385,34 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     setDocumentsModalVisible(true)
   }
 
+  function handleDeletePhoto(photo: ProjectFile) {
+    Alert.alert(
+      'Delete Photo',
+      'Delete this photo? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteProjectPhoto(photo)
+              const next = photos.filter(p => p.id !== photo.id)
+              setPhotos(next)
+              if (next.length === 0) {
+                setPhotosModalVisible(false)
+                setSelectedPhotoIndex(0)
+              } else if (selectedPhotoIndex >= next.length) {
+                setSelectedPhotoIndex(next.length - 1)
+              }
+            } catch (error: any) {
+              Alert.alert('Delete error', error?.message || 'Could not delete photo.')
+            }
+          },
+        },
+      ]
+    )
+  }
+
   async function savePhotoCaption(photoId: number, caption: string) {
     try {
       const trimmed = caption.trim()
@@ -432,5 +472,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     prevPhoto,
     currentPhotoUrl,
     savePhotoCaption,
+    handleDeletePhoto,
+    currentUserId,
   }
 }

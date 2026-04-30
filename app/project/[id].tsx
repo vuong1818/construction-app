@@ -1,24 +1,23 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Pressable,
-
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { supabase } from '../../lib/supabase'
-import type { DocType } from '../../services/projectDetailService'
+import { getPhotoUrl, type DocType } from '../../services/projectDetailService'
 
 const DOC_TYPE_LABELS: Record<DocType, string> = {
   submittal: 'Submittal',
@@ -203,17 +202,10 @@ export default function ProjectDetailScreen() {
     openPlansViewer,
     openReportsViewer,
     openDocumentsViewer,
-    nextPhoto,
-    prevPhoto,
-    currentPhotoUrl,
     savePhotoCaption,
+    handleDeletePhoto,
+    currentUserId,
   } = useProjectDetail(Number.isFinite(projectId) ? projectId : undefined)
-
-  // Caption editor state for the photos modal
-  const [captionEditing, setCaptionEditing] = useState(false)
-  const [captionDraft, setCaptionDraft] = useState('')
-  const [captionSaving, setCaptionSaving] = useState(false)
-  useEffect(() => { setCaptionEditing(false) }, [selectedPhotoIndex])
 
   const { totals: financeTotals } = useProjectFinance(Number.isFinite(projectId) ? projectId : undefined)
 
@@ -227,6 +219,19 @@ export default function ProjectDetailScreen() {
       setIsManager(data?.role === 'manager')
     })()
   }, [])
+
+  // Photo viewer state — pinch-to-zoom + swipe via react-native-image-viewing.
+  const [photoIndex, setPhotoIndex] = useState(0)
+  const [captionEditing, setCaptionEditing] = useState(false)
+  const [captionDraft, setCaptionDraft] = useState('')
+  const [captionSaving, setCaptionSaving] = useState(false)
+  useEffect(() => { setPhotoIndex(selectedPhotoIndex) }, [selectedPhotoIndex])
+  useEffect(() => { setCaptionEditing(false) }, [photoIndex])
+
+  const photoImages = useMemo(
+    () => photos.map(p => ({ uri: getPhotoUrl(p) })),
+    [photos]
+  )
 
   if (loading) {
     return (
@@ -729,51 +734,49 @@ export default function ProjectDetailScreen() {
         </View>
       </Modal>
 
-      <Modal
-        visible={photosModalVisible}
-        animationType="slide"
+      <ImageView
+        images={photoImages}
+        imageIndex={photoIndex}
+        visible={photosModalVisible && photos.length > 0}
         onRequestClose={() => setPhotosModalVisible(false)}
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
-              {photos.length > 0 ? `${selectedPhotoIndex + 1} / ${photos.length}` : 'Photos'}
-            </Text>
-
-            <Pressable onPress={() => setPhotosModalVisible(false)}>
-              <Ionicons name="close-circle" size={30} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
-          {photos.length > 0 && currentPhotoUrl ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Image
-                source={{ uri: currentPhotoUrl }}
-                style={{ width: '100%', height: '75%', resizeMode: 'contain' }}
-              />
-
-              <Text
-                style={{
-                  color: '#FFFFFF',
-                  marginTop: 12,
-                  paddingHorizontal: 16,
-                  textAlign: 'center',
-                }}
-              >
-                {photos[selectedPhotoIndex].original_name || photos[selectedPhotoIndex].file_name}
+        onImageIndexChange={setPhotoIndex}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+        HeaderComponent={({ imageIndex }) => (
+          <SafeAreaView edges={['top']} style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
+                {photos.length > 0 ? `${imageIndex + 1} / ${photos.length}` : 'Photos'}
               </Text>
-
-              {/* Caption editor */}
-              <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 12 }}>
-                {captionEditing ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {(isManager || (currentUserId != null && photos[imageIndex]?.uploaded_by === currentUserId)) && (
+                  <Pressable onPress={() => photos[imageIndex] && handleDeletePhoto(photos[imageIndex])}>
+                    <Ionicons name="trash-outline" size={26} color="#FFFFFF" />
+                  </Pressable>
+                )}
+                <Pressable onPress={() => setPhotosModalVisible(false)}>
+                  <Ionicons name="close-circle" size={30} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            </View>
+          </SafeAreaView>
+        )}
+        FooterComponent={({ imageIndex }) => {
+          const photo = photos[imageIndex]
+          if (!photo) return null
+          const canEdit = isManager || (currentUserId != null && photo.uploaded_by === currentUserId)
+          return (
+            <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
+              <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+                {captionEditing && canEdit ? (
                   <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, padding: 10 }}>
                     <TextInput
                       autoFocus
@@ -788,10 +791,9 @@ export default function ProjectDetailScreen() {
                       <Pressable
                         disabled={captionSaving}
                         onPress={async () => {
-                          if (!photos[selectedPhotoIndex]) return
                           setCaptionSaving(true)
                           try {
-                            await savePhotoCaption(photos[selectedPhotoIndex].id, captionDraft)
+                            await savePhotoCaption(photo.id, captionDraft)
                             setCaptionEditing(false)
                           } finally { setCaptionSaving(false) }
                         }}
@@ -810,8 +812,8 @@ export default function ProjectDetailScreen() {
                 ) : (
                   <Pressable
                     onPress={() => {
-                      if (!isManager) return
-                      setCaptionDraft(photos[selectedPhotoIndex]?.caption || '')
+                      if (!canEdit) return
+                      setCaptionDraft(photo.caption || '')
                       setCaptionEditing(true)
                     }}
                     style={{
@@ -824,51 +826,17 @@ export default function ProjectDetailScreen() {
                     }}
                   >
                     <MaterialCommunityIcons name="note-text-outline" size={18} color="#FFFFFF" />
-                    <Text style={{ color: photos[selectedPhotoIndex]?.caption ? '#FFFFFF' : '#aaa', fontSize: 14, flex: 1 }}>
-                      {photos[selectedPhotoIndex]?.caption || (isManager ? 'Tap to add a note' : 'No note')}
+                    <Text style={{ color: photo.caption ? '#FFFFFF' : '#aaa', fontSize: 14, flex: 1 }}>
+                      {photo.caption || (canEdit ? 'Tap to add a note' : 'No note')}
                     </Text>
-                    {isManager && <Text style={{ color: '#19B6D2', fontWeight: '700', fontSize: 12 }}>{photos[selectedPhotoIndex]?.caption ? 'Edit' : 'Add'}</Text>}
+                    {canEdit && <Text style={{ color: '#19B6D2', fontWeight: '700', fontSize: 12 }}>{photo.caption ? 'Edit' : 'Add'}</Text>}
                   </Pressable>
                 )}
               </View>
-
-              <View
-                style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  width: '100%',
-                  paddingHorizontal: 24,
-                  marginTop: 20,
-                }}
-              >
-                <Pressable
-                  onPress={prevPhoto}
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.15)',
-                    paddingHorizontal: 18,
-                    paddingVertical: 12,
-                    borderRadius: 16,
-                  }}
-                >
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Previous</Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={nextPhoto}
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.15)',
-                    paddingHorizontal: 18,
-                    paddingVertical: 12,
-                    borderRadius: 16,
-                  }}
-                >
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Next</Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
-        </SafeAreaView>
-      </Modal>
+            </SafeAreaView>
+          )
+        }}
+      />
     </SafeAreaView>
   )
 }
