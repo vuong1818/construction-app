@@ -48,6 +48,11 @@ export type ProjectDetailData = {
 
 type UploadBucket = 'project-photos' | 'project-plans'
 
+export type PlanType =
+  | 'architectural' | 'civil' | 'structural'
+  | 'electrical' | 'mechanical' | 'plumbing'
+  | 'redline' | 'landscape' | 'other'
+
 const DOCUMENTS_BUCKET = 'project-files'
 
 // Build the public-bucket URL for a given storage path. Mirrors the format
@@ -234,8 +239,9 @@ export async function uploadProjectFile(params: {
   originalName: string
   bucketName: UploadBucket
   mimeType: string
+  planType?: PlanType | null
 }) {
-  const { projectId, uri, originalName, bucketName, mimeType } = params
+  const { projectId, uri, originalName, bucketName, mimeType, planType } = params
   await requireSessionUser()
 
   const safeName = cleanFileName(originalName)
@@ -258,7 +264,7 @@ export async function uploadProjectFile(params: {
     ? supabase.from('project_plans').insert({
         project_id: projectId,
         name: originalName,
-        plan_type: null,
+        plan_type: planType ?? null,
         file_url: fileUrl,
         file_path: filePath,
       })

@@ -5,6 +5,7 @@ import { Alert } from 'react-native'
 import {
     DailyReport,
     DocType,
+    PlanType,
     Project,
     ProjectFile,
     deleteProjectDocument,
@@ -41,7 +42,7 @@ type UseProjectDetailResult = {
   refreshAll: () => Promise<void>
   pickPhotoFromLibrary: () => Promise<void>
   takePhotoWithCamera: () => Promise<void>
-  uploadPlan: () => Promise<void>
+  uploadPlan: (planType: PlanType) => Promise<void>
   uploadDocument: (docType: DocType) => Promise<void>
   handleOpenPlan: (plan: ProjectFile) => Promise<void>
   handleOpenDocument: (doc: ProjectFile) => Promise<void>
@@ -206,7 +207,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     }
   }
 
-  async function uploadPlan() {
+  async function uploadPlan(planType: PlanType) {
     if (!projectId) return
 
     const result = await DocumentPicker.getDocumentAsync({
@@ -228,6 +229,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
         originalName: asset.name || `plan-${Date.now()}.pdf`,
         bucketName: 'project-plans',
         mimeType: asset.mimeType || 'application/pdf',
+        planType,
       })
 
       await refreshPlansOnly()

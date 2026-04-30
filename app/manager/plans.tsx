@@ -56,7 +56,21 @@ type Plan = {
   file_name: string        // storage filename
   original_name: string | null  // display name
   file_path: string        // storage path (used for signed URL + delete)
+  plan_type: string | null
   created_at: string
+}
+
+const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  architectural: { bg: '#E3F2FD', color: '#1565C0', label: 'Architectural' },
+  civil:         { bg: '#E0F2F1', color: '#00695C', label: 'Civil' },
+  structural:    { bg: '#FCE4EC', color: '#AD1457', label: 'Structural' },
+  electrical:    { bg: '#FFF8E1', color: '#F57F17', label: 'Electrical' },
+  mechanical:    { bg: '#EDE7F6', color: '#4527A0', label: 'Mechanical' },
+  plumbing:      { bg: '#E1F5FE', color: '#0277BD', label: 'Plumbing' },
+  redline:       { bg: '#FFEBEE', color: '#C62828', label: 'Redline' },
+  landscape:     { bg: '#E8F5E9', color: '#2E7D32', label: 'Landscape' },
+  other:         { bg: '#F4F7FA', color: '#555555', label: 'Other' },
+  mep:           { bg: '#EDE7F6', color: '#4527A0', label: 'MEP' },
 }
 
 const STATUS_OPTIONS = ['Active', 'Bidding', 'On Hold', 'Completed']
@@ -130,7 +144,7 @@ export default function ManagerPlansScreen() {
     setPlansLoading(true)
     const { data } = await supabase
       .from('project_plans')
-      .select('id, project_id, name, file_path, created_at')
+      .select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
     const rows: Plan[] = (data || []).map((p: any) => ({
@@ -139,13 +153,34 @@ export default function ManagerPlansScreen() {
       file_name: p.file_path ? p.file_path.split('/').pop() : (p.name || 'plan.pdf'),
       original_name: p.name || null,
       file_path: p.file_path || '',
+      plan_type: p.plan_type ?? null,
       created_at: p.created_at,
     }))
     setPlans(rows)
     setPlansLoading(false)
   }
 
-  async function uploadPlan(projectId: number) {
+  type PlanType =
+    | 'architectural' | 'civil' | 'structural'
+    | 'electrical' | 'mechanical' | 'plumbing'
+    | 'redline' | 'landscape' | 'other'
+
+  function promptForPlanTypeAndUpload(projectId: number) {
+    Alert.alert('Plan Type', 'What kind of plan is this?', [
+      { text: 'Architectural', onPress: () => uploadPlan(projectId, 'architectural') },
+      { text: 'Civil',         onPress: () => uploadPlan(projectId, 'civil') },
+      { text: 'Structural',    onPress: () => uploadPlan(projectId, 'structural') },
+      { text: 'Electrical',    onPress: () => uploadPlan(projectId, 'electrical') },
+      { text: 'Mechanical',    onPress: () => uploadPlan(projectId, 'mechanical') },
+      { text: 'Plumbing',      onPress: () => uploadPlan(projectId, 'plumbing') },
+      { text: 'Redline',       onPress: () => uploadPlan(projectId, 'redline') },
+      { text: 'Landscape',     onPress: () => uploadPlan(projectId, 'landscape') },
+      { text: 'Other',         onPress: () => uploadPlan(projectId, 'other') },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+
+  async function uploadPlan(projectId: number, planType: PlanType) {
     try {
       setUploading(true)
       const result = await DocumentPicker.getDocumentAsync({
@@ -185,7 +220,7 @@ export default function ManagerPlansScreen() {
       const { error: dbErr } = await supabase.from('project_plans').insert({
         project_id: projectId,
         name: file.name || 'Plan',
-        plan_type: null,
+        plan_type: planType,
         file_url: fileUrl,
         file_path: filePath,
       })
@@ -389,13 +424,13 @@ export default function ManagerPlansScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
                       <Text style={{ flex: 1, color: C.navy, fontWeight: '800', fontSize: 14 }}>Project Plans</Text>
                       <Pressable
-                        onPress={() => uploadPlan(project.id)}
+                        onPress={() => promptForPlanTypeAndUpload(project.id)}
                         disabled={uploading}
                         style={{ backgroundColor: C.teal, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, opacity: uploading ? 0.6 : 1 }}
                       >
                         {uploading
                           ? <ActivityIndicator color={C.white} size="small" />
-                          : <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>⬆ Upload PDF</Text>
+                          : <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>⬆ Upload Plan</Text>
                         }
                       </Pressable>
                     </View>
@@ -407,29 +442,41 @@ export default function ManagerPlansScreen() {
                         No plans uploaded yet.
                       </Text>
                     ) : (
-                      plans.map(plan => (
-                        <View
-                          key={plan.id}
-                          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 10 }}
-                        >
-                          <Text style={{ fontSize: 22 }}>📄</Text>
-                          <Text style={{ flex: 1, color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
-                            {plan.original_name || plan.file_name}
-                          </Text>
-                          <Pressable
-                            onPress={() => viewPlan(plan)}
-                            style={{ backgroundColor: C.navySoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                      plans.map(plan => {
+                        const badge = plan.plan_type ? PLAN_TYPE_BADGE[plan.plan_type] : null
+                        return (
+                          <View
+                            key={plan.id}
+                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 10 }}
                           >
-                            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 12 }}>View</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={() => deletePlan(plan)}
-                            style={{ backgroundColor: C.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
-                          >
-                            <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>Delete</Text>
-                          </Pressable>
-                        </View>
-                      ))
+                            <Text style={{ fontSize: 22 }}>📄</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+                                {plan.original_name || plan.file_name}
+                              </Text>
+                              {badge && (
+                                <View style={{ alignSelf: 'flex-start', marginTop: 4, backgroundColor: badge.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
+                                  <Text style={{ color: badge.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+                                    {badge.label.toUpperCase()}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Pressable
+                              onPress={() => viewPlan(plan)}
+                              style={{ backgroundColor: C.navySoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                            >
+                              <Text style={{ color: C.navy, fontWeight: '800', fontSize: 12 }}>View</Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() => deletePlan(plan)}
+                              style={{ backgroundColor: C.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                            >
+                              <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                            </Pressable>
+                          </View>
+                        )
+                      })
                     )}
                   </View>
                 )}

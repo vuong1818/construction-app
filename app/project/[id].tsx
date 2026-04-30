@@ -164,7 +164,6 @@ export default function ProjectDetailScreen() {
     setDocumentsModalVisible,
     pickPhotoFromLibrary,
     takePhotoWithCamera,
-    uploadPlan,
     uploadDocument,
     handleOpenPlan,
     handleOpenDocument,
