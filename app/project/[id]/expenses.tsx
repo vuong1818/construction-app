@@ -19,6 +19,7 @@ import {
 import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
+import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 type ExpenseType = { id: number; value: string; label: string; sort_order: number; deleted_at: string | null }
@@ -75,6 +76,7 @@ export default function ProjectExpensesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const projectId = Number(id)
+  const { t } = useLanguage()
 
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -207,7 +209,7 @@ export default function ProjectExpensesScreen() {
   async function pickReceiptFromLibrary() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow access to your photos.')
+      Alert.alert(t('permissionNeeded'), t('allowPhotos'))
       return
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 })
@@ -218,7 +220,7 @@ export default function ProjectExpensesScreen() {
   async function takeReceiptPhoto() {
     const permission = await ImagePicker.requestCameraPermissionsAsync()
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow camera access.')
+      Alert.alert(t('permissionNeeded'), t('allowCamera'))
       return
     }
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 })
@@ -244,11 +246,11 @@ export default function ProjectExpensesScreen() {
   async function save() {
     const amt = Number(form.amount)
     if (!Number.isFinite(amt) || amt <= 0) {
-      Alert.alert('Missing', 'Amount must be a positive number.')
+      Alert.alert(t('missing'), t('amountPositive'))
       return
     }
     if (form.expense_date && !DATE_RE.test(form.expense_date)) {
-      Alert.alert('Invalid date', 'Use YYYY-MM-DD format.')
+      Alert.alert(t('invalidDate'), t('invalidDateFormat'))
       return
     }
 
@@ -292,7 +294,7 @@ export default function ProjectExpensesScreen() {
       closeForm()
       load()
     } catch (e: any) {
-      Alert.alert('Save failed', e?.message || 'Could not save expense.')
+      Alert.alert(t('saveFailed'), e?.message || t('couldNotSaveExpense'))
     } finally {
       setSaving(false)
     }
@@ -301,12 +303,12 @@ export default function ProjectExpensesScreen() {
   // Manager-only delete (mirrors RLS).
   function confirmDelete(e: Expense) {
     Alert.alert(
-      'Delete Expense',
-      `Delete this ${labelForType(e.expense_type)} expense for ${fmtMoney(e.amount)}?`,
+      t('deleteExpense'),
+      t('deleteExpenseConfirm', { type: labelForType(e.expense_type), amount: fmtMoney(e.amount) }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             try {
               if (e.receipt_photo_path) {
@@ -316,7 +318,7 @@ export default function ProjectExpensesScreen() {
               if (error) throw error
               load()
             } catch (err: any) {
-              Alert.alert('Delete failed', err?.message || 'Could not delete expense.')
+              Alert.alert(t('deleteFailed'), err?.message || t('couldNotDeleteExpense'))
             }
           },
         },
@@ -331,7 +333,7 @@ export default function ProjectExpensesScreen() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading expenses...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingExpenses')}</Text>
       </SafeAreaView>
     )
   }
@@ -339,10 +341,10 @@ export default function ProjectExpensesScreen() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={() => router.back()} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Back</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('back')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -359,18 +361,18 @@ export default function ProjectExpensesScreen() {
         </Text>
         <Pressable onPress={openCreate} style={{ backgroundColor: COLORS.teal, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Ionicons name="add" size={18} color={COLORS.white} />
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Add</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('add')}</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border }}>
           <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            {isManager ? 'All expenses' : 'My expenses'}
+            {isManager ? t('allExpenses') : t('myExpensesTotal')}
           </Text>
           <Text style={{ color: COLORS.amount, fontSize: 24, fontWeight: '900', marginTop: 4 }}>{fmtMoney(total)}</Text>
           <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
-            {expenses.length} {expenses.length === 1 ? 'entry' : 'entries'}
+            {expenses.length} {expenses.length === 1 ? t('expenseEntry') : t('expenseEntries')}
           </Text>
         </View>
 
@@ -378,7 +380,7 @@ export default function ProjectExpensesScreen() {
           <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}>
             <MaterialCommunityIcons name="receipt-outline" size={42} color={COLORS.subtext} />
             <Text style={{ color: COLORS.subtext, marginTop: 8, textAlign: 'center' }}>
-              No expenses yet. Tap Add to log a field expense.
+              {t('noExpensesYet')}
             </Text>
           </View>
         ) : (
@@ -444,11 +446,11 @@ export default function ProjectExpensesScreen() {
           <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '92%' }}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 14 }}>
-                {editing ? 'Edit Expense' : 'New Expense'}
+                {editing ? t('editExpense') : t('newExpense')}
               </Text>
 
               {/* Type */}
-              <Text style={styles.lbl}>Type</Text>
+              <Text style={styles.lbl}>{t('type')}</Text>
               <View style={styles.pickerWrap}>
                 <Picker
                   selectedValue={form.expense_type}
@@ -457,27 +459,27 @@ export default function ProjectExpensesScreen() {
                   {/* If editing an expense whose type was soft-deleted, surface
                       the slug as a stub item so the picker can show its current
                       value (otherwise the Picker would silently skip it). */}
-                  {form.expense_type && !activeTypes.find(t => t.value === form.expense_type) && (
-                    <Picker.Item key={`__stale_${form.expense_type}`} label={`Unknown (${form.expense_type})`} value={form.expense_type} />
+                  {form.expense_type && !activeTypes.find(et => et.value === form.expense_type) && (
+                    <Picker.Item key={`__stale_${form.expense_type}`} label={`${t('unknown')} (${form.expense_type})`} value={form.expense_type} />
                   )}
-                  {activeTypes.map(t => (
-                    <Picker.Item key={t.value} label={t.label} value={t.value} />
+                  {activeTypes.map(et => (
+                    <Picker.Item key={et.value} label={et.label} value={et.value} />
                   ))}
                 </Picker>
               </View>
 
               {/* Amount */}
-              <Text style={styles.lbl}>Amount ($)</Text>
+              <Text style={styles.lbl}>{t('amount')}</Text>
               <TextInput
                 value={form.amount}
                 onChangeText={(v) => setForm(f => ({ ...f, amount: v }))}
-                placeholder="0.00"
+                placeholder={t('amountPlaceholder')}
                 keyboardType="decimal-pad"
                 style={styles.inp}
               />
 
               {/* Date */}
-              <Text style={styles.lbl}>Date (YYYY-MM-DD)</Text>
+              <Text style={styles.lbl}>{t('dateLabel')}</Text>
               <TextInput
                 value={form.expense_date}
                 onChangeText={(v) => setForm(f => ({ ...f, expense_date: v }))}
@@ -486,12 +488,12 @@ export default function ProjectExpensesScreen() {
               />
 
               {/* Vendor */}
-              <Text style={styles.lbl}>Vendor</Text>
+              <Text style={styles.lbl}>{t('vendor')}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TextInput
                   value={form.vendor}
                   onChangeText={(v) => setForm(f => ({ ...f, vendor: v }))}
-                  placeholder="Home Depot, Lowe's, etc."
+                  placeholder={t('vendorPlaceholder')}
                   style={[styles.inp, { flex: 1 }]}
                 />
                 {activeVendors.length > 0 && (
@@ -499,31 +501,31 @@ export default function ProjectExpensesScreen() {
                     onPress={() => setVendorPickerOpen(true)}
                     style={{ paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.tealSoft, justifyContent: 'center' }}
                   >
-                    <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>Pick</Text>
+                    <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>{t('pickVendorAction')}</Text>
                   </Pressable>
                 )}
               </View>
 
               {/* Notes */}
-              <Text style={styles.lbl}>Notes</Text>
+              <Text style={styles.lbl}>{t('notes')}</Text>
               <TextInput
                 value={form.notes}
                 onChangeText={(v) => setForm(f => ({ ...f, notes: v }))}
-                placeholder="What was this for?"
+                placeholder={t('notesPlaceholder')}
                 multiline
                 style={[styles.inp, { minHeight: 80, textAlignVertical: 'top' }]}
               />
 
               {/* Receipt */}
-              <Text style={styles.lbl}>Receipt Photo</Text>
+              <Text style={styles.lbl}>{t('receiptPhoto')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
                 <Pressable onPress={takeReceiptPhoto} style={{ flex: 1, backgroundColor: COLORS.tealSoft, borderRadius: 10, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
                   <Ionicons name="camera-outline" size={18} color={COLORS.teal} />
-                  <Text style={{ color: COLORS.teal, fontWeight: '700' }}>Camera</Text>
+                  <Text style={{ color: COLORS.teal, fontWeight: '700' }}>{t('receiptCamera')}</Text>
                 </Pressable>
                 <Pressable onPress={pickReceiptFromLibrary} style={{ flex: 1, backgroundColor: COLORS.navySoft, borderRadius: 10, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
                   <Ionicons name="image-outline" size={18} color={COLORS.navy} />
-                  <Text style={{ color: COLORS.navy, fontWeight: '700' }}>Library</Text>
+                  <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('receiptLibrary')}</Text>
                 </Pressable>
               </View>
               {(pendingReceipt || form.receipt_photo_url) && (
@@ -533,7 +535,7 @@ export default function ProjectExpensesScreen() {
                     style={{ width: '100%', height: 180, borderRadius: 12, resizeMode: 'cover' }}
                   />
                   {pendingReceipt && (
-                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>New receipt — will upload on Save</Text>
+                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>{t('receiptNew')}</Text>
                   )}
                 </View>
               )}
@@ -544,10 +546,10 @@ export default function ProjectExpensesScreen() {
                   disabled={saving}
                   style={{ flex: 1, backgroundColor: COLORS.navy, borderRadius: 14, padding: 14, alignItems: 'center', opacity: saving ? 0.6 : 1 }}
                 >
-                  <Text style={{ color: COLORS.white, fontWeight: '800' }}>{saving ? 'Saving...' : (editing ? 'Update' : 'Add')}</Text>
+                  <Text style={{ color: COLORS.white, fontWeight: '800' }}>{saving ? t('saving') : (editing ? t('update') : t('add'))}</Text>
                 </Pressable>
                 <Pressable onPress={closeForm} style={{ flex: 1, backgroundColor: COLORS.background, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}>
-                  <Text style={{ color: COLORS.text, fontWeight: '700' }}>Cancel</Text>
+                  <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t('cancel')}</Text>
                 </Pressable>
               </View>
             </ScrollView>
@@ -570,7 +572,7 @@ export default function ProjectExpensesScreen() {
         <Pressable onPress={() => setVendorPickerOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 24 }}>
           <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, maxHeight: '70%' }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>Pick Vendor</Text>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>{t('pickVendor')}</Text>
               <Pressable onPress={() => setVendorPickerOpen(false)}><Ionicons name="close" size={22} color={COLORS.subtext} /></Pressable>
             </View>
             <ScrollView>
@@ -585,7 +587,7 @@ export default function ProjectExpensesScreen() {
               ))}
             </ScrollView>
             <Pressable onPress={() => setVendorPickerOpen(false)} style={{ marginTop: 12, padding: 12, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 10 }}>
-              <Text style={{ color: COLORS.text, fontWeight: '700' }}>Cancel</Text>
+              <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t('cancel')}</Text>
             </Pressable>
           </Pressable>
         </Pressable>

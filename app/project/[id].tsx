@@ -16,15 +16,16 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
+import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { getPhotoUrl, type DocType } from '../../services/projectDetailService'
 
-const DOC_TYPE_LABELS: Record<DocType, string> = {
-  submittal: 'Submittal',
-  change_order: 'Change Order',
-  requirements: 'Requirements',
-  admin: '🔒 Admin',
-  other: 'Other',
+const DOC_TYPE_LABEL_KEYS: Record<DocType, TranslationKey> = {
+  submittal:    'docTypeSubmittal',
+  change_order: 'docTypeChangeOrder',
+  requirements: 'docTypeRequirements',
+  admin:        'docTypeAdmin',
+  other:        'docTypeOther',
 }
 
 const DOC_TYPE_BADGE: Record<DocType, { bg: string; color: string }> = {
@@ -172,6 +173,7 @@ export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const projectId = Number(id)
+  const { t } = useLanguage()
 
   const {
     project,
@@ -244,7 +246,7 @@ export default function ProjectDetailScreen() {
         }}
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading project...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingProject')}</Text>
       </SafeAreaView>
     )
   }
@@ -260,7 +262,7 @@ export default function ProjectDetailScreen() {
           padding: 24,
         }}
       >
-        <Text style={{ color: COLORS.red, marginBottom: 12, fontWeight: '700' }}>Error</Text>
+        <Text style={{ color: COLORS.red, marginBottom: 12, fontWeight: '700' }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>{errorMessage}</Text>
       </SafeAreaView>
     )
@@ -276,7 +278,7 @@ export default function ProjectDetailScreen() {
           backgroundColor: COLORS.background,
         }}
       >
-        <Text style={{ color: COLORS.text }}>Project not found.</Text>
+        <Text style={{ color: COLORS.text }}>{t('projectNotFound')}</Text>
       </SafeAreaView>
     )
   }
@@ -313,21 +315,21 @@ export default function ProjectDetailScreen() {
                 }}
               >
                 <MaterialCommunityIcons name="pencil-outline" size={16} color={COLORS.teal} />
-                <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 13 }}>Edit</Text>
+                <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 13 }}>{t('edit')}</Text>
               </Pressable>
             )}
           </View>
 
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
-            Address: {formatProjectAddress(project) || 'No address'}
+            {t('address')}: {formatProjectAddress(project) || t('noAddress')}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
-            Status: {project.status || 'No status'}
+            {t('status')}: {project.status || t('noStatus')}
           </Text>
 
           <Text style={{ color: COLORS.subtext }}>
-            {project.description || 'No description'}
+            {project.description || t('noDescription')}
           </Text>
         </View>
 
@@ -335,7 +337,7 @@ export default function ProjectDetailScreen() {
           icon="format-list-checks"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Tasks"
+          title={t('tasks')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -343,7 +345,7 @@ export default function ProjectDetailScreen() {
             icon="clipboard-list-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title="Open Tasks"
+            title={t('openTasks')}
             onPress={() => router.push(`/project/${id}/tasks`)}
           />
         </View>
@@ -352,7 +354,7 @@ export default function ProjectDetailScreen() {
           icon="file-pdf-box"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title="Plans"
+          title={t('plans')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -360,7 +362,7 @@ export default function ProjectDetailScreen() {
             icon="file-eye-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title="View Plans"
+            title={t('viewPlans')}
             onPress={openPlansViewer}
           />
         </View>
@@ -369,7 +371,7 @@ export default function ProjectDetailScreen() {
           icon="folder-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title="Documents"
+          title={t('documents')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -377,26 +379,26 @@ export default function ProjectDetailScreen() {
             icon="file-document-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title="View Documents"
+            title={t('viewDocuments')}
             onPress={openDocumentsViewer}
           />
           <BigActionCard
             icon="file-upload-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            title={uploading ? 'Working...' : 'Upload Document'}
+            title={uploading ? t('workingEllipsis') : t('uploadDocument')}
             onPress={() => {
               const buttons: any[] = [
-                { text: 'Submittal',    onPress: () => uploadDocument('submittal') },
-                { text: 'Change Order', onPress: () => uploadDocument('change_order') },
-                { text: 'Requirements', onPress: () => uploadDocument('requirements') },
+                { text: t('docTypeSubmittal'),    onPress: () => uploadDocument('submittal') },
+                { text: t('docTypeChangeOrder'),  onPress: () => uploadDocument('change_order') },
+                { text: t('docTypeRequirements'), onPress: () => uploadDocument('requirements') },
               ]
               if (isManager) {
-                buttons.push({ text: '🔒 Admin', onPress: () => uploadDocument('admin') })
+                buttons.push({ text: t('docTypeAdmin'), onPress: () => uploadDocument('admin') })
               }
-              buttons.push({ text: 'Other', onPress: () => uploadDocument('other') })
-              buttons.push({ text: 'Cancel', style: 'cancel' })
-              Alert.alert('Document Type', 'What kind of document is this?', buttons)
+              buttons.push({ text: t('docTypeOther'), onPress: () => uploadDocument('other') })
+              buttons.push({ text: t('cancel'), style: 'cancel' })
+              Alert.alert(t('documentType'), t('documentTypePrompt'), buttons)
             }}
             disabled={uploading}
           />
@@ -406,7 +408,7 @@ export default function ProjectDetailScreen() {
           icon="image-multiple-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Photos"
+          title={t('photos')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -414,7 +416,7 @@ export default function ProjectDetailScreen() {
             icon="image-plus"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={uploading ? 'Working...' : 'Upload Photo'}
+            title={uploading ? t('workingEllipsis') : t('uploadPhoto')}
             onPress={pickPhotoFromLibrary}
             disabled={uploading}
           />
@@ -422,7 +424,7 @@ export default function ProjectDetailScreen() {
             icon="camera-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            title={uploading ? 'Working...' : 'Take Photo'}
+            title={uploading ? t('workingEllipsis') : t('takePhoto')}
             onPress={takePhotoWithCamera}
             disabled={uploading}
           />
@@ -430,7 +432,7 @@ export default function ProjectDetailScreen() {
             icon="image-search-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title="View Photo"
+            title={t('viewPhoto')}
             onPress={openPhotoViewer}
           />
         </View>
@@ -439,7 +441,7 @@ export default function ProjectDetailScreen() {
           icon="receipt-text-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Expenses"
+          title={t('expenses')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -447,7 +449,7 @@ export default function ProjectDetailScreen() {
             icon="cash-plus"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={isManager ? 'View / Add Expenses' : 'My Expenses'}
+            title={isManager ? `${t('view')} / ${t('add')} ${t('expenses')}` : t('myExpenses')}
             onPress={() => router.push(`/project/${id}/expenses`)}
           />
         </View>
@@ -456,7 +458,7 @@ export default function ProjectDetailScreen() {
           icon="clipboard-text-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Daily Report"
+          title={t('dailyReport')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -464,14 +466,14 @@ export default function ProjectDetailScreen() {
             icon="clipboard-plus-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title="Create Report"
+            title={t('createReport')}
             onPress={() => router.push(`/project/${id}/new-report`)}
           />
           <BigActionCard
             icon="clipboard-search-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            title="View Reports"
+            title={t('viewReports')}
             onPress={openReportsViewer}
           />
         </View>
@@ -482,7 +484,7 @@ export default function ProjectDetailScreen() {
               icon="cash-multiple"
               iconBg={COLORS.tealSoft}
               iconColor={COLORS.teal}
-              title="Finance"
+              title={t('finance')}
             />
             <View
               style={{
@@ -493,31 +495,31 @@ export default function ProjectDetailScreen() {
                 borderColor: COLORS.border,
               }}
             >
-              <FinanceRow label="Contract"       value={financeTotals.contract}      tint="#1565C0" />
-              <FinanceRow label="Change Orders"  value={financeTotals.changeOrders}  tint="#E65100" />
-              <FinanceRow label="Total Contract" value={financeTotals.totalContract} tint="#2E7D32" bold />
-              <FinanceRow label="Expenses"       value={financeTotals.expenses}      tint="#C62828" />
+              <FinanceRow label={t('contract')}      value={financeTotals.contract}      tint="#1565C0" />
+              <FinanceRow label={t('changeOrders')}  value={financeTotals.changeOrders}  tint="#E65100" />
+              <FinanceRow label={t('totalContract')} value={financeTotals.totalContract} tint="#2E7D32" bold />
+              <FinanceRow label={t('expenses')}      value={financeTotals.expenses}      tint="#C62828" />
               {financeTotals.accountsReceivable > 0 && (
-                <FinanceRow label="A/R (Outstanding)" value={financeTotals.accountsReceivable} tint="#E65100" />
+                <FinanceRow label={t('accountsReceivable')} value={financeTotals.accountsReceivable} tint="#E65100" />
               )}
               {financeTotals.accountsPayable > 0 && (
-                <FinanceRow label="A/P (Unpaid Bills)" value={financeTotals.accountsPayable} tint="#C62828" />
+                <FinanceRow label={t('accountsPayable')} value={financeTotals.accountsPayable} tint="#C62828" />
               )}
               <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
-              <FinanceRow label="Net" value={financeTotals.net} tint={financeTotals.net >= 0 ? '#2E7D32' : '#C62828'} bold />
+              <FinanceRow label={t('net')} value={financeTotals.net} tint={financeTotals.net >= 0 ? '#2E7D32' : '#C62828'} bold />
               {financeTotals.payAppCount > 0 && (
                 <>
                   <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
                     <Text style={{ color: COLORS.subtext, fontSize: 13, fontWeight: '700' }}>
-                      Pay Apps ({financeTotals.payAppCount}) — Billed to Date
+                      {t('payAppsBilled', { count: financeTotals.payAppCount })}
                     </Text>
                     <Text style={{ color: '#1565C0', fontSize: 14, fontWeight: '900' }}>{fmtMoney(financeTotals.billedToDate)}</Text>
                   </View>
                 </>
               )}
               <Text style={{ color: COLORS.subtext, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
-                Edit contract, change orders, expenses, and pay apps on the web portal.
+                {t('financeNote')}
               </Text>
             </View>
           </>
@@ -541,7 +543,7 @@ export default function ProjectDetailScreen() {
             }}
           >
             <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
-              View Plans
+              {t('viewPlans')}
             </Text>
 
             <ScrollView>
@@ -582,14 +584,14 @@ export default function ProjectDetailScreen() {
                       }}
                       style={{ backgroundColor: COLORS.tealSoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
                     >
-                      <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 12 }}>View</Text>
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
                     </Pressable>
                     {isManager && (
                       <Pressable
                         onPress={() => handleDeletePlan(plan)}
                         style={{ backgroundColor: '#FEF2F2', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 }}
                       >
-                        <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                        <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 12 }}>{t('delete')}</Text>
                       </Pressable>
                     )}
                   </View>
@@ -601,7 +603,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setPlansModalVisible(false)}
               style={{ alignItems: 'center', paddingVertical: 14 }}
             >
-              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>Close</Text>
+              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{t('close')}</Text>
             </Pressable>
           </View>
         </View>
@@ -624,7 +626,7 @@ export default function ProjectDetailScreen() {
             }}
           >
             <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
-              Documents
+              {t('documents')}
             </Text>
 
             <ScrollView>
@@ -648,7 +650,7 @@ export default function ProjectDetailScreen() {
                     <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
                       {doc.original_name || doc.file_name}
                     </Text>
-                    {doc.doc_type && DOC_TYPE_LABELS[doc.doc_type as DocType] && (
+                    {doc.doc_type && DOC_TYPE_LABEL_KEYS[doc.doc_type as DocType] && (
                       <View style={{
                         alignSelf: 'flex-start',
                         marginTop: 4,
@@ -658,7 +660,7 @@ export default function ProjectDetailScreen() {
                         borderRadius: 100,
                       }}>
                         <Text style={{ color: DOC_TYPE_BADGE[doc.doc_type as DocType].color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-                          {DOC_TYPE_LABELS[doc.doc_type as DocType].toUpperCase()}
+                          {t(DOC_TYPE_LABEL_KEYS[doc.doc_type as DocType]).toUpperCase()}
                         </Text>
                       </View>
                     )}
@@ -688,7 +690,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setDocumentsModalVisible(false)}
               style={{ alignItems: 'center', paddingVertical: 14 }}
             >
-              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>Close</Text>
+              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{t('close')}</Text>
             </Pressable>
           </View>
         </View>
@@ -711,7 +713,7 @@ export default function ProjectDetailScreen() {
             }}
           >
             <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
-              View Reports
+              {t('viewReports')}
             </Text>
 
             <ScrollView>
@@ -735,7 +737,7 @@ export default function ProjectDetailScreen() {
                     {report.report_date}
                   </Text>
                   <Text style={{ color: COLORS.subtext, marginTop: 4 }}>
-                    Prepared By: {report.created_by_name || 'Unknown'}
+                    {t('preparedBy')}: {report.created_by_name || t('unknown')}
                   </Text>
                 </Pressable>
               ))}
@@ -745,7 +747,7 @@ export default function ProjectDetailScreen() {
               onPress={() => setReportsModalVisible(false)}
               style={{ alignItems: 'center', paddingVertical: 14 }}
             >
-              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>Close</Text>
+              <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{t('close')}</Text>
             </Pressable>
           </View>
         </View>
@@ -771,7 +773,7 @@ export default function ProjectDetailScreen() {
               }}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
-                {photos.length > 0 ? `${imageIndex + 1} / ${photos.length}` : 'Photos'}
+                {photos.length > 0 ? `${imageIndex + 1} / ${photos.length}` : t('photos')}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {(isManager || (currentUserId != null && photos[imageIndex]?.uploaded_by === currentUserId)) && (
@@ -800,7 +802,7 @@ export default function ProjectDetailScreen() {
                       multiline
                       value={captionDraft}
                       onChangeText={setCaptionDraft}
-                      placeholder="Add a note about this photo..."
+                      placeholder={t('addPhotoNotePlaceholder')}
                       placeholderTextColor="#aaa"
                       style={{ color: '#FFFFFF', fontSize: 14, minHeight: 50 }}
                     />
@@ -816,13 +818,13 @@ export default function ProjectDetailScreen() {
                         }}
                         style={{ backgroundColor: '#19B6D2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
                       >
-                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{captionSaving ? 'Saving...' : 'Save'}</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{captionSaving ? t('saving') : t('save')}</Text>
                       </Pressable>
                       <Pressable
                         onPress={() => setCaptionEditing(false)}
                         style={{ backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
                       >
-                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Cancel</Text>
+                        <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{t('cancel')}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -844,9 +846,9 @@ export default function ProjectDetailScreen() {
                   >
                     <MaterialCommunityIcons name="note-text-outline" size={18} color="#FFFFFF" />
                     <Text style={{ color: photo.caption ? '#FFFFFF' : '#aaa', fontSize: 14, flex: 1 }}>
-                      {photo.caption || (canEdit ? 'Tap to add a note' : 'No note')}
+                      {photo.caption || (canEdit ? t('addPhotoNote') : t('noPhotoNote'))}
                     </Text>
-                    {canEdit && <Text style={{ color: '#19B6D2', fontWeight: '700', fontSize: 12 }}>{photo.caption ? 'Edit' : 'Add'}</Text>}
+                    {canEdit && <Text style={{ color: '#19B6D2', fontWeight: '700', fontSize: 12 }}>{photo.caption ? t('edit') : t('add')}</Text>}
                   </Pressable>
                 )}
               </View>

@@ -16,6 +16,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
+import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 
 const COLORS = {
@@ -33,6 +34,7 @@ type Mode = 'login' | 'signup'
 export default function SignInScreen() {
   const router = useRouter()
   const { logoUrl } = useCompanyLogo()
+  const { t } = useLanguage()
 
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -59,7 +61,7 @@ export default function SignInScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing Information', 'Please enter your email and password.')
+      Alert.alert(t('missingInformation'), t('enterEmailPassword'))
       return
     }
 
@@ -72,13 +74,13 @@ export default function SignInScreen() {
       })
 
       if (error) {
-        Alert.alert('Login Error', error.message)
+        Alert.alert(t('loginError'), error.message)
         return
       }
 
       router.replace('/(tabs)')
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Something went wrong')
+      Alert.alert(t('error'), error?.message || t('somethingWrong'))
     } finally {
       setLoading(false)
     }
@@ -86,32 +88,32 @@ export default function SignInScreen() {
 
   async function handleCreateUser() {
     if (!firstName.trim()) {
-      Alert.alert('Missing Information', 'Please enter first name.')
+      Alert.alert(t('missingInformation'), t('enterFirstName'))
       return
     }
 
     if (!lastName.trim()) {
-      Alert.alert('Missing Information', 'Please enter last name.')
+      Alert.alert(t('missingInformation'), t('enterLastName'))
       return
     }
 
     if (!email.trim()) {
-      Alert.alert('Missing Information', 'Please enter email.')
+      Alert.alert(t('missingInformation'), t('enterEmail'))
       return
     }
 
     if (!password.trim()) {
-      Alert.alert('Missing Information', 'Please enter password.')
+      Alert.alert(t('missingInformation'), t('enterPassword'))
       return
     }
 
     if (password.length < 6) {
-      Alert.alert('Weak Password', 'Password must be at least 6 characters.')
+      Alert.alert(t('weakPassword'), t('passwordMinLength'))
       return
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Password Mismatch', 'Password and confirm password do not match.')
+      Alert.alert(t('passwordMismatch'), t('passwordsDontMatch'))
       return
     }
 
@@ -132,14 +134,11 @@ export default function SignInScreen() {
       })
 
       if (error) {
-        Alert.alert('Create User Error', error.message)
+        Alert.alert(t('createUserError'), error.message)
         return
       }
 
-      Alert.alert(
-        'User Created',
-        'Your account was created successfully. Please go back and log in with your email and password.'
-      )
+      Alert.alert(t('userCreated'), t('accountCreatedMessage'))
 
       setMode('login')
       setPassword('')
@@ -147,7 +146,7 @@ export default function SignInScreen() {
       setFirstName('')
       setLastName('')
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Something went wrong')
+      Alert.alert(t('error'), error?.message || t('somethingWrong'))
     } finally {
       setLoading(false)
     }
@@ -156,22 +155,16 @@ export default function SignInScreen() {
   async function handleForgotPassword() {
     const emailToReset = email.trim().toLowerCase()
     if (!emailToReset) {
-      Alert.alert(
-        'Enter Your Email First',
-        'Type your email address in the field above, then tap "Forgot password?" to receive a reset link.'
-      )
+      Alert.alert(t('enterEmailFirst'), t('enterEmailForReset'))
       return
     }
     try {
       setLoading(true)
       const { error } = await supabase.auth.resetPasswordForEmail(emailToReset)
       if (error) throw error
-      Alert.alert(
-        'Check Your Email 📬',
-        `A password reset link has been sent to ${emailToReset}.\n\nCheck your inbox (and spam folder).`
-      )
+      Alert.alert(t('checkYourEmail') + ' 📬', t('resetLinkSent', { email: emailToReset }))
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not send reset email. Please try again.')
+      Alert.alert(t('error'), err?.message || t('resetLinkFailed'))
     } finally {
       setLoading(false)
     }
@@ -233,7 +226,7 @@ export default function SignInScreen() {
                     marginBottom: 6,
                   }}
                 >
-                  {mode === 'login' ? 'Log In' : 'Create New User'}
+                  {mode === 'login' ? t('login') : t('createNewUser')}
                 </Text>
 
                 <Text
@@ -242,9 +235,7 @@ export default function SignInScreen() {
                     textAlign: 'center',
                   }}
                 >
-                  {mode === 'login'
-                    ? 'Sign in to continue'
-                    : 'New users are created with worker access by default'}
+                  {mode === 'login' ? t('signInToContinue') : t('newUserDefaultRole')}
                 </Text>
               </View>
 
@@ -267,13 +258,13 @@ export default function SignInScreen() {
                         fontSize: 14,
                       }}
                     >
-                      First Name
+                      {t('firstName')}
                     </Text>
 
                     <TextInput
                       value={firstName}
                       onChangeText={setFirstName}
-                      placeholder="Enter first name"
+                      placeholder={t('firstNamePlaceholder')}
                       placeholderTextColor="#7C8BA1"
                       style={{
                         borderWidth: 1,
@@ -296,13 +287,13 @@ export default function SignInScreen() {
                         fontSize: 14,
                       }}
                     >
-                      Last Name
+                      {t('lastName')}
                     </Text>
 
                     <TextInput
                       value={lastName}
                       onChangeText={setLastName}
-                      placeholder="Enter last name"
+                      placeholder={t('lastNamePlaceholder')}
                       placeholderTextColor="#7C8BA1"
                       style={{
                         borderWidth: 1,
@@ -327,13 +318,13 @@ export default function SignInScreen() {
                     fontSize: 14,
                   }}
                 >
-                  Email as User ID
+                  {t('emailAsUserId')}
                 </Text>
 
                 <TextInput
                   value={email}
                   onChangeText={setEmail}
-                  placeholder="Enter your email"
+                  placeholder={t('emailPlaceholder')}
                   placeholderTextColor="#7C8BA1"
                   autoCapitalize="none"
                   keyboardType="email-address"
@@ -358,13 +349,13 @@ export default function SignInScreen() {
                     fontSize: 14,
                   }}
                 >
-                  Password
+                  {t('password')}
                 </Text>
 
                 <TextInput
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Enter your password"
+                  placeholder={t('passwordPlaceholder')}
                   placeholderTextColor="#7C8BA1"
                   secureTextEntry
                   style={{
@@ -390,13 +381,13 @@ export default function SignInScreen() {
                         fontSize: 14,
                       }}
                     >
-                      Confirm Password
+                      {t('confirmPassword')}
                     </Text>
 
                     <TextInput
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
-                      placeholder="Confirm your password"
+                      placeholder={t('confirmPasswordPlaceholder')}
                       placeholderTextColor="#7C8BA1"
                       secureTextEntry
                       style={{
@@ -443,7 +434,7 @@ export default function SignInScreen() {
                       </View>
 
                       <Text style={{ color: COLORS.white, fontWeight: '600' }}>
-                        Remember me
+                        {t('rememberMe')}
                       </Text>
                     </Pressable>
 
@@ -452,7 +443,7 @@ export default function SignInScreen() {
                       style={{ marginBottom: 18 }}
                     >
                       <Text style={{ color: COLORS.white, fontWeight: '700' }}>
-                        Forgot password?
+                        {t('forgotPassword')}
                       </Text>
                     </Pressable>
                   </>
@@ -476,12 +467,8 @@ export default function SignInScreen() {
                     }}
                   >
                     {loading
-                      ? mode === 'login'
-                        ? 'Signing In...'
-                        : 'Creating User...'
-                      : mode === 'login'
-                        ? 'Log In'
-                        : 'Create New User'}
+                      ? mode === 'login' ? t('signingIn') : t('creatingUser')
+                      : mode === 'login' ? t('login')     : t('createNewUser')}
                   </Text>
                 </Pressable>
 
@@ -498,9 +485,7 @@ export default function SignInScreen() {
                       fontWeight: '700',
                     }}
                   >
-                    {mode === 'login'
-                      ? 'Create New User'
-                      : 'Back to Log In'}
+                    {mode === 'login' ? t('createNewUser') : t('backToLogIn')}
                   </Text>
                 </Pressable>
               </View>
