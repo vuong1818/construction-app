@@ -406,7 +406,6 @@ export default function WorkersManagerScreen() {
       const payload = {
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
-        full_name: `${form.first_name.trim()} ${form.last_name.trim()}`.trim(),
         phone: form.phone.trim() || null,
         email: form.email.trim().toLowerCase() || null,
         street: form.street.trim() || null,

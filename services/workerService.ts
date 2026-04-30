@@ -156,11 +156,9 @@ export async function createWorker(values: WorkerFormValues) {
 
   const firstName = values.first_name.trim()
   const lastName = values.last_name.trim()
-  const fullName = buildFullName(firstName, lastName)
 
   const payload = {
     role: values.role,
-    full_name: fullName,
     first_name: firstName,
     last_name: lastName,
     phone: values.phone.trim(),
@@ -204,11 +202,9 @@ export async function updateWorker(workerId: string, values: WorkerFormValues) {
 
   const firstName = values.first_name.trim()
   const lastName = values.last_name.trim()
-  const fullName = buildFullName(firstName, lastName)
 
   const payload = {
     role: values.role,
-    full_name: fullName,
     first_name: firstName,
     last_name: lastName,
     phone: values.phone.trim(),

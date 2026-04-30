@@ -130,12 +130,9 @@ export async function createWorker(input: UpsertWorkerInput) {
   await requireManagerAccess()
   validateWorkerInput(input)
 
-  const full_name = buildFullName(input.first_name, input.last_name)
-
   const payload = {
     first_name: input.first_name.trim(),
     last_name: input.last_name.trim(),
-    full_name,
     phone: input.phone.trim(),
     email: input.email.trim().toLowerCase(),
     street: input.street.trim(),
@@ -163,12 +160,9 @@ export async function updateWorker(workerId: string, input: UpsertWorkerInput) {
   await requireManagerAccess()
   validateWorkerInput(input)
 
-  const full_name = buildFullName(input.first_name, input.last_name)
-
   const payload = {
     first_name: input.first_name.trim(),
     last_name: input.last_name.trim(),
-    full_name,
     phone: input.phone.trim(),
     email: input.email.trim().toLowerCase(),
     street: input.street.trim(),
