@@ -37,6 +37,8 @@ const COLORS = {
 type Project = { id: number; name: string; status: string | null; contract_amount: number | null }
 type ChangeOrder = { id: number; project_id: number; amount: number }
 type Expense = { id: number; project_id: number; amount: number }
+type PayApp = { id: number; project_id: number }
+type PayAppLine = { pay_app_id: number; from_previous: number; this_period: number; materials_stored: number }
 
 function fmtMoney(n: number): string {
   return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
@@ -50,6 +52,8 @@ export default function ManagerFinanceScreen() {
   const [projects, setProjects] = useState<Project[]>([])
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [payApps, setPayApps] = useState<PayApp[]>([])
+  const [payAppLines, setPayAppLines] = useState<PayAppLine[]>([])
 
   const load = useCallback(async () => {
     setErrorMessage('')
@@ -59,27 +63,65 @@ export default function ManagerFinanceScreen() {
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     if (me?.role !== 'manager') { setErrorMessage('Manager access required.'); setLoading(false); return }
 
-    const [{ data: pr }, { data: co }, { data: ex }] = await Promise.all([
+    const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),
       supabase.from('project_change_orders').select('id, project_id, amount'),
       supabase.from('project_expenses').select('id, project_id, amount'),
+      supabase.from('project_pay_apps').select('id, project_id'),
     ])
     setProjects((pr as Project[]) || [])
     setChangeOrders((co as ChangeOrder[]) || [])
     setExpenses((ex as Expense[]) || [])
+    setPayApps((ap as PayApp[]) || [])
+
+    const ids = (ap || []).map(a => a.id)
+    if (ids.length > 0) {
+      const { data: lns } = await supabase
+        .from('project_pay_app_lines')
+        .select('pay_app_id, from_previous, this_period, materials_stored')
+        .in('pay_app_id', ids)
+      setPayAppLines((lns as PayAppLine[]) || [])
+    } else {
+      setPayAppLines([])
+    }
+
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
   useRealtimeRefetch('project_change_orders', load, undefined, !loading)
   useRealtimeRefetch('project_expenses',      load, undefined, !loading)
+  useRealtimeRefetch('project_pay_apps',      load, undefined, !loading)
   useRealtimeRefetch('projects',              load, undefined, !loading)
+
+  // Map pay_app_id -> project_id, then sum D+E+F for that project's apps
+  const appToProject = new Map(payApps.map(a => [a.id, a.project_id]))
+  const billedByProject = new Map<number, number>()
+  payAppLines.forEach(l => {
+    const pid = appToProject.get(l.pay_app_id)
+    if (!pid) return
+    const v = (Number(l.from_previous) || 0) + (Number(l.this_period) || 0) + (Number(l.materials_stored) || 0)
+    billedByProject.set(pid, (billedByProject.get(pid) || 0) + v)
+  })
+  const payAppCountByProject = payApps.reduce<Record<number, number>>((acc, a) => {
+    acc[a.project_id] = (acc[a.project_id] || 0) + 1
+    return acc
+  }, {})
 
   const rows = projects.map(p => {
     const base = Number(p.contract_amount) || 0
     const co   = changeOrders.filter(c => c.project_id === p.id).reduce((s, c) => s + (Number(c.amount) || 0), 0)
     const exp  = expenses.filter(e => e.project_id === p.id).reduce((s, e) => s + (Number(e.amount) || 0), 0)
-    return { project: p, contract: base, changeOrders: co, totalContract: base + co, expenses: exp, net: base + co - exp }
+    return {
+      project: p,
+      contract: base,
+      changeOrders: co,
+      totalContract: base + co,
+      expenses: exp,
+      net: base + co - exp,
+      payAppCount: payAppCountByProject[p.id] || 0,
+      billedToDate: billedByProject.get(p.id) || 0,
+    }
   })
 
   const totals = rows.reduce(
@@ -173,6 +215,9 @@ export default function ManagerFinanceScreen() {
               <Row label="Expenses"       value={fmtMoney(r.expenses)}      color={COLORS.red} />
               <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
               <Row label="Net" value={fmtMoney(r.net)} color={r.net >= 0 ? COLORS.green : COLORS.red} bold />
+              {r.payAppCount > 0 && (
+                <Row label={`Pay Apps (${r.payAppCount}) — Billed`} value={fmtMoney(r.billedToDate)} color={COLORS.blue} />
+              )}
             </Pressable>
           ))
         )}

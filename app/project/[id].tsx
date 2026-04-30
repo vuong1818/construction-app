@@ -469,8 +469,19 @@ export default function ProjectDetailScreen() {
               <FinanceRow label="Expenses"       value={financeTotals.expenses}      tint="#C62828" />
               <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
               <FinanceRow label="Net" value={financeTotals.net} tint={financeTotals.net >= 0 ? '#2E7D32' : '#C62828'} bold />
+              {financeTotals.payAppCount > 0 && (
+                <>
+                  <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
+                    <Text style={{ color: COLORS.subtext, fontSize: 13, fontWeight: '700' }}>
+                      Pay Apps ({financeTotals.payAppCount}) — Billed to Date
+                    </Text>
+                    <Text style={{ color: '#1565C0', fontSize: 14, fontWeight: '900' }}>{fmtMoney(financeTotals.billedToDate)}</Text>
+                  </View>
+                </>
+              )}
               <Text style={{ color: COLORS.subtext, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
-                Edit contract, change orders, and expenses on the web portal.
+                Edit contract, change orders, expenses, and pay apps on the web portal.
               </Text>
             </View>
           </>
