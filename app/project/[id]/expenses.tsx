@@ -19,8 +19,10 @@ import {
 import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
-import { PROJECT_EXPENSE_TYPES, projectExpenseTypeLabel, type ProjectExpenseType } from '../../../lib/financeConstants'
 import { supabase } from '../../../lib/supabase'
+
+type ExpenseType = { id: number; value: string; label: string; sort_order: number; deleted_at: string | null }
+type Vendor      = { id: number; name: string; deleted_at: string | null }
 
 const COLORS = {
   background: '#D6E8FF',
@@ -44,7 +46,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 type Expense = {
   id: number
   project_id: number
-  expense_type: ProjectExpenseType
+  expense_type: string
   amount: number
   expense_date: string
   vendor: string | null
@@ -80,12 +82,14 @@ export default function ProjectExpensesScreen() {
   const [isManager, setIsManager] = useState(false)
   const [project, setProject] = useState<Project | null>(null)
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
 
   // Form state
   const [editing, setEditing] = useState<Expense | null>(null)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
-    expense_type: 'materials' as ProjectExpenseType,
+    expense_type: 'materials',
     amount: '',
     expense_date: '',
     vendor: '',
@@ -93,6 +97,7 @@ export default function ProjectExpensesScreen() {
     receipt_photo_url: null as string | null,
     receipt_photo_path: null as string | null,
   })
+  const [vendorPickerOpen, setVendorPickerOpen] = useState(false)
   const [pendingReceipt, setPendingReceipt] = useState<{ uri: string; name: string; mimeType: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -111,14 +116,19 @@ export default function ProjectExpensesScreen() {
       if (!session?.user) { setErrorMessage('You must be signed in.'); setLoading(false); return }
       setCurrentUserId(session.user.id)
 
-      const [meResult, projectResult, expensesResult] = await Promise.all([
+      const [meResult, projectResult, expensesResult, typesResult, vendorsResult] = await Promise.all([
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_expenses')
           .select('id, project_id, expense_type, amount, expense_date, vendor, notes, receipt_photo_url, receipt_photo_path, created_by, created_at, payment_method, is_paid, paid_date')
           .eq('project_id', projectId)
           .order('expense_date', { ascending: false }),
+        supabase.from('expense_types').select('id, value, label, sort_order, deleted_at').eq('scope', 'project').order('sort_order'),
+        supabase.from('vendors').select('id, name, deleted_at').order('name'),
       ])
+
+      setExpenseTypes((typesResult.data || []) as ExpenseType[])
+      setVendors((vendorsResult.data || []) as Vendor[])
 
       const manager = meResult.data?.role === 'manager'
       setIsManager(manager)
@@ -151,9 +161,18 @@ export default function ProjectExpensesScreen() {
     return isManager || e.created_by === currentUserId
   }
 
+  // Active types only — soft-deleted entries hide from the picker but
+  // existing rows that reference them still display via labelForType().
+  const activeTypes  = expenseTypes.filter(t => !t.deleted_at)
+  const activeVendors = vendors.filter(v => !v.deleted_at)
+  function labelForType(slug: string | null | undefined): string {
+    if (!slug) return '—'
+    return activeTypes.find(t => t.value === slug)?.label || 'Unknown'
+  }
+
   function openCreate() {
     setForm({
-      expense_type: 'materials',
+      expense_type: activeTypes[0]?.value || 'other',
       amount: '',
       expense_date: new Date().toISOString().split('T')[0],
       vendor: '',
@@ -167,7 +186,7 @@ export default function ProjectExpensesScreen() {
 
   function openEdit(e: Expense) {
     setForm({
-      expense_type: e.expense_type,
+      expense_type: e.expense_type || (activeTypes[0]?.value ?? 'other'),
       amount: e.amount != null ? String(e.amount) : '',
       expense_date: e.expense_date || '',
       vendor: e.vendor || '',
@@ -283,7 +302,7 @@ export default function ProjectExpensesScreen() {
   function confirmDelete(e: Expense) {
     Alert.alert(
       'Delete Expense',
-      `Delete this ${projectExpenseTypeLabel(e.expense_type)} expense for ${fmtMoney(e.amount)}?`,
+      `Delete this ${labelForType(e.expense_type)} expense for ${fmtMoney(e.amount)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -385,7 +404,7 @@ export default function ProjectExpensesScreen() {
                     <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 16 }}>{fmtMoney(e.amount)}</Text>
                     <View style={{ backgroundColor: COLORS.navySoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
                       <Text style={{ color: COLORS.navy, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-                        {projectExpenseTypeLabel(e.expense_type).toUpperCase()}
+                        {labelForType(e.expense_type).toUpperCase()}
                       </Text>
                     </View>
                   </View>
@@ -433,9 +452,15 @@ export default function ProjectExpensesScreen() {
               <View style={styles.pickerWrap}>
                 <Picker
                   selectedValue={form.expense_type}
-                  onValueChange={(v) => setForm(f => ({ ...f, expense_type: v as ProjectExpenseType }))}
+                  onValueChange={(v) => setForm(f => ({ ...f, expense_type: String(v) }))}
                 >
-                  {PROJECT_EXPENSE_TYPES.map(t => (
+                  {/* If editing an expense whose type was soft-deleted, surface
+                      the slug as a stub item so the picker can show its current
+                      value (otherwise the Picker would silently skip it). */}
+                  {form.expense_type && !activeTypes.find(t => t.value === form.expense_type) && (
+                    <Picker.Item key={`__stale_${form.expense_type}`} label={`Unknown (${form.expense_type})`} value={form.expense_type} />
+                  )}
+                  {activeTypes.map(t => (
                     <Picker.Item key={t.value} label={t.label} value={t.value} />
                   ))}
                 </Picker>
@@ -462,12 +487,22 @@ export default function ProjectExpensesScreen() {
 
               {/* Vendor */}
               <Text style={styles.lbl}>Vendor</Text>
-              <TextInput
-                value={form.vendor}
-                onChangeText={(v) => setForm(f => ({ ...f, vendor: v }))}
-                placeholder="Home Depot, Lowe's, etc."
-                style={styles.inp}
-              />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  value={form.vendor}
+                  onChangeText={(v) => setForm(f => ({ ...f, vendor: v }))}
+                  placeholder="Home Depot, Lowe's, etc."
+                  style={[styles.inp, { flex: 1 }]}
+                />
+                {activeVendors.length > 0 && (
+                  <Pressable
+                    onPress={() => setVendorPickerOpen(true)}
+                    style={{ paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, backgroundColor: COLORS.tealSoft, justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>Pick</Text>
+                  </Pressable>
+                )}
+              </View>
 
               {/* Notes */}
               <Text style={styles.lbl}>Notes</Text>
@@ -529,6 +564,32 @@ export default function ProjectExpensesScreen() {
         swipeToCloseEnabled
         doubleTapToZoomEnabled
       />
+
+      {/* Vendor picker modal */}
+      <Modal visible={vendorPickerOpen} transparent animationType="fade" onRequestClose={() => setVendorPickerOpen(false)}>
+        <Pressable onPress={() => setVendorPickerOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 24 }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, maxHeight: '70%' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>Pick Vendor</Text>
+              <Pressable onPress={() => setVendorPickerOpen(false)}><Ionicons name="close" size={22} color={COLORS.subtext} /></Pressable>
+            </View>
+            <ScrollView>
+              {activeVendors.map(v => (
+                <Pressable
+                  key={v.id}
+                  onPress={() => { setForm(f => ({ ...f, vendor: v.name })); setVendorPickerOpen(false) }}
+                  style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+                >
+                  <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{v.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable onPress={() => setVendorPickerOpen(false)} style={{ marginTop: 12, padding: 12, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 10 }}>
+              <Text style={{ color: COLORS.text, fontWeight: '700' }}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   )
 }
