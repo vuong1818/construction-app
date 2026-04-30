@@ -68,6 +68,49 @@ const EMPTY_FORM: FormState = {
   company_email: '',
 }
 
+const LICENSE_TYPES = [
+  'Electrical',
+  'Mechanical',
+  'Plumbing',
+  'Building',
+  'General Contractor',
+  'HVAC',
+  'Other',
+] as const
+
+type License = {
+  id: number
+  license_number: string
+  license_type: string
+  expiration_date: string | null
+  notes: string | null
+}
+
+type NewLicense = {
+  license_number: string
+  license_type: string
+  expiration_date: string
+  notes: string
+}
+
+const EMPTY_LICENSE: NewLicense = {
+  license_number: '',
+  license_type: 'Electrical',
+  expiration_date: '',
+  notes: '',
+}
+
+function licenseExpiryStatus(dateStr: string | null) {
+  if (!dateStr) return null
+  const exp = new Date(dateStr + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = Math.round((exp.getTime() - today.getTime()) / 86400000)
+  if (days < 0)  return { kind: 'expired',  label: `Expired ${-days}d ago`, color: '#C62828', bg: '#FFEBEE' }
+  if (days < 60) return { kind: 'expiring', label: `Expires in ${days}d`,    color: '#E65100', bg: '#FFF3E0' }
+  return null
+}
+
 function Field({
   label,
   value,
@@ -170,6 +213,9 @@ export default function CompanyScreen() {
   const [userRole, setUserRole] = useState('')
   const [settingsId, setSettingsId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [licenses, setLicenses] = useState<License[]>([])
+  const [newLicense, setNewLicense] = useState<NewLicense>(EMPTY_LICENSE)
+  const [savingLicense, setSavingLicense] = useState(false)
 
   useEffect(() => {
     loadScreen()
@@ -240,11 +286,69 @@ export default function CompanyScreen() {
         setSettingsId(null)
         setForm(EMPTY_FORM)
       }
+
+      await loadLicenses()
     } catch (error: any) {
       setErrorMessage(error?.message || 'Failed to load company settings.')
     } finally {
       setLoading(false)
     }
+  }
+
+  async function loadLicenses() {
+    const { data, error } = await supabase
+      .from('company_licenses')
+      .select('id, license_number, license_type, expiration_date, notes')
+      .order('expiration_date', { ascending: true, nullsFirst: false })
+    if (error) {
+      setErrorMessage(error.message)
+      return
+    }
+    setLicenses((data as License[]) || [])
+  }
+
+  async function addLicense() {
+    if (!newLicense.license_number.trim()) {
+      Alert.alert('Required', 'License number is required.')
+      return
+    }
+    setSavingLicense(true)
+    const { error } = await supabase.from('company_licenses').insert({
+      license_number:  newLicense.license_number.trim(),
+      license_type:    newLicense.license_type,
+      expiration_date: newLicense.expiration_date.trim() || null,
+      notes:           newLicense.notes.trim() || null,
+    })
+    setSavingLicense(false)
+    if (error) {
+      Alert.alert('Error', error.message)
+      return
+    }
+    setNewLicense(EMPTY_LICENSE)
+    await loadLicenses()
+  }
+
+  function deleteLicense(lic: License) {
+    Alert.alert('Delete License', `Delete "${lic.license_number}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.from('company_licenses').delete().eq('id', lic.id)
+          if (error) { Alert.alert('Error', error.message); return }
+          await loadLicenses()
+        },
+      },
+    ])
+  }
+
+  function pickLicenseType() {
+    Alert.alert('License Type', undefined,
+      [
+        ...LICENSE_TYPES.map(t => ({ text: t, onPress: () => setNewLicense(prev => ({ ...prev, license_type: t })) })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]
+    )
   }
 
   async function ensureSettingsRow() {
@@ -605,6 +709,94 @@ export default function CompanyScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
           />
+        </View>
+
+        {/* Licenses */}
+        <View
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 24,
+            padding: 18,
+            borderWidth: 1,
+            borderColor: COLORS.border,
+            marginBottom: 18,
+          }}
+        >
+          <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
+            Licenses ({licenses.length})
+          </Text>
+          <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 14 }}>
+            Rows turn red when expired and orange in the 60 days before expiration.
+          </Text>
+
+          {licenses.map(lic => {
+            const status = licenseExpiryStatus(lic.expiration_date)
+            return (
+              <View key={lic.id} style={{ borderTopWidth: 1, borderColor: COLORS.border, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 14 }}>{lic.license_number}</Text>
+                    <View style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
+                      <Text style={{ color: COLORS.subtext, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{lic.license_type.toUpperCase()}</Text>
+                    </View>
+                    {status && (
+                      <View style={{ backgroundColor: status.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
+                        <Text style={{ color: status.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{status.label.toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 4 }}>
+                    {lic.expiration_date
+                      ? `Expires ${new Date(lic.expiration_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                      : 'No expiration set'}
+                    {lic.notes ? ` · ${lic.notes}` : ''}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => deleteLicense(lic)}
+                  style={{ backgroundColor: COLORS.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                >
+                  <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                </Pressable>
+              </View>
+            )
+          })}
+
+          <View style={{ marginTop: licenses.length > 0 ? 14 : 0, paddingTop: licenses.length > 0 ? 14 : 0, borderTopWidth: licenses.length > 0 ? 1 : 0, borderColor: COLORS.border, gap: 10 }}>
+            <Field
+              label="License Number *"
+              value={newLicense.license_number}
+              onChangeText={(text) => setNewLicense(prev => ({ ...prev, license_number: text }))}
+              placeholder="e.g. TECL-12345"
+            />
+            <View>
+              <Text style={{ color: COLORS.navy, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>License Type</Text>
+              <Pressable onPress={pickLicenseType} style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: COLORS.white }}>
+                <Text style={{ color: COLORS.text, fontWeight: '700' }}>{newLicense.license_type}</Text>
+              </Pressable>
+            </View>
+            <Field
+              label="Expiration Date (YYYY-MM-DD)"
+              value={newLicense.expiration_date}
+              onChangeText={(text) => setNewLicense(prev => ({ ...prev, expiration_date: text }))}
+              placeholder="2027-12-31"
+            />
+            <Field
+              label="Notes"
+              value={newLicense.notes}
+              onChangeText={(text) => setNewLicense(prev => ({ ...prev, notes: text }))}
+              placeholder="state issued, holder, etc."
+            />
+            <Pressable
+              onPress={addLicense}
+              disabled={savingLicense || !newLicense.license_number.trim()}
+              style={{ backgroundColor: !newLicense.license_number.trim() ? COLORS.muted : COLORS.teal, borderRadius: 18, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
+            >
+              <Text style={{ color: COLORS.white, fontSize: 15, fontWeight: '800' }}>
+                {savingLicense ? 'Adding…' : '+ Add License'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         <View
