@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -15,6 +16,21 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { supabase } from '../../lib/supabase'
+import type { DocType } from '../../services/projectDetailService'
+
+const DOC_TYPE_LABELS: Record<DocType, string> = {
+  submittal: 'Submittal',
+  change_order: 'Change Order',
+  requirements: 'Requirements',
+  other: 'Other',
+}
+
+const DOC_TYPE_BADGE: Record<DocType, { bg: string; color: string }> = {
+  submittal:    { bg: '#E3F2FD', color: '#1565C0' },
+  change_order: { bg: '#FFF3E0', color: '#E65100' },
+  requirements: { bg: '#F3E5F5', color: '#6A1B9A' },
+  other:        { bg: '#F4F7FA', color: '#555555' },
+}
 
 const COLORS = {
   background: '#D6E8FF',
@@ -325,7 +341,15 @@ export default function ProjectDetailScreen() {
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
             title={uploading ? 'Working...' : 'Upload Document'}
-            onPress={uploadDocument}
+            onPress={() => {
+              Alert.alert('Document Type', 'What kind of document is this?', [
+                { text: 'Submittal',    onPress: () => uploadDocument('submittal') },
+                { text: 'Change Order', onPress: () => uploadDocument('change_order') },
+                { text: 'Requirements', onPress: () => uploadDocument('requirements') },
+                { text: 'Other',        onPress: () => uploadDocument('other') },
+                { text: 'Cancel', style: 'cancel' },
+              ])
+            }}
             disabled={uploading}
           />
         </View>
@@ -489,6 +513,20 @@ export default function ProjectDetailScreen() {
                     <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
                       {doc.original_name || doc.file_name}
                     </Text>
+                    {doc.doc_type && DOC_TYPE_LABELS[doc.doc_type as DocType] && (
+                      <View style={{
+                        alignSelf: 'flex-start',
+                        marginTop: 4,
+                        backgroundColor: DOC_TYPE_BADGE[doc.doc_type as DocType].bg,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 100,
+                      }}>
+                        <Text style={{ color: DOC_TYPE_BADGE[doc.doc_type as DocType].color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+                          {DOC_TYPE_LABELS[doc.doc_type as DocType].toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
                   </Pressable>
                   <Pressable
                     onPress={() => handleDeleteDocument(doc)}

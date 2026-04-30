@@ -21,7 +21,10 @@ export type ProjectFile = {
   created_at: string
   bucket_name: string
   file_type: string | null
+  doc_type?: string | null
 }
+
+export type DocType = 'submittal' | 'change_order' | 'requirements' | 'other'
 
 export type DailyReport = {
   id: number
@@ -107,6 +110,7 @@ function mapDocument(d: any): ProjectFile {
     created_at: d.created_at,
     bucket_name: DOCUMENTS_BUCKET,
     file_type: null,
+    doc_type: d.doc_type ?? null,
   }
 }
 
@@ -120,7 +124,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('project_photos').select('id, project_id, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
-    supabase.from('project_documents').select('id, project_id, name, file_path, created_at')
+    supabase.from('project_documents').select('id, project_id, name, doc_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('daily_reports').select('*').eq('project_id', projectId)
       .order('report_date', { ascending: false }),
@@ -138,7 +142,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
 export async function reloadDocuments(projectId: number): Promise<ProjectFile[]> {
   const { data, error } = await supabase
     .from('project_documents')
-    .select('id, project_id, name, file_path, created_at')
+    .select('id, project_id, name, doc_type, file_path, created_at')
     .eq('project_id', projectId)
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
@@ -150,8 +154,9 @@ export async function uploadProjectDocument(params: {
   uri: string
   originalName: string
   mimeType: string
+  docType: DocType
 }) {
-  const { projectId, uri, originalName, mimeType } = params
+  const { projectId, uri, originalName, mimeType, docType } = params
   await requireSessionUser()
 
   const safeName = cleanFileName(originalName)
@@ -172,6 +177,7 @@ export async function uploadProjectDocument(params: {
   const { error: dbError } = await supabase.from('project_documents').insert({
     project_id: projectId,
     name: originalName,
+    doc_type: docType,
     file_url: urlData.publicUrl,
     file_path: filePath,
   })

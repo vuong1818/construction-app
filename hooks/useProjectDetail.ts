@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert } from 'react-native'
 import {
     DailyReport,
+    DocType,
     Project,
     ProjectFile,
     deleteProjectDocument,
@@ -41,7 +42,7 @@ type UseProjectDetailResult = {
   pickPhotoFromLibrary: () => Promise<void>
   takePhotoWithCamera: () => Promise<void>
   uploadPlan: () => Promise<void>
-  uploadDocument: () => Promise<void>
+  uploadDocument: (docType: DocType) => Promise<void>
   handleOpenPlan: (plan: ProjectFile) => Promise<void>
   handleOpenDocument: (doc: ProjectFile) => Promise<void>
   handleDeleteDocument: (doc: ProjectFile) => void
@@ -246,7 +247,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     }
   }
 
-  async function uploadDocument() {
+  async function uploadDocument(docType: DocType) {
     if (!projectId) return
 
     const result = await DocumentPicker.getDocumentAsync({
@@ -267,6 +268,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
         uri: asset.uri,
         originalName: asset.name || `document-${Date.now()}`,
         mimeType: asset.mimeType || 'application/octet-stream',
+        docType,
       })
 
       await refreshDocumentsOnly()
