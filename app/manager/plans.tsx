@@ -100,7 +100,11 @@ export default function ManagerPlansScreen() {
       .from('projects')
       .select('id, name, address, status, description, created_at')
       .order('created_at', { ascending: false })
-    if (!error) setProjects((data as Project[]) || [])
+    if (error) {
+      Alert.alert('Could not load projects', error.message)
+    } else {
+      setProjects((data as Project[]) || [])
+    }
     setLoading(false)
   }
 
@@ -237,18 +241,30 @@ export default function ManagerPlansScreen() {
     }
     try {
       setSaving(true)
-      const { error } = await supabase.from('projects').insert({
-        name: name.trim(),
-        address: address.trim() || null,
-        status: STATUS_OPTIONS[statusIdx],
-        description: description.trim() || null,
-      })
+      // Insert + return the new row so we can add it to local state immediately,
+      // independent of whether the subsequent reload succeeds.
+      const { data: created, error } = await supabase
+        .from('projects')
+        .insert({
+          name: name.trim(),
+          address: address.trim() || null,
+          status: STATUS_OPTIONS[statusIdx],
+          description: description.trim() || null,
+        })
+        .select('id, name, address, status, description, created_at')
+        .single()
       if (error) throw error
+      if (created) {
+        setProjects((prev) => [created as Project, ...prev])
+      }
       setShowCreate(false)
       Alert.alert('Created', `"${name.trim()}" has been created.`)
-      await loadProjects()
+      // Best-effort refresh in the background; new row is already visible regardless
+      loadProjects().catch((err) =>
+        console.warn('Project list refresh failed:', err?.message),
+      )
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not create project.')
+      Alert.alert('Could not create project', err?.message || 'Unknown error.')
     } finally {
       setSaving(false)
     }
