@@ -27,8 +27,7 @@ import {
   OffsiteReason,
   readCurrentLocation,
 } from '../../lib/clockLocation'
-import { t } from '../../lib/i18n'
-import { getSavedLanguage, saveLanguage } from '../../lib/language'
+import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
 
@@ -67,7 +66,6 @@ type Profile = {
   wage: number | null
 }
 
-type Language = 'en' | 'es'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -91,7 +89,10 @@ export default function HomeScreen() {
   const router = useRouter()
   const { logoUrl } = useCompanyLogo()
 
-  const [language, setLanguage] = useState<Language>('en')
+  // Language is now driven by the LanguageProvider so toggling it on this
+  // screen re-renders every other screen consuming useLanguage() too.
+  const { language, setLanguage } = useLanguage()
+  const [languageModalOpen, setLanguageModalOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [weeklyTimeEntries, setWeeklyTimeEntries] = useState<TimeEntry[]>([])
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null)
@@ -111,13 +112,6 @@ export default function HomeScreen() {
   const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
 
   useEffect(() => {
-    getSavedLanguage().then((saved) => {
-      if (saved === 'es') {
-        setLanguage('es')
-      } else {
-        setLanguage('en')
-      }
-    })
     loadDashboard()
   }, [])
 
@@ -129,11 +123,8 @@ export default function HomeScreen() {
     !!currentUserId,
   )
 
-  async function toggleLanguage() {
-    const next = language === 'en' ? 'es' : 'en'
-    setLanguage(next)
-    await saveLanguage(next)
-  }
+  // Picker UI is data-driven from LANGUAGES so adding a new locale
+  // (e.g. Vietnamese) here doesn't need any code change in this screen.
 
   function getWorkWeekRange() {
     const now = new Date()
@@ -662,7 +653,7 @@ export default function HomeScreen() {
           </View>
 
           <Pressable
-            onPress={toggleLanguage}
+            onPress={() => setLanguageModalOpen(true)}
             style={{
               width: 74,
               height: 74,
@@ -676,7 +667,7 @@ export default function HomeScreen() {
           >
             <MaterialCommunityIcons name="translate" size={28} color={COLORS.navy} />
             <Text style={{ marginTop: 4, fontWeight: '800', color: COLORS.navy }}>
-              {language === 'en' ? 'EN' : 'ES'}
+              {language.toUpperCase()}
             </Text>
           </Pressable>
 
@@ -1119,6 +1110,41 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Language picker — data-driven from LANGUAGES so a new locale
+          shows up automatically once it's registered in lib/i18n.tsx. */}
+      <Modal visible={languageModalOpen} transparent animationType="fade" onRequestClose={() => setLanguageModalOpen(false)}>
+        <Pressable onPress={() => setLanguageModalOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 24 }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 18 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 12 }}>{t(language, 'language')}</Text>
+            {LANGUAGES.map(l => {
+              const selected = l.code === language
+              return (
+                <Pressable
+                  key={l.code}
+                  onPress={async () => { await setLanguage(l.code); setLanguageModalOpen(false) }}
+                  style={{
+                    paddingVertical: 14, paddingHorizontal: 12,
+                    borderRadius: 12,
+                    backgroundColor: selected ? COLORS.tealSoft : 'transparent',
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 4,
+                  }}
+                >
+                  <View>
+                    <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700' }}>{l.nativeLabel}</Text>
+                    <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{l.label}</Text>
+                  </View>
+                  {selected && <Ionicons name="checkmark-circle" size={24} color={COLORS.teal} />}
+                </Pressable>
+              )
+            })}
+            <Pressable onPress={() => setLanguageModalOpen(false)} style={{ marginTop: 8, padding: 12, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 12 }}>
+              <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t(language, 'close')}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   )

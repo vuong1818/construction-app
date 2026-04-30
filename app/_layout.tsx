@@ -1,5 +1,6 @@
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
+import { LanguageProvider } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 
 export default function RootLayout() {
@@ -14,6 +15,7 @@ export default function RootLayout() {
   }, [])
 
   return (
+    <LanguageProvider>
     <Stack
       screenOptions={{
         headerShown: true,
@@ -46,5 +48,6 @@ export default function RootLayout() {
       <Stack.Screen name="smart-tools/mechanical"  options={{ title: 'Mechanical Tools' }} />
       <Stack.Screen name="smart-tools/building"    options={{ title: 'Building Tools' }} />
     </Stack>
+    </LanguageProvider>
   )
 }
