@@ -28,18 +28,42 @@ export class LocationDeniedError extends Error {
   }
 }
 
+// Bounded race so a hung underlying call (slow GPS lock, dead network)
+// doesn't pin the UI forever. The clock-in modal previously sat on these
+// awaits with no timeout and never dismissed.
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+  })
+  return Promise.race([p, timeout]).finally(() => {
+    if (timer) clearTimeout(timer)
+  }) as Promise<T>
+}
+
 /**
  * Request foreground location permission and read the current GPS position.
  * Throws LocationDeniedError if the user refused permission.
+ *
+ * Falls back to the last-known position if a fresh fix doesn't arrive
+ * within 8 seconds (common when indoors or with weak signal).
  */
 export async function readCurrentLocation(): Promise<{ lat: number; lng: number }> {
   const { status } = await Location.requestForegroundPermissionsAsync()
   if (status !== 'granted') throw new LocationDeniedError()
 
-  const pos = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  })
-  return { lat: pos.coords.latitude, lng: pos.coords.longitude }
+  try {
+    const pos = await withTimeout(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      8000,
+      'GPS fix',
+    )
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude }
+  } catch {
+    const last = await Location.getLastKnownPositionAsync()
+    if (last) return { lat: last.coords.latitude, lng: last.coords.longitude }
+    throw new Error('Could not determine your location. Try again with a clearer view of the sky.')
+  }
 }
 
 /**
@@ -71,14 +95,18 @@ export async function captureMapSnapshot(params: {
   if (!mapUrl) return null
 
   try {
-    const resp = await fetch(mapUrl)
+    const resp = await withTimeout(fetch(mapUrl), 5000, 'Map snapshot fetch')
     if (!resp.ok) return null
     const arrayBuffer = await resp.arrayBuffer()
 
     const filename = `${userId}/${Date.now()}-${kind}.jpg`
-    const { error: uploadErr } = await supabase.storage
-      .from(SNAPSHOT_BUCKET)
-      .upload(filename, arrayBuffer, { contentType: 'image/jpeg', upsert: false })
+    const { error: uploadErr } = await withTimeout(
+      supabase.storage
+        .from(SNAPSHOT_BUCKET)
+        .upload(filename, arrayBuffer, { contentType: 'image/jpeg', upsert: false }),
+      8000,
+      'Snapshot upload',
+    )
     if (uploadErr) return null
 
     const { data } = supabase.storage.from(SNAPSHOT_BUCKET).getPublicUrl(filename)

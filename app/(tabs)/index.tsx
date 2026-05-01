@@ -358,14 +358,22 @@ export default function HomeScreen() {
       return
     }
 
-    try {
-      setClocking(true)
+    // Validation passed — dismiss the modal NOW so the user isn't stuck
+    // staring at it during slow GPS / network ops. The remaining work
+    // happens in the background; success/error surfaces via Alert, and
+    // the offsite prompt (if needed) opens as its own modal on top of
+    // the home screen.
+    const projectId = selectedProjectId
+    const userId = session.user.id
+    const project = projects.find((p) => p.id === projectId)
+    setClockModalVisible(false)
+    setClocking(true)
 
+    try {
       // 1. Capture worker GPS (will throw LocationDeniedError if denied)
       const loc = await readCurrentLocation()
 
       // 2. Check geofence against the selected project
-      const project = projects.find((p) => p.id === selectedProjectId)
       const fence = checkGeofence(loc.lat, loc.lng, {
         latitude: project?.latitude ?? null,
         longitude: project?.longitude ?? null,
@@ -374,7 +382,7 @@ export default function HomeScreen() {
 
       // 3. Capture map snapshot (best effort — null on failure)
       const snapshotUrl = await captureMapSnapshot({
-        userId: session.user.id,
+        userId,
         lat: loc.lat,
         lng: loc.lng,
         kind: 'in',
@@ -382,17 +390,16 @@ export default function HomeScreen() {
 
       // 4a. Inside fence → clock in directly
       if (fence.inside) {
-        await svcClockIn(selectedProjectId, {
+        await svcClockIn(projectId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
         })
         Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
-        setClockModalVisible(false)
         await loadDashboard()
         return
       }
 
-      // 4b. Outside fence → ask why
+      // 4b. Outside fence → ask why (separate modal)
       setOffsitePrompt({
         kind: 'in',
         distance: fence.distanceMeters ?? 0,
@@ -476,12 +483,18 @@ export default function HomeScreen() {
       return
     }
 
-    try {
-      setClocking(true)
+    // Dismiss the modal up front so the user isn't stuck while GPS /
+    // network finish; offsite prompt opens as its own modal if needed.
+    const entryId = activeEntry.id
+    const projectIdAtClockIn = activeEntry.project_id
+    const userId = session.user.id
+    setClockModalVisible(false)
+    setClocking(true)
 
+    try {
       const loc = await readCurrentLocation()
 
-      const project = projects.find((p) => p.id === activeEntry.project_id)
+      const project = projects.find((p) => p.id === projectIdAtClockIn)
       const fence = checkGeofence(loc.lat, loc.lng, {
         latitude: project?.latitude ?? null,
         longitude: project?.longitude ?? null,
@@ -489,19 +502,18 @@ export default function HomeScreen() {
       })
 
       const snapshotUrl = await captureMapSnapshot({
-        userId: session.user.id,
+        userId,
         lat: loc.lat,
         lng: loc.lng,
         kind: 'out',
       })
 
       if (fence.inside) {
-        await svcClockOut(activeEntry.id, {
+        await svcClockOut(entryId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
         })
         Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
-        setClockModalVisible(false)
         await loadDashboard()
         return
       }
