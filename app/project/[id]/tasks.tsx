@@ -15,7 +15,10 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import DatePickerField from '../../../components/DatePickerField'
+import PickerWrap from '../../../components/PickerWrap'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
+import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 const COLORS = {
@@ -35,27 +38,30 @@ const COLORS = {
 
 type Status = 'assigned' | 'in_progress' | 'completed'
 
-const STATUS_CONFIG: Record<Status, { label: string; color: string; bg: string }> = {
-  assigned:    { label: 'Assigned',    color: '#1565C0', bg: '#E3F2FD' },
-  in_progress: { label: 'In Progress', color: '#E65100', bg: '#FFF3E0' },
-  completed:   { label: 'Completed',   color: '#2E7D32', bg: '#E8F5E9' },
+const STATUS_CONFIG: Record<Status, { labelKey: TranslationKey; color: string; bg: string }> = {
+  assigned:    { labelKey: 'statusAssigned',   color: '#1565C0', bg: '#E3F2FD' },
+  in_progress: { labelKey: 'statusInProgress', color: '#E65100', bg: '#FFF3E0' },
+  completed:   { labelKey: 'statusCompleted', color: '#2E7D32', bg: '#E8F5E9' },
 }
 
 // Sort: in_progress first, then assigned, then completed (overdue is bumped above all in code).
 const STATUS_ORDER: Status[] = ['in_progress', 'assigned', 'completed']
 
-const OVERDUE_BADGE = { label: 'Overdue', color: '#C62828', bg: '#FFEBEE' }
+const OVERDUE_BADGE = { color: '#C62828', bg: '#FFEBEE' }
 
-export function isTaskOverdue(t: { task_date: string | null; status: Status }): boolean {
-  if (!t.task_date || t.status === 'completed') return false
-  const due = new Date(t.task_date + 'T23:59:59')
-  return due < new Date()
+export function isTaskOverdue(t: { task_date: string | null; end_date?: string | null; status: Status }): boolean {
+  if (t.status === 'completed') return false
+  const ref = t.end_date || t.task_date
+  if (!ref) return false
+  return new Date(ref + 'T23:59:59') < new Date()
 }
 
 type Task = {
   id: number
   project_id: number
   task_date: string | null
+  start_date: string | null
+  end_date: string | null
   title: string
   assigned_to: string | null
   status: Status
@@ -89,6 +95,7 @@ export default function ProjectTasksScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const projectId = Number(id)
+  const { t } = useLanguage()
 
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -112,21 +119,21 @@ export default function ProjectTasksScreen() {
 
   const load = useCallback(async () => {
     if (!Number.isFinite(projectId)) {
-      setErrorMessage('Invalid project.')
+      setErrorMessage(t('invalidProject'))
       setLoading(false)
       return
     }
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { setErrorMessage('You must be signed in.'); setLoading(false); return }
+      if (!session?.user) { setErrorMessage(t('mustBeSignedIn')); setLoading(false); return }
       setCurrentUserId(session.user.id)
 
       const [meResult, projectResult, tasksResult, profilesResult] = await Promise.all([
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_tasks')
-          .select('id, project_id, task_date, title, assigned_to, status, notes, created_by, created_at, updated_at')
+          .select('id, project_id, task_date, start_date, end_date, title, assigned_to, status, notes, created_by, created_at, updated_at')
           .eq('project_id', projectId),
         supabase.from('profiles').select('id, full_name, role').order('full_name'),
       ])
@@ -141,8 +148,9 @@ export default function ProjectTasksScreen() {
       if (tasksResult.error) { setErrorMessage(tasksResult.error.message); setLoading(false); return }
       const allTasks = (tasksResult.data || []) as Task[]
       // Workers only see tasks assigned to them; managers see all
-      const visible = manager ? allTasks : allTasks.filter(t => t.assigned_to === session.user.id)
-      // Sort: status priority, then date desc
+      const visible = manager ? allTasks : allTasks.filter(task => task.assigned_to === session.user.id)
+      // Sort: status priority, then by scheduled start (start_date if set,
+      // falling back to task_date) so the list reads as a project schedule.
       visible.sort((a, b) => {
         const oa = isTaskOverdue(a) ? -1 : 0
         const ob = isTaskOverdue(b) ? -1 : 0
@@ -150,13 +158,15 @@ export default function ProjectTasksScreen() {
         const sa = STATUS_ORDER.indexOf(a.status)
         const sb = STATUS_ORDER.indexOf(b.status)
         if (sa !== sb) return sa - sb
-        return (a.task_date || '').localeCompare(b.task_date || '')
+        const da = a.start_date || a.task_date || ''
+        const db = b.start_date || b.task_date || ''
+        return da.localeCompare(db)
       })
       setTasks(visible)
 
       if (profilesResult.data) setProfiles(profilesResult.data as Profile[])
     } catch (e: any) {
-      setErrorMessage(e?.message || 'Failed to load tasks.')
+      setErrorMessage(e?.message || t('failedToLoadTasks'))
     } finally {
       setLoading(false)
     }
@@ -174,7 +184,7 @@ export default function ProjectTasksScreen() {
 
   function profileName(uid: string | null) {
     const p = profiles.find(x => x.id === uid)
-    return p?.full_name || (uid ? 'Unknown' : '—')
+    return p?.full_name || (uid ? t('unknown') : '—')
   }
 
   function canEdit(task: Task) {
@@ -210,11 +220,11 @@ export default function ProjectTasksScreen() {
 
   async function save() {
     if (!form.title.trim()) {
-      Alert.alert('Missing', 'Task title is required.')
+      Alert.alert(t('missing'), t('taskTitleRequired'))
       return
     }
     if (form.task_date && !DATE_RE.test(form.task_date)) {
-      Alert.alert('Invalid date', 'Use YYYY-MM-DD format, or leave blank.')
+      Alert.alert(t('invalidDate'), t('invalidDateOrBlank'))
       return
     }
 
@@ -252,7 +262,7 @@ export default function ProjectTasksScreen() {
       closeForm()
       load()
     } catch (e: any) {
-      Alert.alert('Save failed', e?.message || 'Could not save task.')
+      Alert.alert(t('saveFailed'), e?.message || t('couldNotSaveTask'))
     } finally {
       setSaving(false)
     }
@@ -260,16 +270,16 @@ export default function ProjectTasksScreen() {
 
   function confirmDelete(task: Task) {
     Alert.alert(
-      'Delete Task',
-      `Delete "${task.title}"? This cannot be undone.`,
+      t('deleteTask'),
+      t('deleteTaskConfirm', { title: task.title }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('project_tasks').delete().eq('id', task.id)
             if (error) {
-              Alert.alert('Delete failed', error.message)
+              Alert.alert(t('deleteFailed'), error.message)
               return
             }
             load()
@@ -285,7 +295,7 @@ export default function ProjectTasksScreen() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading tasks...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingTasks')}</Text>
       </SafeAreaView>
     )
   }
@@ -293,10 +303,10 @@ export default function ProjectTasksScreen() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={() => router.back()} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Back</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('back')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -307,10 +317,10 @@ export default function ProjectTasksScreen() {
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
           <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>
-            {project?.name || 'Project'}
+            {project?.name || t('project')}
           </Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            {isManager ? 'All tasks for this project.' : 'Tasks assigned to you for this project.'}
+            {isManager ? t('allTasksForProject') : t('tasksAssignedToYou')}
           </Text>
         </View>
 
@@ -326,7 +336,7 @@ export default function ProjectTasksScreen() {
             }}
           >
             <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-              + Add Task
+              {t('addTask')}
             </Text>
           </Pressable>
         )}
@@ -334,7 +344,7 @@ export default function ProjectTasksScreen() {
         {tasks.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 24 }}>
             <Text style={{ color: COLORS.subtext, textAlign: 'center' }}>
-              {isManager ? 'No tasks yet for this project.' : 'No tasks assigned to you for this project.'}
+              {isManager ? t('noTasksManager') : t('noTasksWorker')}
             </Text>
           </View>
         ) : (
@@ -359,18 +369,24 @@ export default function ProjectTasksScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
                   <View style={{ backgroundColor: cfg.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100 }}>
                     <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 }}>
-                      {cfg.label.toUpperCase()}
+                      {t(cfg.labelKey).toUpperCase()}
                     </Text>
                   </View>
                   {overdue && (
                     <View style={{ backgroundColor: OVERDUE_BADGE.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100 }}>
                       <Text style={{ color: OVERDUE_BADGE.color, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 }}>
-                        {`⚠ ${OVERDUE_BADGE.label.toUpperCase()}`}
+                        {`⚠ ${t('overdue').toUpperCase()}`}
                       </Text>
                     </View>
                   )}
                   <Text style={{ color: overdue ? OVERDUE_BADGE.color : COLORS.subtext, fontSize: 12, fontWeight: overdue ? '700' : '400' }}>
-                    📅 Due {formatDate(task.task_date)}
+                    {(() => {
+                      const s = task.start_date || task.task_date
+                      const e = task.end_date
+                      if (s && e && e !== s) return `📅 ${formatDate(s)} → ${formatDate(e)}`
+                      if (s) return `📅 ${t('due')} ${formatDate(s)}`
+                      return `📅 ${t('due')} —`
+                    })()}
                   </Text>
                   {isManager && (
                     <Text style={{ color: COLORS.subtext, fontSize: 12 }}>👤 {profileName(task.assigned_to)}</Text>
@@ -394,7 +410,7 @@ export default function ProjectTasksScreen() {
                       style={{ backgroundColor: COLORS.tealSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
                     >
                       <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>
-                        {isManager ? 'Edit' : 'Update'}
+                        {isManager ? t('edit') : t('update')}
                       </Text>
                     </Pressable>
                   )}
@@ -403,7 +419,7 @@ export default function ProjectTasksScreen() {
                       onPress={() => confirmDelete(task)}
                       style={{ backgroundColor: COLORS.redSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
                     >
-                      <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>Delete</Text>
+                      <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>{t('delete')}</Text>
                     </Pressable>
                   )}
                 </View>
@@ -421,42 +437,45 @@ export default function ProjectTasksScreen() {
         onRequestClose={closeForm}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
           style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' }}
         >
           <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, maxHeight: '92%' }}>
-            <ScrollView contentContainerStyle={{ padding: 22 }}>
-              <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 16 }}>
-                {editing ? (editingFieldsLocked ? 'Update Task' : 'Edit Task') : 'New Task'}
-              </Text>
+            <ScrollView
+              contentContainerStyle={{ padding: 22, paddingBottom: 60 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800' }}>
+                  {editing ? (editingFieldsLocked ? t('updateTask') : t('editTask')) : t('newTask')}
+                </Text>
+                <Pressable onPress={closeForm} hitSlop={10} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={26} color={COLORS.subtext} />
+                </Pressable>
+              </View>
 
               {/* Due Date */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>Due Date</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>{t('dueDateLabel')}</Text>
               {editingFieldsLocked ? (
                 <Text style={{ color: COLORS.text, marginBottom: 16 }}>{formatDate(form.task_date)}</Text>
               ) : (
-                <TextInput
+                <DatePickerField
                   value={form.task_date}
-                  onChangeText={(text) => setForm({ ...form, task_date: text })}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={COLORS.subtext}
-                  autoCapitalize="none"
-                  style={{
-                    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14,
-                    paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text, marginBottom: 16,
-                  }}
+                  onChange={(iso) => setForm({ ...form, task_date: iso })}
+                  allowClear
                 />
               )}
 
               {/* Task title */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>Task *</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>{`${t('taskTitle')} *`}</Text>
               {editingFieldsLocked ? (
                 <Text style={{ color: COLORS.text, fontWeight: '700', marginBottom: 16 }}>{form.title}</Text>
               ) : (
                 <TextInput
                   value={form.title}
                   onChangeText={(text) => setForm({ ...form, title: text })}
-                  placeholder="What needs to be done?"
+                  placeholder={t('taskTitlePlaceholder')}
                   placeholderTextColor={COLORS.subtext}
                   multiline
                   style={{
@@ -468,32 +487,27 @@ export default function ProjectTasksScreen() {
               )}
 
               {/* Assigned worker */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>Assigned to</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>{t('assignedTo')}</Text>
               {editingFieldsLocked ? (
                 <Text style={{ color: COLORS.text, marginBottom: 16 }}>{profileName(form.assigned_to)}</Text>
               ) : (
-                <View style={{
-                  backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14,
-                  marginBottom: 16, overflow: 'hidden',
-                }}>
-                  <Picker
-                    selectedValue={form.assigned_to}
-                    onValueChange={(value) => setForm({ ...form, assigned_to: value })}
-                  >
-                    <Picker.Item label="— Unassigned —" value="" />
-                    {profiles.map(p => (
-                      <Picker.Item
-                        key={p.id}
-                        label={`${p.full_name || 'Unnamed'}${p.role === 'manager' ? ' (manager)' : ''}`}
-                        value={p.id}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+                <PickerWrap
+                  selectedValue={form.assigned_to}
+                  onValueChange={(value) => setForm({ ...form, assigned_to: String(value ?? '') })}
+                >
+                  <Picker.Item label={t('unassigned')} value="" />
+                  {profiles.map(p => (
+                    <Picker.Item
+                      key={p.id}
+                      label={`${p.full_name || t('unnamed')}${p.role === 'manager' ? t('managerSuffix') : ''}`}
+                      value={p.id}
+                    />
+                  ))}
+                </PickerWrap>
               )}
 
               {/* Status */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>Status</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>{t('status')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
                 {STATUS_ORDER.map(s => {
                   const cfg = STATUS_CONFIG[s]
@@ -509,7 +523,7 @@ export default function ProjectTasksScreen() {
                       }}
                     >
                       <Text style={{ color: active ? COLORS.white : cfg.color, fontWeight: '700', fontSize: 13 }}>
-                        {cfg.label}
+                        {t(cfg.labelKey)}
                       </Text>
                     </Pressable>
                   )
@@ -518,17 +532,17 @@ export default function ProjectTasksScreen() {
 
               {/* Notes */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <Text style={{ color: COLORS.navy, fontWeight: '700' }}>Notes</Text>
+                <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('notes')}</Text>
                 {form.notes.length > 0 && (
                   <Pressable onPress={() => setForm({ ...form, notes: '' })}>
-                    <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>Clear note</Text>
+                    <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>{t('clearNote')}</Text>
                   </Pressable>
                 )}
               </View>
               <TextInput
                 value={form.notes}
                 onChangeText={(text) => setForm({ ...form, notes: text })}
-                placeholder={editingFieldsLocked ? 'Add a note for the manager…' : 'Optional notes'}
+                placeholder={editingFieldsLocked ? t('addNoteForManager') : t('optionalNotes')}
                 placeholderTextColor={COLORS.subtext}
                 multiline
                 style={{
@@ -549,11 +563,11 @@ export default function ProjectTasksScreen() {
                   }}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-                    {saving ? 'Saving...' : editing ? 'Save' : 'Add Task'}
+                    {saving ? t('saving') : editing ? t('save') : t('addTaskShort')}
                   </Text>
                 </Pressable>
                 <Pressable onPress={closeForm} style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center' }}>
-                  <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+                  <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>{t('cancel')}</Text>
                 </Pressable>
               </View>
             </ScrollView>
