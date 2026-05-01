@@ -782,6 +782,42 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        <Pressable
+          onPress={() => router.push('/my-schedule' as any)}
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 24,
+            paddingVertical: 18,
+            paddingHorizontal: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 14,
+          }}
+        >
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 18,
+              backgroundColor: COLORS.tealSoft,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="calendar-check-outline" size={30} color={COLORS.teal} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>
+              {t(language, 'mySchedule')}
+            </Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
+              {t(language, 'myScheduleSubtitle')}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
+        </Pressable>
+
         <View style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
           <Pressable
             onPress={() => router.push('/projects')}
