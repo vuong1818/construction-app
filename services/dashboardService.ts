@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { OffsiteReason } from '../lib/clockLocation'
 import { getTodayRange, getWorkWeekRange } from '../lib/time'
+import { isOnline, queueClockIn } from '../lib/syncQueue'
 import {
   getUserFullName,
   getUserProfile,
@@ -94,11 +95,24 @@ export async function loadDashboardData(
   }
 }
 
-export async function clockIn(projectId: number, location: ClockLocationPayload) {
+// Returns { queued: true } when the device is offline and the clock-in
+// was stashed in the local sync queue (will replay automatically when
+// connectivity returns). Returns { queued: false } when the row hit
+// the server immediately. Throws only on non-network errors (RLS
+// rejection, validation, etc.) — those can't be fixed by waiting.
+export async function clockIn(
+  projectId: number,
+  location: ClockLocationPayload,
+): Promise<{ queued: boolean }> {
   const user = await requireSessionUser()
   const userName = await getUserFullName(user.id)
 
-  const { error } = await supabase.from('time_entries').insert({
+  // The clock_in_time honors the device clock at the moment the worker
+  // tapped Clock In, NOT the moment the row reaches the server. That's
+  // the whole point of the queue — a worker on a no-signal jobsite
+  // clocked in at 7:00am, even if the row syncs at 9:30am when they
+  // get to lunch.
+  const payload = {
     project_id: projectId,
     user_id: user.id,
     user_name: userName,
@@ -109,11 +123,28 @@ export async function clockIn(projectId: number, location: ClockLocationPayload)
     clock_in_offsite: location.offsite,
     clock_in_offsite_reason: location.offsiteReason,
     clock_in_offsite_note: location.offsiteNote,
-  })
+  }
 
+  const online = await isOnline()
+  if (!online) {
+    await queueClockIn(payload)
+    return { queued: true }
+  }
+
+  const { error } = await supabase.from('time_entries').insert(payload)
   if (error) {
+    // Fetch failures from supabase-js surface as { error: { message: '...' } }.
+    // If the message looks network-shaped, fall back to the queue rather
+    // than failing the user — they'll see the same "queued, will sync"
+    // confirmation as the offline path.
+    const msg = (error.message || '').toLowerCase()
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
+      await queueClockIn(payload)
+      return { queued: true }
+    }
     throw new Error(error.message)
   }
+  return { queued: false }
 }
 
 export async function clockOut(timeEntryId: number, location: ClockLocationPayload) {

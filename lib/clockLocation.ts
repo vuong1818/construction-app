@@ -145,10 +145,8 @@ export function checkGeofence(
   return { inside: distance <= radius, distanceMeters: distance }
 }
 
-export type OffsiteReason = 'supply_store' | 'gas' | 'other'
-
-export const OFFSITE_REASON_LABELS: Record<OffsiteReason, string> = {
-  supply_store: 'Supply Store',
-  gas: 'Gas',
-  other: 'Other',
-}
+// Off-site clock-in/out reason slugs are now manager-editable from the
+// web app's Settings → Lists. The mobile picker fetches the active list
+// at sign-in and caches it in AsyncStorage so it still works offline.
+// See lib/clockInReasons.ts.
+export type OffsiteReason = string

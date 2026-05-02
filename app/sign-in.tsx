@@ -68,7 +68,7 @@ export default function SignInScreen() {
     try {
       setLoading(true)
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
       })
@@ -76,6 +76,27 @@ export default function SignInScreen() {
       if (error) {
         Alert.alert(t('loginError'), error.message)
         return
+      }
+
+      // Customers (project owners) belong on the web portal, not in the
+      // field-worker mobile app. The web app gives them a curated read-only
+      // view; here they would just see worker UI that doesn't apply to them.
+      // Sign them out immediately and tell them where to go.
+      const userId = signInData?.user?.id
+      if (userId) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle()
+        if (prof?.role === 'customer') {
+          await supabase.auth.signOut()
+          Alert.alert(
+            'Use the web portal',
+            'Customer accounts sign in on the web at vuongthyanne.com. The mobile app is for field crews.',
+          )
+          return
+        }
       }
 
       router.replace('/(tabs)')
