@@ -1,10 +1,12 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Picker } from '@react-native-picker/picker'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import * as ImagePicker from 'expo-image-picker'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -68,6 +70,16 @@ type Project = {
   name: string
 }
 
+type TaskPhoto = {
+  id: number
+  task_id: number
+  file_path: string
+  caption: string | null
+  uploaded_by: string | null
+  created_at: string
+  url: string
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function formatDate(d: string | null) {
@@ -90,6 +102,9 @@ export default function ProjectTasksScreen() {
   const [project, setProject] = useState<Project | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
+  const [photosByTask, setPhotosByTask] = useState<Record<number, TaskPhoto[]>>({})
+  const [uploadingTaskId, setUploadingTaskId] = useState<number | null>(null)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
 
   // Edit modal state
   const [editing, setEditing] = useState<Task | null>(null)
@@ -115,13 +130,18 @@ export default function ProjectTasksScreen() {
       if (!session?.user) { setErrorMessage(t('mustBeSignedIn')); setLoading(false); return }
       setCurrentUserId(session.user.id)
 
-      const [meResult, projectResult, tasksResult, profilesResult] = await Promise.all([
+      const [meResult, projectResult, tasksResult, profilesResult, photosResult] = await Promise.all([
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_tasks')
           .select('id, project_id, task_date, start_date, end_date, title, assigned_to, status, notes, created_by, created_at, updated_at')
           .eq('project_id', projectId),
         supabase.from('profiles').select('id, full_name, role').order('full_name'),
+        supabase.from('project_photos')
+          .select('id, task_id, file_path, caption, uploaded_by, created_at')
+          .eq('project_id', projectId)
+          .not('task_id', 'is', null)
+          .order('created_at', { ascending: true }),
       ])
 
       const role = meResult.data?.role || 'worker'
@@ -151,6 +171,14 @@ export default function ProjectTasksScreen() {
       setTasks(visible)
 
       if (profilesResult.data) setProfiles(profilesResult.data as Profile[])
+
+      const grouped: Record<number, TaskPhoto[]> = {}
+      for (const p of (photosResult?.data || [])) {
+        const url = supabase.storage.from('project-photos').getPublicUrl(p.file_path).data.publicUrl
+        const list = grouped[p.task_id] || (grouped[p.task_id] = [])
+        list.push({ ...p, url } as TaskPhoto)
+      }
+      setPhotosByTask(grouped)
     } catch (e: any) {
       setErrorMessage(e?.message || t('failedToLoadTasks'))
     } finally {
@@ -175,6 +203,83 @@ export default function ProjectTasksScreen() {
 
   function canEdit(task: Task) {
     return isManager || task.assigned_to === currentUserId
+  }
+
+  async function pickAndUploadPhoto(task: Task) {
+    try {
+      // Ask for camera + library access. Workers usually want camera; show
+      // both options so they can also grab a photo from their roll.
+      const choice = await new Promise<'camera' | 'library' | null>(resolve => {
+        Alert.alert('Add photo', 'Pick a source', [
+          { text: 'Camera',   onPress: () => resolve('camera') },
+          { text: 'Library',  onPress: () => resolve('library') },
+          { text: 'Cancel',   style: 'cancel', onPress: () => resolve(null) },
+        ])
+      })
+      if (!choice) return
+
+      let result: ImagePicker.ImagePickerResult
+      if (choice === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync()
+        if (!perm.granted) { Alert.alert('Camera access required.'); return }
+        result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
+        if (!perm.granted) { Alert.alert('Photo library access required.'); return }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 })
+      }
+      if (result.canceled || !result.assets?.[0]) return
+      const asset = result.assets[0]
+
+      setUploadingTaskId(task.id)
+      const ext = (asset.fileName?.split('.').pop() || asset.uri.split('.').pop() || 'jpg').toLowerCase()
+      const fileName = `task-${task.id}-${Date.now()}.${ext}`
+      const filePath = `project-${task.project_id}/tasks/${task.id}/${fileName}`
+
+      const fileResp = await fetch(asset.uri)
+      if (!fileResp.ok) throw new Error('Could not read photo file.')
+      const arrayBuffer = await fileResp.arrayBuffer()
+
+      const { error: upErr } = await supabase.storage
+        .from('project-photos')
+        .upload(filePath, arrayBuffer, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+      if (upErr) throw new Error(upErr.message)
+
+      const fileUrl = supabase.storage.from('project-photos').getPublicUrl(filePath).data.publicUrl
+      const { error: dbErr } = await supabase.from('project_photos').insert({
+        project_id: task.project_id,
+        task_id: task.id,
+        file_path: filePath,
+        file_url: fileUrl,
+        uploaded_by: currentUserId,
+      })
+      if (dbErr) {
+        // Best-effort cleanup of the orphaned object on row failure.
+        await supabase.storage.from('project-photos').remove([filePath]).catch(() => {})
+        throw new Error(dbErr.message)
+      }
+      await load()
+    } catch (e: any) {
+      Alert.alert('Photo upload failed', e?.message || 'Unknown error')
+    } finally {
+      setUploadingTaskId(null)
+    }
+  }
+
+  function confirmDeletePhoto(photo: TaskPhoto) {
+    Alert.alert('Delete photo?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.storage.from('project-photos').remove([photo.file_path]).catch(() => {})
+          const { error } = await supabase.from('project_photos').delete().eq('id', photo.id)
+          if (error) { Alert.alert('Delete failed', error.message); return }
+          await load()
+        },
+      },
+    ])
   }
 
   function openCreate() {
@@ -389,6 +494,45 @@ export default function ProjectTasksScreen() {
                   </View>
                 ) : null}
 
+                {(photosByTask[task.id]?.length || 0) > 0 || canEdit(task) ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginTop: 10 }}
+                    contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+                  >
+                    {(photosByTask[task.id] || []).map(p => {
+                      const canDelete = isManager || p.uploaded_by === currentUserId
+                      return (
+                        <Pressable
+                          key={p.id}
+                          onPress={() => setLightboxUrl(p.url)}
+                          onLongPress={canDelete ? () => confirmDeletePhoto(p) : undefined}
+                          style={{ width: 84, height: 84, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}
+                        >
+                          <Image source={{ uri: p.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        </Pressable>
+                      )
+                    })}
+                    {canEdit(task) && (
+                      <Pressable
+                        onPress={() => pickAndUploadPhoto(task)}
+                        disabled={uploadingTaskId === task.id}
+                        style={{ width: 84, height: 84, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.teal, backgroundColor: COLORS.tealSoft, alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        {uploadingTaskId === task.id ? (
+                          <ActivityIndicator color={COLORS.teal} />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="camera-plus-outline" size={26} color={COLORS.teal} />
+                            <Text style={{ color: COLORS.teal, fontSize: 11, fontWeight: '800', marginTop: 4 }}>Add Photo</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )}
+                  </ScrollView>
+                ) : null}
+
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
                   {editable && (
                     <Pressable
@@ -559,6 +703,23 @@ export default function ProjectTasksScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={!!lightboxUrl} transparent animationType="fade" onRequestClose={() => setLightboxUrl(null)}>
+        <Pressable
+          onPress={() => setLightboxUrl(null)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
+        >
+          {lightboxUrl && (
+            <Image source={{ uri: lightboxUrl }} style={{ width: '100%', height: '70%', resizeMode: 'contain' }} />
+          )}
+          <Pressable
+            onPress={() => setLightboxUrl(null)}
+            style={{ marginTop: 24, backgroundColor: COLORS.white, paddingHorizontal: 26, paddingVertical: 14, borderRadius: 100, minHeight: TOUCH.minHeight, justifyContent: 'center' }}
+          >
+            <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: TYPE.bodyBold }}>Close</Text>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   )
