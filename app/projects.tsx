@@ -2,15 +2,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
-  ActivityIndicator,
   Image,
   Pressable,
-  
   ScrollView,
   Text,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { SkeletonList } from '../components/SkeletonCard'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -74,16 +73,10 @@ export default function ProjectsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          backgroundColor: COLORS.background,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loading')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <SkeletonList count={4} kind="project" />
+        </ScrollView>
       </SafeAreaView>
     )
   }

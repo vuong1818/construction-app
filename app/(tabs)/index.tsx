@@ -3,20 +3,19 @@ import { Picker } from '@react-native-picker/picker'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import {
@@ -631,16 +630,14 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          backgroundColor: COLORS.background,
-        }}
-      >
-        <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>{t(language, 'loading')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 20, height: 140, justifyContent: 'center' }}>
+            <SkeletonBlock width="55%" height={22} radius={6} style={{ backgroundColor: 'rgba(255,255,255,0.18)' }} />
+            <SkeletonBlock width="40%" height={14} radius={6} style={{ marginTop: 10, backgroundColor: 'rgba(255,255,255,0.14)' }} />
+          </View>
+          <SkeletonList count={3} kind="project" />
+        </ScrollView>
       </SafeAreaView>
     )
   }
