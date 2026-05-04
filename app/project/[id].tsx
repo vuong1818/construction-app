@@ -347,8 +347,15 @@ export default function ProjectDetailScreen() {
             icon="clipboard-list-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={t('openTasks')}
+            title={isManager ? t('openTasks') : t('myTasks')}
             onPress={() => router.push(`/project/${id}/tasks`)}
+          />
+          <BigActionCard
+            icon="calendar-month-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            title={t('projectSchedule')}
+            onPress={() => router.push(`/project/${id}/schedule`)}
           />
         </View>
 

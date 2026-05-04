@@ -34,6 +34,7 @@ export default function RootLayout() {
       <Stack.Screen name="safety-manual"                  options={{ title: 'Safety Manual' }} />
       <Stack.Screen name="weekly-safety-meeting"          options={{ title: 'Weekly Safety Meeting' }} />
       <Stack.Screen name="project/[id]"                   options={{ title: 'Project' }} />
+      <Stack.Screen name="project/[id]/schedule"          options={{ title: 'Schedule' }} />
       <Stack.Screen name="project/[id]/new-report"        options={{ title: 'New Daily Report' }} />
       <Stack.Screen name="project/[id]/report/[reportId]" options={{ title: 'Daily Report' }} />
 
