@@ -2,7 +2,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
   Image,
   Modal,
   Pressable,
@@ -12,6 +11,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
+import { SkeletonList } from '../components/SkeletonCard'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -257,9 +257,7 @@ export default function TimesheetScreen() {
 
         {/* Entries */}
         {loading ? (
-          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator color={COLORS.teal} size="large" />
-          </View>
+          <SkeletonList count={3} kind="timesheet" />
         ) : entries.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 32, alignItems: 'center' }}>
             <MaterialCommunityIcons name="calendar-blank-outline" size={48} color={COLORS.muted} />

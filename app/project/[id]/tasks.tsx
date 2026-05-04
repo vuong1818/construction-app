@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../../../components/DatePickerField'
 import PickerWrap from '../../../components/PickerWrap'
+import { SkeletonList } from '../../../components/SkeletonCard'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
@@ -384,9 +385,18 @@ export default function ProjectTasksScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
-        <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingTasks')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <ScrollView contentContainerStyle={{ padding: 20 }}>
+          <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
+            <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>
+              {project?.name || t('project')}
+            </Text>
+            <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
+              {isManager ? t('allTasksForProject') : t('tasksAssignedToYou')}
+            </Text>
+          </View>
+          <SkeletonList count={3} kind="task" />
+        </ScrollView>
       </SafeAreaView>
     )
   }

@@ -2,7 +2,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS, TOUCH, TYPE } from '../lib/theme'
+import { SkeletonList } from '../components/SkeletonCard'
 
 type Status = 'assigned' | 'in_progress' | 'completed'
 
@@ -109,9 +109,18 @@ export default function MyScheduleScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
-        <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingTasks')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+          <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
+            <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>
+              {t('mySchedule')}
+            </Text>
+            <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
+              {t('myScheduleSubtitle')}
+            </Text>
+          </View>
+          <SkeletonList count={3} kind="task" />
+        </ScrollView>
       </SafeAreaView>
     )
   }
