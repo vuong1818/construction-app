@@ -47,6 +47,9 @@ export default function RootLayout() {
       <Stack.Screen name="smart-tools/plumbing"    options={{ title: 'Plumbing Tools' }} />
       <Stack.Screen name="smart-tools/mechanical"  options={{ title: 'Mechanical Tools' }} />
       <Stack.Screen name="smart-tools/building"    options={{ title: 'Building Tools' }} />
+      <Stack.Screen name="smart-tools/backflow/index" options={{ title: 'Backflow Tests' }} />
+      <Stack.Screen name="smart-tools/backflow/new"   options={{ title: 'New Backflow Test' }} />
+      <Stack.Screen name="smart-tools/backflow/[id]"  options={{ title: 'Backflow Test' }} />
     </Stack>
     </LanguageProvider>
   )

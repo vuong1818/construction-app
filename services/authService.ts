@@ -74,6 +74,11 @@ export async function getCurrentUserFullName(): Promise<string | null> {
   return profile.full_name
 }
 
+export async function getUserFullName(userId: string): Promise<string | null> {
+  const profile = await getProfile(userId)
+  return profile?.full_name ?? null
+}
+
 export async function getCurrentUserRole(): Promise<string> {
   const profile = await getCurrentUserProfile()
   return profile.role || 'worker'
@@ -100,6 +105,7 @@ const authService = {
   requireProfile,
   getCurrentUserProfile,
   getCurrentUserFullName,
+  getUserFullName,
   getCurrentUserRole,
   signOutLocal,
 }

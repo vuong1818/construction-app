@@ -1,15 +1,25 @@
 {
   "expo": {
-    "name": "construction-app",
-    "slug": "construction-app",
+    "name": "Nguyen MEP On-Site Tech",
+    "slug": "nguyenmep-onsite-tech",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "constructionapp",
+    "scheme": "onsitetech",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nguyenmep.onsitetech",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take photos of job site progress, receipts, and safety conditions.",
+        "NSPhotoLibraryUsageDescription": "Attach photos from your library to projects, expenses, and safety records.",
+        "NSPhotoLibraryAddUsageDescription": "Save signed acknowledgement PDFs and job photos to your library.",
+        "NSLocationWhenInUseUsageDescription": "Verify you are on the job site when you clock in or out.",
+        "NSMicrophoneUsageDescription": "Record audio when capturing video on the job site.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +29,19 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.nguyenmep.onsitetech",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -40,11 +62,42 @@
         }
       ],
       "expo-sqlite",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Take photos of job site progress, receipts, and safety conditions."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Attach photos from your library to projects, expenses, and safety records."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Verify you are on the job site when you clock in or out."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e83f0eec-5ab7-4d51-9cce-27e5c058545c"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e83f0eec-5ab7-4d51-9cce-27e5c058545c"
     }
   }
 }
