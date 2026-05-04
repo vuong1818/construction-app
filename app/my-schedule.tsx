@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
+import { COLORS, TOUCH, TYPE } from '../lib/theme'
 
 type Status = 'assigned' | 'in_progress' | 'completed'
 
@@ -31,25 +32,6 @@ type Project = {
   id: number
   name: string
   status: string | null
-}
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  green: '#22C55E',
-  greenSoft: '#ECFDF5',
-  amber: '#E65100',
-  amberSoft: '#FFF3E0',
 }
 
 const STATUS_CONFIG: Record<Status, { labelKey: TranslationKey; color: string; bg: string }> = {
@@ -270,40 +252,40 @@ export default function MyScheduleScreen() {
                     </View>
 
                     {task.notes ? (
-                      <View style={{ backgroundColor: '#FAFBFD', borderRadius: 10, padding: 10, marginTop: 10 }}>
-                        <Text style={{ color: COLORS.subtext, fontSize: 13 }}>📝 {task.notes}</Text>
+                      <View style={{ backgroundColor: '#FAFBFD', borderRadius: 10, padding: 12, marginTop: 10 }}>
+                        <Text style={{ color: COLORS.subtext, fontSize: TYPE.body, lineHeight: 22 }}>📝 {task.notes}</Text>
                       </View>
                     ) : null}
 
                     {task.status !== 'completed' ? (
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
                         {task.status !== 'in_progress' && (
                           <Pressable
                             onPress={() => setStatus(task, 'in_progress')}
                             disabled={savingId === task.id}
-                            style={{ backgroundColor: COLORS.amberSoft, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                            style={{ backgroundColor: COLORS.amberSoft, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                           >
-                            <MaterialCommunityIcons name="play" size={16} color={COLORS.amber} />
-                            <Text style={{ color: COLORS.amber, fontWeight: '800', fontSize: 13 }}>{t('start')}</Text>
+                            <MaterialCommunityIcons name="play" size={18} color={COLORS.amber} />
+                            <Text style={{ color: COLORS.amber, fontWeight: '800', fontSize: TYPE.bodyBold }}>{t('start')}</Text>
                           </Pressable>
                         )}
                         <Pressable
                           onPress={() => setStatus(task, 'completed')}
                           disabled={savingId === task.id}
-                          style={{ backgroundColor: COLORS.greenSoft, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                          style={{ backgroundColor: COLORS.greenSoft, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}
                         >
-                          <MaterialCommunityIcons name="check" size={16} color="#2E7D32" />
-                          <Text style={{ color: '#2E7D32', fontWeight: '800', fontSize: 13 }}>{t('markCompleted')}</Text>
+                          <MaterialCommunityIcons name="check" size={18} color="#2E7D32" />
+                          <Text style={{ color: '#2E7D32', fontWeight: '800', fontSize: TYPE.bodyBold }}>{t('markCompleted')}</Text>
                         </Pressable>
                       </View>
                     ) : (
-                      <View style={{ marginTop: 12 }}>
+                      <View style={{ marginTop: 14 }}>
                         <Pressable
                           onPress={() => setStatus(task, 'assigned')}
                           disabled={savingId === task.id}
-                          style={{ alignSelf: 'flex-start', backgroundColor: '#F4F7FA', borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}
+                          style={{ alignSelf: 'flex-start', backgroundColor: '#F4F7FA', borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 14, justifyContent: 'center' }}
                         >
-                          <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 13 }}>↺ {t('reopen')}</Text>
+                          <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: TYPE.bodyBold }}>↺ {t('reopen')}</Text>
                         </Pressable>
                       </View>
                     )}

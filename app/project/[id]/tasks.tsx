@@ -20,21 +20,7 @@ import PickerWrap from '../../../components/PickerWrap'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-}
+import { COLORS, TOUCH, TYPE } from '../../../lib/theme'
 
 type Status = 'assigned' | 'in_progress' | 'completed'
 
@@ -398,18 +384,18 @@ export default function ProjectTasksScreen() {
                 </Text>
 
                 {task.notes ? (
-                  <View style={{ backgroundColor: '#FAFBFD', borderRadius: 10, padding: 10, marginTop: 4 }}>
-                    <Text style={{ color: COLORS.subtext, fontSize: 13 }}>📝 {task.notes}</Text>
+                  <View style={{ backgroundColor: '#FAFBFD', borderRadius: 10, padding: 12, marginTop: 6 }}>
+                    <Text style={{ color: COLORS.subtext, fontSize: TYPE.body, lineHeight: 22 }}>📝 {task.notes}</Text>
                   </View>
                 ) : null}
 
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14, justifyContent: 'flex-end' }}>
                   {editable && (
                     <Pressable
                       onPress={() => openEdit(task)}
-                      style={{ backgroundColor: COLORS.tealSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                      style={{ backgroundColor: COLORS.tealSoft, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 12, justifyContent: 'center' }}
                     >
-                      <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>
+                      <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: TYPE.bodyBold }}>
                         {isManager ? t('edit') : t('update')}
                       </Text>
                     </Pressable>
@@ -417,9 +403,9 @@ export default function ProjectTasksScreen() {
                   {isManager && (
                     <Pressable
                       onPress={() => confirmDelete(task)}
-                      style={{ backgroundColor: COLORS.redSoft, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 }}
+                      style={{ backgroundColor: COLORS.redSoft, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 12, justifyContent: 'center' }}
                     >
-                      <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>{t('delete')}</Text>
+                      <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: TYPE.bodyBold }}>{t('delete')}</Text>
                     </Pressable>
                   )}
                 </View>
