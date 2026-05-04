@@ -14,7 +14,9 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import DatePickerField from '../../../components/DatePickerField'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
+import { useLanguage } from '../../../lib/i18n'
 import {
   CIVIL_INSPECTIONS,
   COMMERCIAL_RESIDENTIAL_INSPECTIONS,
@@ -66,6 +68,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export default function ProjectInspectionsScreen() {
   const router = useRouter()
+  const { t } = useLanguage()
   const { id } = useLocalSearchParams<{ id: string }>()
   const projectId = Number(id)
 
@@ -97,7 +100,7 @@ export default function ProjectInspectionsScreen() {
 
   useEffect(() => {
     if (!Number.isFinite(projectId)) {
-      setErrorMessage('Invalid project.')
+      setErrorMessage(t('invalidProjectShort'))
       setLoading(false)
       return
     }
@@ -118,7 +121,7 @@ export default function ProjectInspectionsScreen() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { setErrorMessage('You must be signed in.'); return }
+      if (!session?.user) { setErrorMessage(t('signInRequired')); return }
 
       const { data: me } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
@@ -147,7 +150,7 @@ export default function ProjectInspectionsScreen() {
       }
       setRecords(map)
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load inspections.')
+      setErrorMessage(error?.message || t('failedToLoadInspections'))
     } finally {
       setLoading(false)
     }
@@ -172,7 +175,7 @@ export default function ProjectInspectionsScreen() {
   async function saveItem() {
     if (!editing) return
     if (editing.date && !DATE_RE.test(editing.date)) {
-      Alert.alert('Invalid date', 'Use YYYY-MM-DD format, or leave blank.')
+      Alert.alert(t('invalidDate'), t('invalidDateOrBlank'))
       return
     }
 
@@ -193,7 +196,7 @@ export default function ProjectInspectionsScreen() {
     setSaving(false)
 
     if (error) {
-      Alert.alert('Save failed', error.message)
+      Alert.alert(t('saveFailed'), error.message)
       return
     }
 
@@ -205,7 +208,7 @@ export default function ProjectInspectionsScreen() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading inspections...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingInspections')}</Text>
       </SafeAreaView>
     )
   }
@@ -213,10 +216,10 @@ export default function ProjectInspectionsScreen() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={() => router.back()} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Back</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('back')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -225,8 +228,8 @@ export default function ProjectInspectionsScreen() {
   if (userRole !== 'manager') {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>Manager Only</Text>
-        <Text style={{ color: COLORS.text, textAlign: 'center' }}>You do not have permission to manage inspections.</Text>
+        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
+        <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noPermissionInspections')}</Text>
       </SafeAreaView>
     )
   }
@@ -237,10 +240,10 @@ export default function ProjectInspectionsScreen() {
         {/* Header */}
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
           <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>
-            {project?.name || 'Project'}
+            {project?.name || t('projectFallback')}
           </Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            {counts.passed} of {total} inspections passed
+            {t('inspectionsPassedOfTotal', { passed: counts.passed, total })}
           </Text>
         </View>
 
@@ -320,7 +323,7 @@ export default function ProjectInspectionsScreen() {
                             <Text style={{ color: COLORS.subtext, fontSize: 11 }}>📅 {rec.inspection_date}</Text>
                           )}
                           {hasNote && (
-                            <Text style={{ color: COLORS.subtext, fontSize: 11 }}>📝 note</Text>
+                            <Text style={{ color: COLORS.subtext, fontSize: 11 }}>📝 {t('noteShort')}</Text>
                           )}
                         </View>
                       </View>
@@ -342,7 +345,8 @@ export default function ProjectInspectionsScreen() {
         onRequestClose={() => setEditing(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
           style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.40)', justifyContent: 'flex-end' }}
         >
           <View style={{
@@ -351,13 +355,18 @@ export default function ProjectInspectionsScreen() {
             borderTopRightRadius: 30,
             maxHeight: '90%',
           }}>
-            <ScrollView contentContainerStyle={{ padding: 22 }}>
-              <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', marginBottom: 16 }}>
-                {editing?.itemLabel}
-              </Text>
+            <ScrollView contentContainerStyle={{ padding: 22, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', flex: 1 }}>
+                  {editing?.itemLabel}
+                </Text>
+                <Pressable onPress={() => setEditing(null)} hitSlop={10} style={{ padding: 4 }}>
+                  <MaterialCommunityIcons name="close" size={26} color={COLORS.subtext} />
+                </Pressable>
+              </View>
 
               {/* Status buttons */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>Status</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>{t('status')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
                 {STATUS_ORDER.map(s => {
                   const cfg = STATUS_CONFIG[s]
@@ -384,38 +393,26 @@ export default function ProjectInspectionsScreen() {
               </View>
 
               {/* Date */}
-              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>Inspection Date</Text>
-              <TextInput
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>{t('inspectionDateLabel')}</Text>
+              <DatePickerField
                 value={editing?.date || ''}
-                onChangeText={(text) => editing && setEditing({ ...editing, date: text })}
-                placeholder="YYYY-MM-DD (leave blank if none)"
-                placeholderTextColor={COLORS.subtext}
-                autoCapitalize="none"
-                style={{
-                  backgroundColor: COLORS.white,
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  color: COLORS.text,
-                  marginBottom: 18,
-                }}
+                onChange={(iso) => editing && setEditing({ ...editing, date: iso })}
+                allowClear
               />
 
               {/* Notes */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ color: COLORS.navy, fontWeight: '700' }}>Notes</Text>
+                <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('notes')}</Text>
                 {!!(editing?.notes && editing.notes.length > 0) && (
                   <Pressable onPress={clearNote}>
-                    <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>Clear note</Text>
+                    <Text style={{ color: COLORS.red, fontWeight: '700', fontSize: 13 }}>{t('clearNote')}</Text>
                   </Pressable>
                 )}
               </View>
               <TextInput
                 value={editing?.notes || ''}
                 onChangeText={(text) => editing && setEditing({ ...editing, notes: text })}
-                placeholder="Optional notes for this inspection"
+                placeholder={t('inspectionNotesPlaceholder')}
                 placeholderTextColor={COLORS.subtext}
                 multiline
                 style={{
@@ -445,14 +442,14 @@ export default function ProjectInspectionsScreen() {
                   }}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-                    {saving ? 'Saving...' : 'Save'}
+                    {saving ? t('saving') : t('save')}
                   </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => setEditing(null)}
                   style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center' }}
                 >
-                  <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+                  <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>{t('cancel')}</Text>
                 </Pressable>
               </View>
             </ScrollView>

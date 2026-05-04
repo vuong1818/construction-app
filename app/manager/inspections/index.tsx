@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../../lib/i18n'
 import {
   CIVIL_INSPECTIONS,
   COMMERCIAL_RESIDENTIAL_INSPECTIONS,
@@ -47,6 +48,7 @@ type InspectionCounts = {
 
 export default function ManagerInspectionsIndex() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [userRole, setUserRole] = useState('')
@@ -64,7 +66,7 @@ export default function ManagerInspectionsIndex() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('signInRequired'))
         return
       }
 
@@ -112,7 +114,7 @@ export default function ManagerInspectionsIndex() {
         setCountsByProject(counts)
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load projects.')
+      setErrorMessage(error?.message || t('failedToLoadProjects'))
     } finally {
       setLoading(false)
     }
@@ -122,7 +124,7 @@ export default function ManagerInspectionsIndex() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading projects...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingProjects')}</Text>
       </SafeAreaView>
     )
   }
@@ -130,10 +132,10 @@ export default function ManagerInspectionsIndex() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={load} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -142,8 +144,8 @@ export default function ManagerInspectionsIndex() {
   if (userRole !== 'manager') {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>Manager Only</Text>
-        <Text style={{ color: COLORS.text, textAlign: 'center' }}>You do not have permission to manage inspections.</Text>
+        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
+        <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noPermissionInspections')}</Text>
       </SafeAreaView>
     )
   }
@@ -152,20 +154,20 @@ export default function ManagerInspectionsIndex() {
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
-          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>Inspections</Text>
+          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>{t('inspectionsTitle')}</Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Choose a project to view and update inspection status, dates, and notes.
+            {t('inspectionsListIntro')}
           </Text>
         </View>
 
         {projects.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 20 }}>
-            <Text style={{ color: COLORS.text, textAlign: 'center' }}>No projects yet.</Text>
+            <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noProjectsYet')}</Text>
           </View>
         ) : (
           projects.map(p => {
             const c = countsByProject[p.id]
-            const fraction = c ? `${c.passed}/${c.total} passed` : '—'
+            const fraction = c ? t('passedFraction', { passed: c.passed, total: c.total }) : '—'
             return (
               <Pressable
                 key={p.id}

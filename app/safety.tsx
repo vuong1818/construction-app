@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 
 type Profile = {
@@ -25,6 +26,7 @@ type WeeklyTopic = {
 };
 
 export default function SafetyScreen() {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -130,26 +132,17 @@ export default function SafetyScreen() {
   }
 
   const complianceText = useMemo(() => {
-    if (fullyCompliant) {
-      return 'Fully compliant. You have completed the Safety Manual and Weekly Safety Meeting requirements for this week.';
-    }
-
-    if (!manualSigned && !meetingSigned) {
-      return 'You must sign the Safety Manual and Weekly Safety Meeting acknowledgement before clocking in this week.';
-    }
-
-    if (!manualSigned) {
-      return 'You still need to sign the Safety Manual before clocking in this week.';
-    }
-
-    return 'You still need to sign the Weekly Safety Meeting acknowledgement before clocking in this week.';
-  }, [fullyCompliant, manualSigned, meetingSigned]);
+    if (fullyCompliant) return t('fullyCompliantMessage');
+    if (!manualSigned && !meetingSigned) return t('needsBothMessage');
+    if (!manualSigned) return t('needsManualMessage');
+    return t('needsMeetingMessage');
+  }, [fullyCompliant, manualSigned, meetingSigned, t]);
 
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading safety status...</Text>
+        <Text style={styles.loadingText}>{t('loadingSafetyStatus')}</Text>
       </View>
     );
   }
@@ -159,7 +152,7 @@ export default function SafetyScreen() {
       contentContainerStyle={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Text style={styles.header}>Safety</Text>
+      <Text style={styles.header}>{t('safety')}</Text>
 
       <View
         style={[
@@ -170,7 +163,7 @@ export default function SafetyScreen() {
         <View style={styles.statusTopRow}>
           <Text style={styles.statusDot}>{fullyCompliant ? '🟢' : '🔴'}</Text>
           <Text style={styles.statusTitle}>
-            {fullyCompliant ? 'Safety Compliant' : 'Safety Action Required'}
+            {fullyCompliant ? t('safetyCompliant') : t('safetyActionRequired')}
           </Text>
         </View>
 
@@ -179,22 +172,21 @@ export default function SafetyScreen() {
         {isWorker && (
           <View style={styles.clockInWarningBox}>
             <Text style={styles.clockInWarningText}>
-              Workers cannot clock in until both the Safety Manual acknowledgement
-              and the Weekly Safety Meeting acknowledgement are completed.
+              {t('workersClockInBlockedNotice')}
             </Text>
           </View>
         )}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Required Safety Actions</Text>
+        <Text style={styles.sectionTitle}>{t('requiredSafetyActions')}</Text>
 
         <View style={styles.requirementCard}>
           <View style={styles.requirementRow}>
             <View style={styles.requirementTextWrap}>
-              <Text style={styles.requirementTitle}>Safety Manual</Text>
+              <Text style={styles.requirementTitle}>{t('safetyManual')}</Text>
               <Text style={styles.requirementSubtitle}>
-                Review and sign the company safety manual.
+                {t('safetyManualSubtitle')}
               </Text>
             </View>
             <View
@@ -204,7 +196,7 @@ export default function SafetyScreen() {
               ]}
             >
               <Text style={styles.pillText}>
-                {manualSigned ? 'Completed' : 'Required'}
+                {manualSigned ? t('completed') : t('required')}
               </Text>
             </View>
           </View>
@@ -214,7 +206,7 @@ export default function SafetyScreen() {
             onPress={() => router.push('/safety-manual')}
           >
             <Text style={styles.primaryButtonText}>
-              {manualSigned ? 'Open Safety Manual' : 'Sign Safety Manual'}
+              {manualSigned ? t('openSafetyManual') : t('signSafetyManual')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -222,9 +214,9 @@ export default function SafetyScreen() {
         <View style={styles.requirementCard}>
           <View style={styles.requirementRow}>
             <View style={styles.requirementTextWrap}>
-              <Text style={styles.requirementTitle}>Weekly Safety Meeting</Text>
+              <Text style={styles.requirementTitle}>{t('weeklySafetyMeeting')}</Text>
               <Text style={styles.requirementSubtitle}>
-                Review the current weekly topic and sign attendance.
+                {t('weeklySafetyMeetingSubtitle')}
               </Text>
             </View>
             <View
@@ -234,24 +226,24 @@ export default function SafetyScreen() {
               ]}
             >
               <Text style={styles.pillText}>
-                {meetingSigned ? 'Completed' : 'Required'}
+                {meetingSigned ? t('completed') : t('required')}
               </Text>
             </View>
           </View>
 
           {!!currentTopic && (
             <View style={styles.topicBox}>
-              <Text style={styles.topicLabel}>This Week’s Topic</Text>
+              <Text style={styles.topicLabel}>{t('thisWeeksTopic')}</Text>
               <Text style={styles.topicText}>
-                {currentTopic.topic || currentTopic.title || 'Weekly Safety Topic'}
+                {currentTopic.topic || currentTopic.title || t('weeklySafetyTopic')}
               </Text>
             </View>
           )}
 
           {!currentTopic && (
             <View style={styles.topicBox}>
-              <Text style={styles.topicLabel}>This Week’s Topic</Text>
-              <Text style={styles.topicText}>No weekly topic has been posted yet.</Text>
+              <Text style={styles.topicLabel}>{t('thisWeeksTopic')}</Text>
+              <Text style={styles.topicText}>{t('noTopicPostedYet')}</Text>
             </View>
           )}
 
@@ -260,28 +252,28 @@ export default function SafetyScreen() {
             onPress={() => router.push('/weekly-safety-meeting')}
           >
             <Text style={styles.primaryButtonText}>
-              {meetingSigned ? 'Open Weekly Meeting' : 'Sign Weekly Meeting'}
+              {meetingSigned ? t('openWeeklyMeeting') : t('signWeeklyMeeting')}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Safety Resources</Text>
+        <Text style={styles.sectionTitle}>{t('safetyResources')}</Text>
 
         <View style={styles.resourceTabsRow}>
           <TouchableOpacity
             style={styles.resourceTab}
             onPress={() => router.push('/safety-documents')}
           >
-            <Text style={styles.resourceTabText}>OSHA Publications</Text>
+            <Text style={styles.resourceTabText}>{t('oshaPublications')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.resourceTab}
             onPress={() => router.push('/osha-videos')}
           >
-            <Text style={styles.resourceTabText}>OSHA Videos</Text>
+            <Text style={styles.resourceTabText}>{t('oshaVideos')}</Text>
           </TouchableOpacity>
         </View>
       </View>

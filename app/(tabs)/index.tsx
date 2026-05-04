@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Picker } from '@react-native-picker/picker'
-import { useRouter } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -23,13 +23,14 @@ import {
   captureMapSnapshot,
   checkGeofence,
   LocationDeniedError,
-  OFFSITE_REASON_LABELS,
   OffsiteReason,
   readCurrentLocation,
 } from '../../lib/clockLocation'
+import { useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
+import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 
 type Project = {
   id: number
@@ -110,10 +111,40 @@ export default function HomeScreen() {
   const [meetingAcknowledged, setMeetingAcknowledged] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
+  const [pendingSync, setPendingSync] = useState(0)
+  const offsiteReasons = useClockInReasons()
 
   useEffect(() => {
     loadDashboard()
   }, [])
+
+  // Start the offline-queue auto-drain (replays queued clock-ins on
+  // reconnect) and subscribe to the pending count so the chip updates
+  // live as ops are queued or synced.
+  useEffect(() => {
+    const stopDrain = startAutoDrain()
+    const unsubscribe = subscribePending((count) => {
+      setPendingSync(count)
+      // When the count drops to 0 after a queued op syncs, refresh so
+      // the worker sees their now-active time entry on the dashboard.
+      if (count === 0) {
+        loadDashboard().catch(() => {})
+      }
+    })
+    return () => {
+      unsubscribe()
+      stopDrain()
+    }
+  }, [])
+
+  // Refetch every time this screen regains focus — picks up safety
+  // acknowledgements signed on /safety-manual or /weekly-safety-meeting so
+  // the user can clock in immediately without logging out and back in.
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard()
+    }, []),
+  )
 
   // Live updates when this worker's own clock entries change (e.g. manager adjusts on web)
   useRealtimeRefetch(
@@ -221,7 +252,7 @@ export default function HomeScreen() {
       const currentUserId = session?.user?.id
 
       if (!currentUserId) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t(language, 'mustBeSignedIn'))
         return
       }
 
@@ -314,7 +345,7 @@ export default function HomeScreen() {
       setManualAcknowledged(!!manualResult.data)
       setMeetingAcknowledged(!!meetingResult.data)
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load home screen.')
+      setErrorMessage(error?.message || t(language, 'failedLoadHome'))
     } finally {
       setLoading(false)
     }
@@ -338,8 +369,8 @@ export default function HomeScreen() {
 
     if (!manualAcknowledged || !meetingAcknowledged) {
       Alert.alert(
-        'Safety Acknowledgement Required',
-        'You must acknowledge the weekly safety manual and sign into the weekly safety meeting before clocking in.'
+        t(language, 'safetyAcknowledgmentRequired'),
+        t(language, 'safetyAcknowledgmentRequiredMessage')
       )
       return
     }
@@ -349,7 +380,7 @@ export default function HomeScreen() {
     } = await supabase.auth.getSession()
 
     if (!session?.user) {
-      Alert.alert(t(language, 'error'), 'You must be signed in')
+      Alert.alert(t(language, 'error'), t(language, 'mustBeSignedIn'))
       return
     }
 
@@ -390,11 +421,18 @@ export default function HomeScreen() {
 
       // 4a. Inside fence → clock in directly
       if (fence.inside) {
-        await svcClockIn(projectId, {
+        const result = await svcClockIn(projectId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
         })
-        Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+        if (result.queued) {
+          Alert.alert(
+            'Clocked in (offline)',
+            'No network — your clock-in is saved locally and will sync automatically when signal returns.',
+          )
+        } else {
+          Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+        }
         await loadDashboard()
         return
       }
@@ -403,15 +441,15 @@ export default function HomeScreen() {
       setOffsitePrompt({
         kind: 'in',
         distance: fence.distanceMeters ?? 0,
-        projectName: project?.name || 'Project',
+        projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
       })
     } catch (error: any) {
       if (error instanceof LocationDeniedError) {
-        Alert.alert('Location required', 'Please allow location access to clock in.')
+        Alert.alert(t(language, 'locationRequired'), t(language, 'allowLocationToClockIn'))
       } else {
-        Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+        Alert.alert(t(language, 'error'), error?.message || t(language, 'somethingWrong'))
       }
     } finally {
       setClocking(false)
@@ -428,13 +466,20 @@ export default function HomeScreen() {
 
       if (offsitePrompt.kind === 'in') {
         if (!selectedProjectId) return
-        await svcClockIn(selectedProjectId, {
+        const result = await svcClockIn(selectedProjectId, {
           lat: offsitePrompt.payload.lat,
           lng: offsitePrompt.payload.lng,
           snapshotUrl: offsitePrompt.payload.snapshotUrl,
           offsite: true, offsiteReason: reason, offsiteNote: note,
         })
-        Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+        if (result.queued) {
+          Alert.alert(
+            'Clocked in (offline)',
+            'No network — your clock-in is saved locally and will sync automatically when signal returns.',
+          )
+        } else {
+          Alert.alert(t(language, 'success'), t(language, 'clockedInSuccessfully'))
+        }
       } else {
         if (!activeEntry?.id) return
         await svcClockOut(activeEntry.id, {
@@ -450,7 +495,7 @@ export default function HomeScreen() {
       setClockModalVisible(false)
       await loadDashboard()
     } catch (error: any) {
-      Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+      Alert.alert(t(language, 'error'), error?.message || t(language, 'somethingWrong'))
     } finally {
       setClocking(false)
     }
@@ -473,13 +518,13 @@ export default function HomeScreen() {
 
   async function handleClockOut() {
     if (!activeEntry?.id) {
-      Alert.alert(t(language, 'error'), 'No active clock-in found.')
+      Alert.alert(t(language, 'error'), t(language, 'noActiveClockIn'))
       return
     }
 
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
-      Alert.alert(t(language, 'error'), 'You must be signed in')
+      Alert.alert(t(language, 'error'), t(language, 'mustBeSignedIn'))
       return
     }
 
@@ -521,15 +566,15 @@ export default function HomeScreen() {
       setOffsitePrompt({
         kind: 'out',
         distance: fence.distanceMeters ?? 0,
-        projectName: project?.name || 'Project',
+        projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
       })
     } catch (error: any) {
       if (error instanceof LocationDeniedError) {
-        Alert.alert('Location required', 'Please allow location access to clock out.')
+        Alert.alert(t(language, 'locationRequired'), t(language, 'allowLocationToClockOut'))
       } else {
-        Alert.alert(t(language, 'error'), error?.message || 'Something went wrong')
+        Alert.alert(t(language, 'error'), error?.message || t(language, 'somethingWrong'))
       }
     } finally {
       setClocking(false)
@@ -543,7 +588,7 @@ export default function HomeScreen() {
         : t(language, 'logoutConfirm')
 
     Alert.alert(t(language, 'logout'), message, [
-      { text: 'Cancel', style: 'cancel' },
+      { text: t(language, 'cancel'), style: 'cancel' },
       {
         text: t(language, 'logout'),
         style: 'destructive',
@@ -564,7 +609,7 @@ export default function HomeScreen() {
 
             router.replace('/sign-in')
           } catch (error: any) {
-            Alert.alert(t(language, 'logoutError'), error?.message || 'Could not log out.')
+            Alert.alert(t(language, 'logoutError'), error?.message || t(language, 'couldNotLogOut'))
           } finally {
             setLoading(false)
           }
@@ -727,6 +772,31 @@ export default function HomeScreen() {
           </Text>
           <Text style={{ color: '#D9F6FB', marginTop: 2 }}>{currentStatusText}</Text>
 
+          {/* Pending sync chip — shows when one or more clock-ins were saved
+              offline and haven't reached the server yet. Tap to force a
+              drain attempt instead of waiting for the connectivity event. */}
+          {pendingSync > 0 && (
+            <Pressable
+              onPress={() => drainQueue().catch(() => {})}
+              style={{
+                marginTop: 10,
+                alignSelf: 'flex-start',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#FBBF24',
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 999,
+              }}
+            >
+              <Ionicons name="cloud-offline-outline" size={14} color="#78350F" />
+              <Text style={{ color: '#78350F', fontWeight: '700', fontSize: 12 }}>
+                {pendingSync} pending sync — tap to retry
+              </Text>
+            </Pressable>
+          )}
+
           <View
             style={{
               backgroundColor: '#1E4D8E',
@@ -748,11 +818,11 @@ export default function HomeScreen() {
             {t(language, 'workWeek')}: {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}
           </Text>
           <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800' }}>
-            {formatHours(weeklyTotalHours)} hrs
+            {`${formatHours(weeklyTotalHours)} ${t(language, 'hrs')}`}
           </Text>
           {profile?.wage ? (
             <Text style={{ color: '#19B6D2', fontSize: 20, fontWeight: '700', marginTop: 4 }}>
-              ${(weeklyTotalHours * profile.wage).toFixed(2)} earned
+              {`$${(weeklyTotalHours * profile.wage).toFixed(2)} ${t(language, 'earned')}`}
             </Text>
           ) : null}
         </View>
@@ -775,7 +845,7 @@ export default function HomeScreen() {
               marginBottom: 14,
             }}
           >
-            Weekly Safety Reminder
+            {t(language, 'weeklySafetyReminder')}
           </Text>
 
           <Pressable
@@ -789,7 +859,7 @@ export default function HomeScreen() {
             }}
           >
             <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-              Open Safety Screen
+              {t(language, 'openSafetyScreen')}
             </Text>
           </Pressable>
         </View>
@@ -825,6 +895,40 @@ export default function HomeScreen() {
             </Text>
             <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
               {t(language, 'myScheduleSubtitle')}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/timesheet' as any)}
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 24,
+            paddingVertical: 18,
+            paddingHorizontal: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 14,
+          }}
+        >
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 18,
+              backgroundColor: COLORS.navySoft,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="clock-time-eight-outline" size={30} color={COLORS.navy} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>My Timesheet</Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
+              Day, pay period, custom — with map snapshots
             </Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
@@ -915,8 +1019,8 @@ export default function HomeScreen() {
             <MaterialCommunityIcons name="calculator-variant-outline" size={30} color={COLORS.teal} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.white, fontSize: 18, fontWeight: '800' }}>Smart Tools</Text>
-            <Text style={{ color: '#A8C8E8', fontSize: 13 }}>21 field calculators — Elec, Plumb, Mech, Building</Text>
+            <Text style={{ color: COLORS.white, fontSize: 18, fontWeight: '800' }}>{t(language, 'smartTools')}</Text>
+            <Text style={{ color: '#A8C8E8', fontSize: 13 }}>{t(language, 'smartToolsTagline')}</Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.teal} />
         </Pressable>
@@ -945,7 +1049,7 @@ export default function HomeScreen() {
                 onPress={() => setClockModalVisible(false)}
                 style={{ backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 }}
               >
-                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>✕ Close</Text>
+                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>{`✕ ${t(language, 'close')}`}</Text>
               </Pressable>
             </View>
 
@@ -965,11 +1069,11 @@ export default function HomeScreen() {
                     marginBottom: 8,
                   }}
                 >
-                  Clock-In Blocked
+                  {t(language, 'clockInBlocked')}
                 </Text>
 
                 <Text style={{ color: COLORS.text, lineHeight: 22, marginBottom: 12 }}>
-                  You must complete both weekly safety acknowledgements before clocking in.
+                  {t(language, 'safetyMustComplete')}
                 </Text>
 
                 <Pressable
@@ -986,95 +1090,132 @@ export default function HomeScreen() {
                   }}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                    Go to Safety
+                    {t(language, 'goToSafety')}
                   </Text>
                 </Pressable>
               </View>
             ) : null}
 
-            <Text style={{ color: COLORS.subtext, marginBottom: 6 }}>
-              {t(language, 'selectProject')}
-            </Text>
+            {activeEntry ? (
+              // Already clocked in — show the active project as a read-only,
+              // highlighted card. Project can't be changed mid-shift; clock
+              // out first, then clock in to a different project.
+              <View style={{ marginBottom: 10 }}>
+                <Text style={{ color: COLORS.subtext, marginBottom: 6 }}>
+                  {t(language, 'activeProject')}
+                </Text>
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: COLORS.green,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 14,
+                    backgroundColor: COLORS.greenSoft,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <Ionicons name="checkmark-circle" size={22} color={COLORS.green} />
+                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', flex: 1 }}>
+                    {getProjectName(activeEntry.project_id)}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              // Not clocked in — let the worker pick which project to clock into.
+              <>
+                <Text style={{ color: COLORS.subtext, marginBottom: 6 }}>
+                  {t(language, 'selectProject')}
+                </Text>
 
-            <View
-              style={{
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                borderRadius: 14,
-                overflow: 'hidden',
-                marginBottom: 10,
-                backgroundColor: '#F8FAFC',
-              }}
-            >
-              <Picker
-                selectedValue={selectedProjectId}
-                dropdownIconColor={COLORS.text}
-                style={{ color: COLORS.text, backgroundColor: '#F8FAFC' }}
-                itemStyle={
-                  Platform.OS === 'ios'
-                    ? {
-                        color: COLORS.text,
-                        fontSize: 18,
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    borderRadius: 14,
+                    overflow: 'hidden',
+                    marginBottom: 10,
+                    backgroundColor: '#F8FAFC',
+                  }}
+                >
+                  <Picker
+                    selectedValue={selectedProjectId}
+                    dropdownIconColor={COLORS.text}
+                    style={{ color: COLORS.text, backgroundColor: '#F8FAFC' }}
+                    itemStyle={
+                      Platform.OS === 'ios'
+                        ? {
+                            color: COLORS.text,
+                            fontSize: 18,
+                          }
+                        : undefined
+                    }
+                    onValueChange={(value) => {
+                      if (value === null || value === undefined) {
+                        setSelectedProjectId(null)
+                      } else {
+                        setSelectedProjectId(Number(value))
                       }
-                    : undefined
-                }
-                onValueChange={(value) => {
-                  if (value === null || value === undefined) {
-                    setSelectedProjectId(null)
-                  } else {
-                    setSelectedProjectId(Number(value))
-                  }
-                }}
-              >
-                <Picker.Item label={t(language, 'selectProject')} value={null} color={COLORS.subtext} />
-                {projects.map((project) => (
-                  <Picker.Item key={project.id} label={project.name} value={project.id} color={COLORS.text} />
-                ))}
-              </Picker>
-            </View>
+                    }}
+                  >
+                    <Picker.Item label={t(language, 'selectProject')} value={null} color={COLORS.subtext} />
+                    {projects.map((project) => (
+                      <Picker.Item key={project.id} label={project.name} value={project.id} color={COLORS.text} />
+                    ))}
+                  </Picker>
+                </View>
 
-            <Text style={{ color: COLORS.text, marginBottom: 16, fontWeight: '600' }}>
-              {t(language, 'selected')}: {getProjectName(selectedProjectId)}
-            </Text>
+                <Text style={{ color: COLORS.text, marginBottom: 16, fontWeight: '600' }}>
+                  {t(language, 'selected')}: {getProjectName(selectedProjectId)}
+                </Text>
+              </>
+            )}
 
             <View style={{ gap: 12 }}>
-              <Pressable
-                onPress={handleClockIn}
-                disabled={clocking || !!activeEntry || !selectedProjectId || !safetyCompleted()}
-                style={{
-                  backgroundColor:
-                    clocking || !!activeEntry || !selectedProjectId || !safetyCompleted()
-                      ? '#94A3B8'
-                      : COLORS.green,
-                  borderRadius: 18,
-                  paddingVertical: 16,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>
-                  {t(language, 'clockIn')}
-                </Text>
-              </Pressable>
+              {!activeEntry && (
+                <Pressable
+                  onPress={handleClockIn}
+                  disabled={clocking || !selectedProjectId || !safetyCompleted()}
+                  style={{
+                    backgroundColor:
+                      clocking || !selectedProjectId || !safetyCompleted()
+                        ? '#94A3B8'
+                        : COLORS.green,
+                    borderRadius: 18,
+                    paddingVertical: 16,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>
+                    {t(language, 'clockIn')}
+                  </Text>
+                </Pressable>
+              )}
 
-              <Pressable
-                onPress={handleClockOut}
-                disabled={clocking || !activeEntry}
-                style={{
-                  backgroundColor: clocking || !activeEntry ? '#CBD5E1' : COLORS.red,
-                  borderRadius: 18,
-                  paddingVertical: 16,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>
-                  {t(language, 'clockOut')}
-                </Text>
-              </Pressable>
+              {activeEntry && (
+                <Pressable
+                  onPress={handleClockOut}
+                  disabled={clocking}
+                  style={{
+                    backgroundColor: clocking ? '#CBD5E1' : COLORS.red,
+                    borderRadius: 18,
+                    paddingVertical: 16,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>
+                    {t(language, 'clockOut')}
+                  </Text>
+                </Pressable>
+              )}
+
               <Pressable
                 onPress={() => setClockModalVisible(false)}
                 style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}
               >
-                <Text style={{ color: COLORS.subtext, fontSize: 16, fontWeight: '700' }}>Cancel</Text>
+                <Text style={{ color: COLORS.subtext, fontSize: 16, fontWeight: '700' }}>{t(language, 'cancel')}</Text>
               </Pressable>
             </View>
           </View>
@@ -1095,19 +1236,23 @@ export default function HomeScreen() {
           <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 22, maxHeight: '90%' }}>
             <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
               <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 6 }}>
-                You're off-site
+                {t(language, 'offsiteHeader')}
               </Text>
               <Text style={{ color: COLORS.subtext, marginBottom: 16, lineHeight: 20 }}>
                 {offsitePrompt
-                  ? `${Math.round(offsitePrompt.distance)} m from ${offsitePrompt.projectName}. Tell us why you're clocking ${offsitePrompt.kind === 'in' ? 'in' : 'out'} from here.`
+                  ? t(
+                      language,
+                      offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
+                      { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
+                    )
                   : ''}
               </Text>
 
               <View style={{ gap: 10, marginBottom: 14 }}>
-                {(['supply_store', 'gas', 'other'] as OffsiteReason[]).map((r) => (
+                {offsiteReasons.map((r) => (
                   <Pressable
-                    key={r}
-                    onPress={() => confirmOffsiteClock(r)}
+                    key={r.value}
+                    onPress={() => confirmOffsiteClock(r.value)}
                     disabled={clocking}
                     style={{
                       backgroundColor: clocking ? '#94A3B8' : COLORS.navy,
@@ -1117,21 +1262,21 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-                      {OFFSITE_REASON_LABELS[r]}
+                      {r.label}
                     </Text>
                   </Pressable>
                 ))}
               </View>
 
               <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6 }}>
-                Optional note
+                {t(language, 'optionalNote')}
               </Text>
               <TextInput
                 value={offsitePrompt?.noteText || ''}
                 onChangeText={(text) =>
                   setOffsitePrompt((prev) => (prev ? { ...prev, noteText: text } : prev))
                 }
-                placeholder="e.g. Picked up materials at Lowe's"
+                placeholder={t(language, 'offsiteNotePlaceholder')}
                 placeholderTextColor={COLORS.subtext}
                 multiline
                 style={{
@@ -1153,7 +1298,7 @@ export default function HomeScreen() {
                 disabled={clocking}
                 style={{ borderRadius: 16, paddingVertical: 14, alignItems: 'center' }}
               >
-                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+                <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>{t(language, 'cancel')}</Text>
               </Pressable>
             </ScrollView>
           </View>

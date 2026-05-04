@@ -5,13 +5,15 @@ import {
   Modal,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
+import type { TranslationKey } from '../../lib/locales/en'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -113,12 +115,13 @@ function SelectRow({ options, value, onChange }: { options: string[]; value: str
 }
 
 function CalcButton({ onPress, label }: { onPress: () => void; label?: string }) {
+  const { t } = useLanguage()
   return (
     <Pressable
       onPress={onPress}
       style={{ backgroundColor: COLORS.navy, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 4, marginBottom: 8 }}
     >
-      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || 'Calculate'}</Text>
+      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
     </Pressable>
   )
 }
@@ -165,10 +168,18 @@ function Field({ value, onChange, placeholder, keyboardType }: { value: string; 
 // Column: pi/4 × D^2 × H / 27 (round) or W × W × H / 27 (square)
 // Wall: L × H × T / 27
 
-type ConcreteType = 'Slab' | 'Footing' | 'Round Column' | 'Square Column' | 'Wall'
+type ConcreteKey = 'slab' | 'footing' | 'wall' | 'roundColumn' | 'squareColumn'
+const CONCRETE_KEYS: { key: ConcreteKey; labelKey: TranslationKey }[] = [
+  { key: 'slab',         labelKey: 'stbPourSlab' },
+  { key: 'footing',      labelKey: 'stbPourFooting' },
+  { key: 'wall',         labelKey: 'stbPourWall' },
+  { key: 'roundColumn',  labelKey: 'stbPourRoundColumn' },
+  { key: 'squareColumn', labelKey: 'stbPourSquareColumn' },
+]
 
 function CalcConcrete({ onClose }: { onClose: () => void }) {
-  const [type, setType] = useState<ConcreteType>('Slab')
+  const { t } = useLanguage()
+  const [type, setType] = useState<ConcreteKey>('slab')
   const [L, setL] = useState('')  // length / diameter
   const [W, setW] = useState('')  // width / side
   const [D, setD] = useState('')  // depth / height / thickness
@@ -183,23 +194,23 @@ function CalcConcrete({ onClose }: { onClose: () => void }) {
     const w = parseFloat(W)
     const d = parseFloat(D)
     const q = parseInt(qty) || 1
-    if (isNaN(d) || d <= 0) { setError('Enter valid depth/height.'); return }
+    if (isNaN(d) || d <= 0) { setError(t('stbEnterValidDepth')); return }
 
     let cf = 0
-    if (type === 'Slab' || type === 'Footing') {
-      if (isNaN(l) || l <= 0 || isNaN(w) || w <= 0) { setError('Enter valid length and width.'); return }
+    if (type === 'slab' || type === 'footing') {
+      if (isNaN(l) || l <= 0 || isNaN(w) || w <= 0) { setError(t('stbEnterValidLW')); return }
       // D is in inches for slab thickness, convert
       cf = l * w * (d / 12)
-    } else if (type === 'Round Column') {
-      if (isNaN(l) || l <= 0) { setError('Enter valid diameter.'); return }
+    } else if (type === 'roundColumn') {
+      if (isNaN(l) || l <= 0) { setError(t('stbEnterValidDiameter')); return }
       // L = diameter in inches, D = height in feet
       cf = (Math.PI / 4) * Math.pow(l / 12, 2) * d
-    } else if (type === 'Square Column') {
-      if (isNaN(l) || l <= 0) { setError('Enter valid side dimension.'); return }
+    } else if (type === 'squareColumn') {
+      if (isNaN(l) || l <= 0) { setError(t('stbEnterValidSide')); return }
       // L = side in inches, D = height in feet
       cf = Math.pow(l / 12, 2) * d
-    } else if (type === 'Wall') {
-      if (isNaN(l) || l <= 0 || isNaN(w) || w <= 0) { setError('Enter valid length and height.'); return }
+    } else if (type === 'wall') {
+      if (isNaN(l) || l <= 0 || isNaN(w) || w <= 0) { setError(t('stbEnterValidLH')); return }
       // L = length (ft), W = height (ft), D = thickness (inches)
       cf = l * w * (d / 12)
     }
@@ -212,43 +223,49 @@ function CalcConcrete({ onClose }: { onClose: () => void }) {
     setResult({ cy, cf, bags80 })
   }
 
-  const dimLabels: Record<ConcreteType, { l: string; w: string; d: string }> = {
-    'Slab':         { l: 'Length (ft)', w: 'Width (ft)',    d: 'Thickness (in)' },
-    'Footing':      { l: 'Length (ft)', w: 'Width (in)',    d: 'Depth (in)' },
-    'Round Column': { l: 'Diameter (in)', w: '',             d: 'Height (ft)' },
-    'Square Column':{ l: 'Side (in)',     w: '',             d: 'Height (ft)' },
-    'Wall':         { l: 'Length (ft)', w: 'Height (ft)',   d: 'Thickness (in)' },
+  const dimLabels: Record<ConcreteKey, { l: TranslationKey; w: TranslationKey | null; d: TranslationKey }> = {
+    'slab':         { l: 'stbDimLengthFt',   w: 'stbDimWidthFt',  d: 'stbDimThicknessIn' },
+    'footing':      { l: 'stbDimLengthFt',   w: 'stbDimWidthIn',  d: 'stbDimDepthIn' },
+    'roundColumn':  { l: 'stbDimDiameterIn', w: null,             d: 'stbDimHeightFt' },
+    'squareColumn': { l: 'stbDimSideIn',     w: null,             d: 'stbDimHeightFt' },
+    'wall':         { l: 'stbDimLengthFt',   w: 'stbDimHeightFt', d: 'stbDimThicknessIn' },
   }
   const labels = dimLabels[type]
 
+  const optionLabels = CONCRETE_KEYS.map(c => t(c.labelKey))
+  const currentLabel = t(CONCRETE_KEYS.find(c => c.key === type)!.labelKey)
+
   return (
-    <CalcModal visible onClose={onClose} title="Concrete Volume">
-      <InfoBox text="Calculates concrete volume in cubic yards. Add 5-10% waste factor for ordering. 1 CY = 27 CF. 80-lb bag = 0.6 CF." />
-      <FieldLabel label="Pour Type" />
+    <CalcModal visible onClose={onClose} title={t('stbConcreteTitle')}>
+      <InfoBox text={t('stbConcreteInfo')} />
+      <FieldLabel label={t('stbPourType')} />
       <SelectRow
-        options={['Slab', 'Footing', 'Wall', 'Round Column', 'Square Column']}
-        value={type}
-        onChange={(v) => { setType(v as ConcreteType); setResult(null); setError('') }}
+        options={optionLabels}
+        value={currentLabel}
+        onChange={(v) => {
+          const found = CONCRETE_KEYS.find(c => t(c.labelKey) === v)
+          if (found) { setType(found.key); setResult(null); setError('') }
+        }}
       />
-      <FieldLabel label={labels.l} />
-      <Field value={L} onChange={setL} placeholder="e.g. 20" />
+      <FieldLabel label={t(labels.l)} />
+      <Field value={L} onChange={setL} placeholder={t('stbDimPlaceholder20')} />
       {labels.w ? (
         <>
-          <FieldLabel label={labels.w} />
+          <FieldLabel label={t(labels.w)} />
           <Field value={W} onChange={setW} placeholder="e.g. 12" />
         </>
       ) : null}
-      <FieldLabel label={labels.d} />
+      <FieldLabel label={t(labels.d)} />
       <Field value={D} onChange={setD} placeholder="e.g. 4" />
-      <FieldLabel label="Number of Identical Pours" />
+      <FieldLabel label={t('stbNumIdenticalPours')} />
       <SelectRow options={['1', '2', '4', '6', '8', '10', '12']} value={qty} onChange={setQty} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Volume (Cubic Yards)" value={`${result.cy.toFixed(2)} CY`} sub={`${result.cf.toFixed(1)} cubic feet`} color="blue" />
-          <ResultCard label="Order Quantity (with 7% waste)" value={`${(result.cy * 1.07).toFixed(2)} CY`} color="green" />
-          <ResultCard label="80-lb Bags Equivalent" value={`${result.bags80} bags`} sub="Only practical for small pours — order ready-mix for >1 CY" color="yellow" />
+          <ResultCard label={t('stbVolumeCy')} value={`${result.cy.toFixed(2)} CY`} sub={t('stbVolumeCfSub', { cf: result.cf.toFixed(1) })} color="blue" />
+          <ResultCard label={t('stbOrderQtyWaste')} value={`${(result.cy * 1.07).toFixed(2)} CY`} color="green" />
+          <ResultCard label={t('stbBagsEquivalent')} value={t('stbBags', { n: result.bags80 })} sub={t('stbBagsSub')} color="yellow" />
         </>
       )}
     </CalcModal>
@@ -284,12 +301,19 @@ const CEILING_SPANS: SpanEntry[] = [
 ]
 
 function CalcSpanTable({ onClose }: { onClose: () => void }) {
-  const [memberType, setMemberType] = useState('Floor Joist')
+  const { t } = useLanguage()
+  // memberType is a stable internal key so language toggle doesn't break comparisons.
+  const [memberType, setMemberType] = useState<'floor' | 'ceiling'>('floor')
+  const floorJoistLabel = t('stbFloorJoist')
+  const ceilingJoistLabel = t('stbCeilingJoist')
+  const labelToKey = (label: string): 'floor' | 'ceiling' =>
+    label === ceilingJoistLabel ? 'ceiling' : 'floor'
+  const memberLabel = memberType === 'floor' ? floorJoistLabel : ceilingJoistLabel
   const [size, setSize] = useState('2x8')
   const [species, setSpecies] = useState('Hem-Fir #2')
   const [spacing, setSpacing] = useState('16" OC')
 
-  const table = memberType === 'Floor Joist' ? FLOOR_SPANS : CEILING_SPANS
+  const table = memberType === 'floor' ? FLOOR_SPANS : CEILING_SPANS
   const sizes = table.map((r) => r.size)
   const validSize = sizes.includes(size) ? size : sizes[0]
   const row = table.find((r) => r.size === validSize)
@@ -303,30 +327,30 @@ function CalcSpanTable({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Span Table Reference">
-      <InfoBox text="IRC 2021 Table R802.4.1 — simplified spans for Hem-Fir #2 and SPF #2 at 30 psf live / 10 psf dead (floor). Verify with your local code and engineer for specific projects." />
-      <FieldLabel label="Member Type" />
-      <SelectRow options={['Floor Joist', 'Ceiling Joist']} value={memberType} onChange={(v) => { setMemberType(v); setSize(memberType === 'Floor Joist' ? '2x6' : '2x4') }} />
-      <FieldLabel label="Joist Size" />
+    <CalcModal visible onClose={onClose} title={t('stbSpanTableTitle')}>
+      <InfoBox text={t('stbSpanInfo')} />
+      <FieldLabel label={t('stbMemberType')} />
+      <SelectRow options={[floorJoistLabel, ceilingJoistLabel]} value={memberLabel} onChange={(label) => { const next = labelToKey(label); setMemberType(next); setSize(next === 'floor' ? '2x6' : '2x4') }} />
+      <FieldLabel label={t('stbJoistSize')} />
       <SelectRow options={sizes} value={validSize} onChange={setSize} />
-      <FieldLabel label="Wood Species / Grade" />
+      <FieldLabel label={t('stbWoodSpeciesGrade')} />
       <SelectRow options={['Hem-Fir #2', 'SPF #2']} value={species} onChange={setSpecies} />
-      <FieldLabel label="Spacing" />
+      <FieldLabel label={t('stbSpacing')} />
       <SelectRow options={['16" OC', '24" OC']} value={spacing} onChange={setSpacing} />
 
       <View style={{ backgroundColor: COLORS.blueSoft, borderRadius: 18, padding: 20, marginTop: 8, alignItems: 'center' }}>
-        <Text style={{ color: COLORS.subtext, fontSize: 13, marginBottom: 6 }}>Maximum Allowable Span</Text>
+        <Text style={{ color: COLORS.subtext, fontSize: 13, marginBottom: 6 }}>{t('stbMaxAllowableSpan')}</Text>
         <Text style={{ color: COLORS.blue, fontSize: 40, fontWeight: '900' }}>{getSpan()}</Text>
         <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 6 }}>
-          {validSize} {species} @ {spacing}
+          {t('stbSpanMemberInfo', { size: validSize, species, spacing })}
         </Text>
       </View>
 
       <View style={{ marginTop: 16 }}>
-        <Text style={{ color: COLORS.navy, fontWeight: '800', marginBottom: 10 }}>Full Table — {memberType}</Text>
+        <Text style={{ color: COLORS.navy, fontWeight: '800', marginBottom: 10 }}>{t('stbFullTable', { member: memberLabel })}</Text>
         <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border }}>
           <View style={{ flexDirection: 'row', backgroundColor: COLORS.navy, padding: 10 }}>
-            <Text style={{ flex: 1, color: COLORS.white, fontWeight: '700', fontSize: 12 }}>Size</Text>
+            <Text style={{ flex: 1, color: COLORS.white, fontWeight: '700', fontSize: 12 }}>{t('stbColSize')}</Text>
             <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>HF@16"</Text>
             <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>HF@24"</Text>
             <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>SPF@16"</Text>
@@ -359,14 +383,15 @@ function CalcSpanTable({ onClose }: { onClose: () => void }) {
 // Footing area = total load / soil bearing pressure
 // Load = floors × load per floor × tributary area
 
-const SOIL_TYPES = [
-  { label: 'Sandy / Gravelly (2000 psf)', psf: 2000 },
-  { label: 'Sandy Silt / Loam (1500 psf)', psf: 1500 },
-  { label: 'Clay / Silt (1000 psf)', psf: 1000 },
-  { label: 'Soft Clay (500 psf)', psf: 500 },
+const SOIL_TYPES: { labelKey: 'stbSoilSandy' | 'stbSoilSandySilt' | 'stbSoilClay' | 'stbSoilSoftClay'; psf: number }[] = [
+  { labelKey: 'stbSoilSandy',     psf: 2000 },
+  { labelKey: 'stbSoilSandySilt', psf: 1500 },
+  { labelKey: 'stbSoilClay',      psf: 1000 },
+  { labelKey: 'stbSoilSoftClay',  psf: 500 },
 ]
 
 function CalcFooting({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [stories, setStories] = useState('1')
   const [tribWidth, setTribWidth] = useState('')
   const [wallLength, setWallLength] = useState('')
@@ -384,8 +409,8 @@ function CalcFooting({ onClose }: { onClose: () => void }) {
     const trib = parseFloat(tribWidth)
     const wl = parseFloat(wallLength)
     const lpf = parseFloat(loadPerFloor) || 50
-    if (isNaN(trib) || trib <= 0) { setError('Enter valid tributary width.'); return }
-    if (isNaN(wl) || wl <= 0) { setError('Enter valid wall length.'); return }
+    if (isNaN(trib) || trib <= 0) { setError(t('stbEnterValidTrib')); return }
+    if (isNaN(wl) || wl <= 0) { setError(t('stbEnterValidWallLen')); return }
 
     const soil = SOIL_TYPES[soilIdx]
     // Load per linear foot of wall = stories x load/floor x trib width
@@ -400,22 +425,22 @@ function CalcFooting({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Footing Size Reference">
-      <InfoBox text="Estimates continuous footing width. Always verify with structural engineer. IRC Table R403.1 minimums apply regardless of calculation." />
-      <FieldLabel label="Number of Stories Supported" />
+    <CalcModal visible onClose={onClose} title={t('stbFootingTitle')}>
+      <InfoBox text={t('stbFootingInfo')} />
+      <FieldLabel label={t('stbStoriesSupported')} />
       <SelectRow options={['1', '2', '3']} value={stories} onChange={setStories} />
-      <FieldLabel label="Tributary Width (ft) — half span each side" />
-      <Field value={tribWidth} onChange={setTribWidth} placeholder="e.g. 8" />
-      <FieldLabel label="Wall Length (ft)" />
-      <Field value={wallLength} onChange={setWallLength} placeholder="e.g. 40" />
-      <FieldLabel label="Load per Floor (psf)" />
+      <FieldLabel label={t('stbTribWidth')} />
+      <Field value={tribWidth} onChange={setTribWidth} placeholder={t('stbTribWidthPlaceholder')} />
+      <FieldLabel label={t('stbWallLength')} />
+      <Field value={wallLength} onChange={setWallLength} placeholder={t('stbWallLengthPlaceholder')} />
+      <FieldLabel label={t('stbLoadPerFloor')} />
       <SelectRow options={['40', '50', '60', '70']} value={loadPerFloor} onChange={setLoadPerFloor} />
-      <FieldLabel label="Soil Bearing Capacity" />
+      <FieldLabel label={t('stbSoilBearing')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {SOIL_TYPES.map((s, i) => (
             <Pressable
-              key={s.label}
+              key={s.labelKey}
               onPress={() => setSoilIdx(i)}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
@@ -424,7 +449,7 @@ function CalcFooting({ onClose }: { onClose: () => void }) {
               }}
             >
               <Text style={{ color: soilIdx === i ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {s.label}
+                {t(s.labelKey)}
               </Text>
             </Pressable>
           ))}
@@ -434,10 +459,10 @@ function CalcFooting({ onClose }: { onClose: () => void }) {
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Required Footing Width" value={`${result.footingWidth.toFixed(1)}"`} sub={`Round up to nearest 2" — min. per IRC: 12" for 1-story, 15" for 2-story`} color="blue" />
-          <ResultCard label="Total Wall Load" value={`${Math.round(result.totalLoad).toLocaleString()} lbs`} color="yellow" />
-          <ResultCard label="Required Footing Area" value={`${result.footingArea.toFixed(1)} sq ft`} color="green" />
-          <InfoBox text={"IRC R403.1 minimums: 1-story = 12\" wide x 6\" deep, 2-story = 15\" wide x 7\" deep, 3-story = 18\" wide x 8\" deep. Footing must be below frost depth — varies by region."} />
+          <ResultCard label={t('stbRequiredFootingWidth')} value={`${result.footingWidth.toFixed(1)}"`} sub={t('stbFootingWidthSub')} color="blue" />
+          <ResultCard label={t('stbTotalWallLoad')} value={t('stbWallLoadLbs', { lbs: Math.round(result.totalLoad).toLocaleString() })} color="yellow" />
+          <ResultCard label={t('stbRequiredFootingArea')} value={t('stbFootingAreaSqft', { area: result.footingArea.toFixed(1) })} color="green" />
+          <InfoBox text={t('stbFootingFooter')} />
         </>
       )}
     </CalcModal>
@@ -446,10 +471,19 @@ function CalcFooting({ onClose }: { onClose: () => void }) {
 
 // ─── 4. Material Estimator ────────────────────────────────────────────────────
 
-type MatType = 'Drywall' | 'Lumber (LF)' | 'Flooring' | 'Roofing' | 'Paint' | 'Concrete Block'
+type MatKey = 'drywall' | 'lumber' | 'flooring' | 'roofing' | 'paint' | 'block'
+const MAT_DEFS: { key: MatKey; labelKey: TranslationKey }[] = [
+  { key: 'drywall',  labelKey: 'stbMatDrywall' },
+  { key: 'lumber',   labelKey: 'stbMatLumber' },
+  { key: 'flooring', labelKey: 'stbMatFlooring' },
+  { key: 'roofing',  labelKey: 'stbMatRoofing' },
+  { key: 'paint',    labelKey: 'stbMatPaint' },
+  { key: 'block',    labelKey: 'stbMatBlock' },
+]
 
 function CalcMaterials({ onClose }: { onClose: () => void }) {
-  const [matType, setMatType] = useState<MatType>('Drywall')
+  const { t } = useLanguage()
+  const [matType, setMatType] = useState<MatKey>('drywall')
   const [dim1, setDim1] = useState('')
   const [dim2, setDim2] = useState('')
   const [wasteStr, setWasteStr] = useState('10')
@@ -463,115 +497,116 @@ function CalcMaterials({ onClose }: { onClose: () => void }) {
     const d2 = parseFloat(dim2)
     const waste = (parseFloat(wasteStr) || 10) / 100
 
-    if (isNaN(d1) || d1 <= 0) { setError('Enter valid primary dimension.'); return }
+    if (isNaN(d1) || d1 <= 0) { setError(t('stbEnterValidPrimary')); return }
 
     let qty = 0, unit = '', detail = ''
 
-    if (matType === 'Drywall') {
+    if (matType === 'drywall') {
       // d1 = area sqft, or d1 = length, d2 = height
       if (!isNaN(d2) && d2 > 0) {
         const area = d1 * d2
         qty = Math.ceil(area / 32) // standard 4x8 = 32 sqft
-        unit = 'sheets (4x8)'
-        detail = `${area.toFixed(0)} sq ft area`
+        unit = t('stbUnitSheets')
+        detail = t('stbDetailDrywallArea', { area: area.toFixed(0) })
       } else {
         qty = Math.ceil(d1 / 32)
-        unit = 'sheets (4x8)'
-        detail = `${d1.toFixed(0)} sq ft area`
+        unit = t('stbUnitSheets')
+        detail = t('stbDetailDrywallArea', { area: d1.toFixed(0) })
       }
-    } else if (matType === 'Lumber (LF)') {
+    } else if (matType === 'lumber') {
       // d1 = piece length, d2 = quantity/count
       const count = !isNaN(d2) && d2 > 0 ? d2 : 1
       qty = d1 * count
-      unit = 'linear feet'
-      detail = `${count} pieces x ${d1} ft`
-    } else if (matType === 'Flooring') {
+      unit = t('stbUnitLinearFeet')
+      detail = t('stbDetailLumber', { count, len: d1 })
+    } else if (matType === 'flooring') {
       // d1 = length, d2 = width in ft
-      if (isNaN(d2) || d2 <= 0) { setError('Enter room length and width.'); return }
+      if (isNaN(d2) || d2 <= 0) { setError(t('stbEnterRoomLW')); return }
       const area = d1 * d2
       qty = area
-      unit = 'sq ft'
-      detail = `${d1} x ${d2} ft room`
-    } else if (matType === 'Roofing') {
+      unit = t('stbUnitSqFt')
+      detail = t('stbDetailFlooringRoom', { l: d1, w: d2 })
+    } else if (matType === 'roofing') {
       // d1 = length, d2 = width (in ft). Roofing sold in squares = 100 sqft
-      if (isNaN(d2) || d2 <= 0) { setError('Enter roof length and width.'); return }
+      if (isNaN(d2) || d2 <= 0) { setError(t('stbEnterRoofLW')); return }
       const area = d1 * d2
       qty = area / 100 // squares
-      unit = 'squares (100 sqft)'
-      detail = `${area.toFixed(0)} sq ft roof area`
-    } else if (matType === 'Paint') {
+      unit = t('stbUnitSquares')
+      detail = t('stbDetailRoofArea', { area: area.toFixed(0) })
+    } else if (matType === 'paint') {
       // d1 = area sqft. Coverage: 350 sqft/gal (1 coat)
       if (!isNaN(d2) && d2 > 0) {
         const area = d1 * d2
         qty = area / 350
-        unit = 'gallons (1 coat)'
-        detail = `${area.toFixed(0)} sq ft — 350 sqft/gal`
+        unit = t('stbUnitGallons')
+        detail = t('stbDetailPaintArea', { area: area.toFixed(0) })
       } else {
         qty = d1 / 350
-        unit = 'gallons (1 coat)'
-        detail = `${d1.toFixed(0)} sq ft — 350 sqft/gal`
+        unit = t('stbUnitGallons')
+        detail = t('stbDetailPaintArea', { area: d1.toFixed(0) })
       }
-    } else if (matType === 'Concrete Block') {
+    } else if (matType === 'block') {
       // d1 = wall length, d2 = wall height (ft). 8x8x16 block = 1 sqft face
-      if (isNaN(d2) || d2 <= 0) { setError('Enter wall length and height.'); return }
+      if (isNaN(d2) || d2 <= 0) { setError(t('stbEnterWallLH')); return }
       const area = d1 * d2
       qty = Math.ceil(area * 1.125) // 1.125 blocks per sqft (standard 8x16 with mortar)
-      unit = 'blocks (8x8x16)'
-      detail = `${area.toFixed(0)} sq ft wall face`
+      unit = t('stbUnitBlocks')
+      detail = t('stbDetailBlockArea', { area: area.toFixed(0) })
     }
 
-    const withWaste = matType === 'Lumber (LF)' ? qty * (1 + waste) : (matType === 'Roofing' ? qty * (1 + waste) : (matType === 'Paint' ? Math.ceil(qty * (1 + waste)) : Math.ceil(qty * (1 + waste))))
+    const withWaste = matType === 'lumber' ? qty * (1 + waste) : (matType === 'roofing' ? qty * (1 + waste) : (matType === 'paint' ? Math.ceil(qty * (1 + waste)) : Math.ceil(qty * (1 + waste))))
 
     setResult({ qty, unit, withWaste: Math.ceil(withWaste * 100) / 100, detail })
   }
 
-  const matDimLabels: Record<MatType, { d1: string; d2: string; d2optional: boolean }> = {
-    'Drywall':        { d1: 'Length (ft)', d2: 'Height (ft) — or enter sq ft alone in field 1', d2optional: true },
-    'Lumber (LF)':    { d1: 'Piece Length (ft)', d2: 'Number of Pieces', d2optional: false },
-    'Flooring':       { d1: 'Room Length (ft)', d2: 'Room Width (ft)', d2optional: false },
-    'Roofing':        { d1: 'Roof Length (ft)', d2: 'Roof Width (ft)', d2optional: false },
-    'Paint':          { d1: 'Surface Length (ft)', d2: 'Surface Height (ft) — or sq ft alone in field 1', d2optional: true },
-    'Concrete Block': { d1: 'Wall Length (ft)', d2: 'Wall Height (ft)', d2optional: false },
+  const matDimLabels: Record<MatKey, { d1: TranslationKey; d2: TranslationKey; d2optional: boolean }> = {
+    'drywall':  { d1: 'stbDrywallD1',  d2: 'stbDrywallD2',  d2optional: true },
+    'lumber':   { d1: 'stbLumberD1',   d2: 'stbLumberD2',   d2optional: false },
+    'flooring': { d1: 'stbFlooringD1', d2: 'stbFlooringD2', d2optional: false },
+    'roofing':  { d1: 'stbRoofingD1',  d2: 'stbRoofingD2',  d2optional: false },
+    'paint':    { d1: 'stbPaintD1',    d2: 'stbPaintD2',    d2optional: true },
+    'block':    { d1: 'stbBlockD1',    d2: 'stbBlockD2',    d2optional: false },
   }
 
   const labels = matDimLabels[matType]
+  const matLabel = t(MAT_DEFS.find(m => m.key === matType)!.labelKey)
 
   return (
-    <CalcModal visible onClose={onClose} title="Material Estimator">
-      <InfoBox text="Quick material takeoff for common construction items. Always add a waste factor — 10% is standard for most materials." />
-      <FieldLabel label="Material" />
+    <CalcModal visible onClose={onClose} title={t('stbMaterialsTitle')}>
+      <InfoBox text={t('stbMaterialsInfo')} />
+      <FieldLabel label={t('stbMaterial')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {(['Drywall', 'Lumber (LF)', 'Flooring', 'Roofing', 'Paint', 'Concrete Block'] as MatType[]).map((m) => (
+          {MAT_DEFS.map((m) => (
             <Pressable
-              key={m}
-              onPress={() => { setMatType(m); setResult(null); setError('') }}
+              key={m.key}
+              onPress={() => { setMatType(m.key); setResult(null); setError('') }}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-                backgroundColor: matType === m ? COLORS.navy : COLORS.card,
-                borderWidth: 1, borderColor: matType === m ? COLORS.navy : COLORS.border,
+                backgroundColor: matType === m.key ? COLORS.navy : COLORS.card,
+                borderWidth: 1, borderColor: matType === m.key ? COLORS.navy : COLORS.border,
               }}
             >
-              <Text style={{ color: matType === m ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {m}
+              <Text style={{ color: matType === m.key ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
+                {t(m.labelKey)}
               </Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
-      <FieldLabel label={labels.d1} />
-      <Field value={dim1} onChange={setDim1} placeholder="e.g. 20" />
-      <FieldLabel label={labels.d2} />
-      <Field value={dim2} onChange={setDim2} placeholder={labels.d2optional ? 'optional' : 'e.g. 10'} />
-      <FieldLabel label="Waste Factor (%)" />
+      <FieldLabel label={t(labels.d1)} />
+      <Field value={dim1} onChange={setDim1} placeholder={t('stbDimPlaceholder20')} />
+      <FieldLabel label={t(labels.d2)} />
+      <Field value={dim2} onChange={setDim2} placeholder={labels.d2optional ? t('stbOptional') : t('stbDimPlaceholder10')} />
+      <FieldLabel label={t('stbWasteFactor')} />
       <SelectRow options={['5', '10', '15', '20']} value={wasteStr} onChange={setWasteStr} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label={`${matType} — Net Quantity`} value={`${Number.isInteger(result.qty) ? result.qty : result.qty.toFixed(2)} ${result.unit}`} sub={result.detail} color="blue" />
-          <ResultCard label={`Order Quantity (with ${wasteStr}% waste)`} value={`${result.withWaste} ${result.unit}`} color="green" />
-          <InfoBox text="Tip: For drywall, also count separate ceilings and walls. For flooring, add extra for closets. For roofing, account for ridges, hips, and valleys separately." />
+          <ResultCard label={t('stbMatNetQty', { mat: matLabel })} value={`${Number.isInteger(result.qty) ? result.qty : result.qty.toFixed(2)} ${result.unit}`} sub={result.detail} color="blue" />
+          <ResultCard label={t('stbMatOrderQty', { waste: wasteStr })} value={`${result.withWaste} ${result.unit}`} color="green" />
+          <InfoBox text={t('stbMatFooter')} />
         </>
       )}
     </CalcModal>
@@ -579,53 +614,27 @@ function CalcMaterials({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Tool List ────────────────────────────────────────────────────────────────
-const TOOLS = [
-  {
-    id: 'concrete',
-    icon: 'cube-outline',
-    title: 'Concrete Volume',
-    desc: 'Slab, footing, wall, column — cubic yards and bag count',
-    color: '#6A1B9A',
-    bg: '#F3E5F5',
-  },
-  {
-    id: 'spantable',
-    icon: 'floor-plan',
-    title: 'Span Table Reference',
-    desc: 'Floor and ceiling joist max spans — IRC 2021, Hem-Fir / SPF',
-    color: '#1565C0',
-    bg: '#E3F2FD',
-  },
-  {
-    id: 'footing',
-    icon: 'terrain',
-    title: 'Footing Size',
-    desc: 'Continuous footing width based on load and soil bearing',
-    color: '#4E342E',
-    bg: '#EFEBE9',
-  },
-  {
-    id: 'materials',
-    icon: 'format-list-bulleted',
-    title: 'Material Estimator',
-    desc: 'Quick takeoff for drywall, lumber, flooring, roofing, paint, block',
-    color: '#2E7D32',
-    bg: '#E8F5E9',
-  },
-]
 
 export default function BuildingScreen() {
+  const { t } = useLanguage()
   const [open, setOpen] = useState<string | null>(null)
+
+  const TOOLS = [
+    { id: 'concrete',  icon: 'cube-outline',          title: t('stbConcreteTitle'),  desc: t('stbConcreteDesc'),  color: '#6A1B9A', bg: '#F3E5F5' },
+    { id: 'spantable', icon: 'floor-plan',            title: t('stbSpanTableTitle'), desc: t('stbSpanTableDesc'), color: '#1565C0', bg: '#E3F2FD' },
+    { id: 'footing',   icon: 'terrain',               title: t('stbFootingTitle'),   desc: t('stbFootingDesc'),   color: '#4E342E', bg: '#EFEBE9' },
+    { id: 'materials', icon: 'format-list-bulleted',  title: t('stbMaterialsTitle'), desc: t('stbMaterialsDesc'), color: '#2E7D32', bg: '#E8F5E9' },
+  ]
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '900', marginBottom: 4 }}>
-            Building Tools
+            {t('stbTitle')}
           </Text>
           <Text style={{ color: COLORS.subtext, fontSize: 14 }}>
-            Concrete, framing, and material estimating
+            {t('stbSubtitle')}
           </Text>
         </View>
 

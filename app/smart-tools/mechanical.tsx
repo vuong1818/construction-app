@@ -5,13 +5,14 @@ import {
   Modal,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -113,12 +114,13 @@ function SelectRow({ options, value, onChange }: { options: string[]; value: str
 }
 
 function CalcButton({ onPress, label }: { onPress: () => void; label?: string }) {
+  const { t } = useLanguage()
   return (
     <Pressable
       onPress={onPress}
       style={{ backgroundColor: COLORS.navy, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 4, marginBottom: 8 }}
     >
-      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || 'Calculate'}</Text>
+      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
     </Pressable>
   )
 }
@@ -164,15 +166,16 @@ function Field({ value, onChange, placeholder, keyboardType }: { value: string; 
 // Heating: Q_heat = sqft × U_avg × delta_T × 1.2 (simplified)
 // Using simplified rules of thumb with climate zone adjustments
 
-const CLIMATE_ZONES = [
-  { label: 'Hot/Humid (TX, FL)', coolFactor: 30, heatFactor: 15 },
-  { label: 'Mixed Humid (TN, NC)', coolFactor: 25, heatFactor: 20 },
-  { label: 'Mixed Dry (NM, CO)', coolFactor: 22, heatFactor: 22 },
-  { label: 'Cold (MN, NY)', coolFactor: 18, heatFactor: 35 },
-  { label: 'Very Cold (ND, MT)', coolFactor: 15, heatFactor: 45 },
+const CLIMATE_ZONES: { labelKey: 'stmZoneHotHumid' | 'stmZoneMixedHumid' | 'stmZoneMixedDry' | 'stmZoneCold' | 'stmZoneVeryCold'; coolFactor: number; heatFactor: number }[] = [
+  { labelKey: 'stmZoneHotHumid',   coolFactor: 30, heatFactor: 15 },
+  { labelKey: 'stmZoneMixedHumid', coolFactor: 25, heatFactor: 20 },
+  { labelKey: 'stmZoneMixedDry',   coolFactor: 22, heatFactor: 22 },
+  { labelKey: 'stmZoneCold',       coolFactor: 18, heatFactor: 35 },
+  { labelKey: 'stmZoneVeryCold',   coolFactor: 15, heatFactor: 45 },
 ]
 
 function CalcHVACLoad({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [sqft, setSqft] = useState('')
   const [ceilingHt, setCeilingHt] = useState('9')
   const [zoneIdx, setZoneIdx] = useState(0)
@@ -187,7 +190,7 @@ function CalcHVACLoad({ onClose }: { onClose: () => void }) {
     setError('')
     setResult(null)
     const sf = parseFloat(sqft)
-    if (isNaN(sf) || sf <= 0) { setError('Enter valid square footage.'); return }
+    if (isNaN(sf) || sf <= 0) { setError(t('stmEnterValidSqft')); return }
     const zone = CLIMATE_ZONES[zoneIdx]
     const htFactor = parseFloat(ceilingHt) > 9 ? 1.1 : 1.0
     const occ = parseInt(occupants) || 0
@@ -204,18 +207,18 @@ function CalcHVACLoad({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="HVAC Load (Manual J)">
-      <InfoBox text="Simplified Manual J estimate. Use for preliminary sizing only — full Manual J required for permits and equipment selection." />
-      <FieldLabel label="Conditioned Area (sq ft)" />
-      <Field value={sqft} onChange={setSqft} placeholder="e.g. 2000" />
-      <FieldLabel label="Ceiling Height" />
+    <CalcModal visible onClose={onClose} title={t('stmHvacLoadTitle')}>
+      <InfoBox text={t('stmHvacInfo')} />
+      <FieldLabel label={t('stmConditionedArea')} />
+      <Field value={sqft} onChange={setSqft} placeholder={t('stmConditionedAreaPlaceholder')} />
+      <FieldLabel label={t('stmCeilingHeight')} />
       <SelectRow options={['8 ft', '9 ft', '10 ft', '12 ft']} value={`${ceilingHt} ft`} onChange={(v) => setCeilingHt(v.replace(' ft', ''))} />
-      <FieldLabel label="Climate Zone" />
+      <FieldLabel label={t('stmClimateZone')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {CLIMATE_ZONES.map((z, i) => (
             <Pressable
-              key={z.label}
+              key={z.labelKey}
               onPress={() => setZoneIdx(i)}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
@@ -224,23 +227,23 @@ function CalcHVACLoad({ onClose }: { onClose: () => void }) {
               }}
             >
               <Text style={{ color: zoneIdx === i ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {z.label}
+                {t(z.labelKey)}
               </Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
-      <FieldLabel label="Number of Occupants (optional)" />
-      <Field value={occupants} onChange={setOccupants} placeholder="e.g. 4" keyboardType="number-pad" />
-      <FieldLabel label="Number of Windows (optional)" />
-      <Field value={windows} onChange={setWindows} placeholder="e.g. 12" keyboardType="number-pad" />
+      <FieldLabel label={t('stmOccupantsOptional')} />
+      <Field value={occupants} onChange={setOccupants} placeholder={t('stmOccupantsPlaceholder')} keyboardType="number-pad" />
+      <FieldLabel label={t('stmWindowsOptional')} />
+      <Field value={windows} onChange={setWindows} placeholder={t('stmWindowsPlaceholder')} keyboardType="number-pad" />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Cooling Load" value={`${result.coolTons.toFixed(1)} tons`} sub={`${Math.round(result.coolBtu).toLocaleString()} BTU/hr`} color="blue" />
-          <ResultCard label="Heating Load" value={`${Math.round(result.heatBtu).toLocaleString()} BTU/hr`} sub={`${(result.heatBtu / 1000).toFixed(1)} MBH`} color="yellow" />
-          <InfoBox text="Round up to next available equipment size (1.5, 2, 2.5, 3, 3.5, 4, 5 ton). Oversizing causes short cycling and humidity problems." />
+          <ResultCard label={t('stmCoolingLoad')} value={`${result.coolTons.toFixed(1)} tons`} sub={t('stmCoolingSub', { btu: Math.round(result.coolBtu).toLocaleString() })} color="blue" />
+          <ResultCard label={t('stmHeatingLoad')} value={t('stmCoolingSub', { btu: Math.round(result.heatBtu).toLocaleString() })} sub={t('stmHeatingSub', { mbh: (result.heatBtu / 1000).toFixed(1) })} color="yellow" />
+          <InfoBox text={t('stmHvacFooter')} />
         </>
       )}
     </CalcModal>
@@ -253,19 +256,22 @@ function CalcHVACLoad({ onClose }: { onClose: () => void }) {
 // For round duct: D = sqrt(4A/pi) × 12 (inches)
 // For rectangular: select W given H, A = CFM/velocity
 
-const DUCT_VELOCITIES = [
-  { label: 'Main trunk', fpm: 900 },
-  { label: 'Branch duct', fpm: 700 },
-  { label: 'Final branch', fpm: 500 },
-  { label: 'Return duct', fpm: 600 },
-  { label: 'Custom', fpm: 0 },
+const DUCT_VELOCITIES: { labelKey: 'stmDuctMainTrunk' | 'stmDuctBranch' | 'stmDuctFinalBranch' | 'stmDuctReturn' | 'stmDuctCustom'; fpm: number }[] = [
+  { labelKey: 'stmDuctMainTrunk',   fpm: 900 },
+  { labelKey: 'stmDuctBranch',      fpm: 700 },
+  { labelKey: 'stmDuctFinalBranch', fpm: 500 },
+  { labelKey: 'stmDuctReturn',      fpm: 600 },
+  { labelKey: 'stmDuctCustom',      fpm: 0 },
 ]
 
 function CalcDuctSizing({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
+  const ductRound = t('stmDuctRound')
+  const ductRect = t('stmDuctRectangular')
   const [cfm, setCfm] = useState('')
   const [velIdx, setVelIdx] = useState(0)
   const [customVel, setCustomVel] = useState('')
-  const [ductType, setDuctType] = useState('Round')
+  const [ductType, setDuctType] = useState(ductRound)
   const [rectHeight, setRectHeight] = useState('10')
   const [result, setResult] = useState<{ roundDia: number; rectW: number; area: number; vel: number } | null>(null)
   const [error, setError] = useState('')
@@ -274,10 +280,10 @@ function CalcDuctSizing({ onClose }: { onClose: () => void }) {
     setError('')
     setResult(null)
     const q = parseFloat(cfm)
-    if (isNaN(q) || q <= 0) { setError('Enter valid CFM.'); return }
+    if (isNaN(q) || q <= 0) { setError(t('stmEnterValidCfm')); return }
     const selectedVel = DUCT_VELOCITIES[velIdx]
     const vel = selectedVel.fpm === 0 ? parseFloat(customVel) : selectedVel.fpm
-    if (isNaN(vel) || vel <= 0) { setError('Enter valid velocity.'); return }
+    if (isNaN(vel) || vel <= 0) { setError(t('stmEnterValidVelocity')); return }
 
     const areaSqFt = q / vel
     const roundDia = Math.sqrt(4 * areaSqFt / Math.PI) * 12 // inches
@@ -288,16 +294,16 @@ function CalcDuctSizing({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Duct Sizing">
-      <InfoBox text="Velocity method sizing. ASHRAE/SMACNA recommended velocities: main trunk 800-1000 fpm, branches 600-900 fpm, final branches 400-600 fpm." />
-      <FieldLabel label="Airflow (CFM)" />
-      <Field value={cfm} onChange={setCfm} placeholder="e.g. 800" />
-      <FieldLabel label="Duct Application" />
+    <CalcModal visible onClose={onClose} title={t('stmDuctSizingTitle')}>
+      <InfoBox text={t('stmDuctInfo')} />
+      <FieldLabel label={t('stmAirflowCfm')} />
+      <Field value={cfm} onChange={setCfm} placeholder={t('stmAirflowPlaceholder')} />
+      <FieldLabel label={t('stmDuctApplication')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {DUCT_VELOCITIES.map((v, i) => (
             <Pressable
-              key={v.label}
+              key={v.labelKey}
               onPress={() => setVelIdx(i)}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
@@ -306,7 +312,7 @@ function CalcDuctSizing({ onClose }: { onClose: () => void }) {
               }}
             >
               <Text style={{ color: velIdx === i ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {v.label}{v.fpm > 0 ? ` (${v.fpm})` : ''}
+                {t(v.labelKey)}{v.fpm > 0 ? ` (${v.fpm})` : ''}
               </Text>
             </Pressable>
           ))}
@@ -314,15 +320,15 @@ function CalcDuctSizing({ onClose }: { onClose: () => void }) {
       </ScrollView>
       {velIdx === DUCT_VELOCITIES.length - 1 && (
         <>
-          <FieldLabel label="Custom Velocity (fpm)" />
-          <Field value={customVel} onChange={setCustomVel} placeholder="e.g. 750" />
+          <FieldLabel label={t('stmCustomVelocityFpm')} />
+          <Field value={customVel} onChange={setCustomVel} placeholder={t('stmCustomVelocityPlaceholder')} />
         </>
       )}
-      <FieldLabel label="Duct Shape" />
-      <SelectRow options={['Round', 'Rectangular']} value={ductType} onChange={setDuctType} />
-      {ductType === 'Rectangular' && (
+      <FieldLabel label={t('stmDuctShape')} />
+      <SelectRow options={[ductRound, ductRect]} value={ductType} onChange={setDuctType} />
+      {ductType === ductRect && (
         <>
-          <FieldLabel label="Duct Height (inches)" />
+          <FieldLabel label={t('stmDuctHeightInches')} />
           <SelectRow options={['6', '8', '10', '12', '14', '16']} value={rectHeight} onChange={setRectHeight} />
         </>
       )}
@@ -330,12 +336,12 @@ function CalcDuctSizing({ onClose }: { onClose: () => void }) {
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Round Duct Diameter" value={`${result.roundDia.toFixed(1)}"`} sub={`Round up to next standard size`} color="blue" />
-          {ductType === 'Rectangular' && (
-            <ResultCard label={`Rect. Duct Width (${rectHeight}" tall)`} value={`${result.rectW.toFixed(1)}"`} sub={`${result.rectW.toFixed(1)}" × ${rectHeight}" rect duct`} color="teal" />
+          <ResultCard label={t('stmRoundDuctDiameter')} value={`${result.roundDia.toFixed(1)}"`} sub={t('stmRoundUpToStandard')} color="blue" />
+          {ductType === ductRect && (
+            <ResultCard label={t('stmRectDuctWidth', { h: rectHeight })} value={`${result.rectW.toFixed(1)}"`} sub={t('stmRectDuctSub', { w: result.rectW.toFixed(1), h: rectHeight })} color="teal" />
           )}
-          <ResultCard label="Duct Cross-Sectional Area" value={`${(result.area * 144).toFixed(1)} sq in`} sub={`Velocity: ${result.vel} fpm`} color="green" />
-          <InfoBox text="Standard round sizes: 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 24 inches. Always round up." />
+          <ResultCard label={t('stmDuctArea')} value={`${(result.area * 144).toFixed(1)} sq in`} sub={t('stmVelocityFpm', { vel: result.vel })} color="green" />
+          <InfoBox text={t('stmDuctFooter')} />
         </>
       )}
     </CalcModal>
@@ -394,6 +400,7 @@ const REFRIGERANTS = [
 ]
 
 function CalcRefrigPT({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [psig, setPsig] = useState('')
   const [refIdx, setRefIdx] = useState(0)
   const [result, setResult] = useState<{ satF: number; satC: number } | null>(null)
@@ -403,11 +410,11 @@ function CalcRefrigPT({ onClose }: { onClose: () => void }) {
     setError('')
     setResult(null)
     const p = parseFloat(psig)
-    if (isNaN(p) || p < 0) { setError('Enter valid pressure (psig).'); return }
+    if (isNaN(p) || p < 0) { setError(t('stmEnterValidPressure')); return }
     const ref = REFRIGERANTS[refIdx]
     const satF = interpolatePT(ref.table, p)
     if (satF === null) {
-      setError(`Pressure out of range for ${ref.label}. Max: ${ref.maxPsig} psig`)
+      setError(t('stmPressureOutOfRange', { ref: ref.label, max: ref.maxPsig }))
       return
     }
     const satC = (satF - 32) * 5 / 9
@@ -415,23 +422,23 @@ function CalcRefrigPT({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Refrigerant P-T Chart">
-      <InfoBox text="Saturation temperature at given pressure. Use suction pressure for evaporator temp, discharge pressure for condenser temp. Superheat = actual suction temp - sat. suction temp." />
-      <FieldLabel label="Refrigerant" />
+    <CalcModal visible onClose={onClose} title={t('stmRefrigPtTitle')}>
+      <InfoBox text={t('stmRefrigPtInfo')} />
+      <FieldLabel label={t('stmRefrigerant')} />
       <SelectRow options={REFRIGERANTS.map((r) => r.label)} value={REFRIGERANTS[refIdx].label} onChange={(v) => setRefIdx(REFRIGERANTS.findIndex((r) => r.label === v))} />
-      <FieldLabel label="Pressure (psig)" />
-      <Field value={psig} onChange={setPsig} placeholder="e.g. 120" />
+      <FieldLabel label={t('stmPressurePsig')} />
+      <Field value={psig} onChange={setPsig} placeholder={t('stmPressurePlaceholder')} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label={`${REFRIGERANTS[refIdx].label} Saturation Temp`} value={`${result.satF.toFixed(1)} °F`} sub={`${result.satC.toFixed(1)} °C`} color="blue" />
+          <ResultCard label={t('stmRefrigSatTemp', { ref: REFRIGERANTS[refIdx].label })} value={`${result.satF.toFixed(1)} °F`} sub={`${result.satC.toFixed(1)} °C`} color="blue" />
           <View style={{ backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
-            <Text style={{ color: COLORS.navy, fontWeight: '800', marginBottom: 8 }}>Field Reference</Text>
-            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>Superheat = Suction Temp (actual) - Sat. Suction Temp</Text>
-            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>Target superheat (split AC): 10-18 F</Text>
-            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>Subcooling = Sat. Discharge Temp - Liquid Line Temp</Text>
-            <Text style={{ color: COLORS.text, fontSize: 13 }}>Target subcooling (TXV): 10-15 F</Text>
+            <Text style={{ color: COLORS.navy, fontWeight: '800', marginBottom: 8 }}>{t('stmFieldReference')}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>{t('stmSuperheatFormula')}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>{t('stmTargetSuperheat')}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 13, marginBottom: 4 }}>{t('stmSubcoolingFormula')}</Text>
+            <Text style={{ color: COLORS.text, fontSize: 13 }}>{t('stmTargetSubcooling')}</Text>
           </View>
         </>
       )}
@@ -444,23 +451,24 @@ function CalcRefrigPT({ onClose }: { onClose: () => void }) {
 // Rp = outdoor air per person (cfm/person), Ra = outdoor air per area (cfm/sqft)
 // ASHRAE 62.1-2022 Table 6-1 defaults
 
-const SPACE_TYPES = [
-  { label: 'Office',             Rp: 5,  Ra: 0.06 },
-  { label: 'Conference Room',    Rp: 5,  Ra: 0.06 },
-  { label: 'Classroom (K-12)',   Rp: 10, Ra: 0.12 },
-  { label: 'Lobby / Reception',  Rp: 5,  Ra: 0.06 },
-  { label: 'Retail',             Rp: 8,  Ra: 0.12 },
-  { label: 'Gym / Fitness',      Rp: 20, Ra: 0.18 },
-  { label: 'Restaurant Dining',  Rp: 18, Ra: 0.18 },
-  { label: 'Kitchen (comm.)',    Rp: 7.5,Ra: 0.12 },
-  { label: 'Break Room',         Rp: 5,  Ra: 0.06 },
-  { label: 'Corridor',           Rp: 0,  Ra: 0.06 },
-  { label: 'Warehouse',          Rp: 10, Ra: 0.06 },
-  { label: 'Hospital Patient',   Rp: 25, Ra: 0.12 },
-  { label: 'Residential',        Rp: 5,  Ra: 0.06 },
+const SPACE_TYPES: { labelKey: 'stmSpaceOffice' | 'stmSpaceConference' | 'stmSpaceClassroom' | 'stmSpaceLobby' | 'stmSpaceRetail' | 'stmSpaceGym' | 'stmSpaceRestaurant' | 'stmSpaceKitchen' | 'stmSpaceBreakRoom' | 'stmSpaceCorridor' | 'stmSpaceWarehouse' | 'stmSpaceHospital' | 'stmSpaceResidential'; Rp: number; Ra: number }[] = [
+  { labelKey: 'stmSpaceOffice',      Rp: 5,   Ra: 0.06 },
+  { labelKey: 'stmSpaceConference',  Rp: 5,   Ra: 0.06 },
+  { labelKey: 'stmSpaceClassroom',   Rp: 10,  Ra: 0.12 },
+  { labelKey: 'stmSpaceLobby',       Rp: 5,   Ra: 0.06 },
+  { labelKey: 'stmSpaceRetail',      Rp: 8,   Ra: 0.12 },
+  { labelKey: 'stmSpaceGym',         Rp: 20,  Ra: 0.18 },
+  { labelKey: 'stmSpaceRestaurant',  Rp: 18,  Ra: 0.18 },
+  { labelKey: 'stmSpaceKitchen',     Rp: 7.5, Ra: 0.12 },
+  { labelKey: 'stmSpaceBreakRoom',   Rp: 5,   Ra: 0.06 },
+  { labelKey: 'stmSpaceCorridor',    Rp: 0,   Ra: 0.06 },
+  { labelKey: 'stmSpaceWarehouse',   Rp: 10,  Ra: 0.06 },
+  { labelKey: 'stmSpaceHospital',    Rp: 25,  Ra: 0.12 },
+  { labelKey: 'stmSpaceResidential', Rp: 5,   Ra: 0.06 },
 ]
 
 function CalcVentilation({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [spaceIdx, setSpaceIdx] = useState(0)
   const [sqft, setSqft] = useState('')
   const [occupants, setOccupants] = useState('')
@@ -472,22 +480,22 @@ function CalcVentilation({ onClose }: { onClose: () => void }) {
     setResult(null)
     const Az = parseFloat(sqft)
     const Pz = parseFloat(occupants)
-    if (isNaN(Az) || Az <= 0) { setError('Enter valid floor area.'); return }
-    if (isNaN(Pz) || Pz < 0) { setError('Enter valid occupant count.'); return }
+    if (isNaN(Az) || Az <= 0) { setError(t('stmEnterValidArea')); return }
+    if (isNaN(Pz) || Pz < 0) { setError(t('stmEnterValidOccupants')); return }
     const sp = SPACE_TYPES[spaceIdx]
     const vbz = sp.Rp * Pz + sp.Ra * Az
     setResult({ vbz, perPerson: sp.Rp * Pz, perSqft: sp.Ra * Az })
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Ventilation (ASHRAE 62.1)">
-      <InfoBox text="ASHRAE 62.1-2022 Table 6-1. Vbz = Rp x Pz + Ra x Az. This is the breathing zone outdoor airflow — additional system corrections may apply." />
-      <FieldLabel label="Space Type" />
+    <CalcModal visible onClose={onClose} title={t('stmVentilationTitle')}>
+      <InfoBox text={t('stmVentInfo')} />
+      <FieldLabel label={t('stmSpaceType')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {SPACE_TYPES.map((s, i) => (
             <Pressable
-              key={s.label}
+              key={s.labelKey}
               onPress={() => setSpaceIdx(i)}
               style={{
                 paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
@@ -496,7 +504,7 @@ function CalcVentilation({ onClose }: { onClose: () => void }) {
               }}
             >
               <Text style={{ color: spaceIdx === i ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {s.label}
+                {t(s.labelKey)}
               </Text>
             </Pressable>
           ))}
@@ -505,22 +513,22 @@ function CalcVentilation({ onClose }: { onClose: () => void }) {
       {spaceIdx >= 0 && (
         <View style={{ backgroundColor: COLORS.blueSoft, borderRadius: 12, padding: 10, marginBottom: 10 }}>
           <Text style={{ color: COLORS.blue, fontSize: 12, fontWeight: '700' }}>
-            {SPACE_TYPES[spaceIdx].label}: Rp = {SPACE_TYPES[spaceIdx].Rp} cfm/person  |  Ra = {SPACE_TYPES[spaceIdx].Ra} cfm/sqft
+            {t('stmSpaceRpRa', { label: t(SPACE_TYPES[spaceIdx].labelKey), rp: SPACE_TYPES[spaceIdx].Rp, ra: SPACE_TYPES[spaceIdx].Ra })}
           </Text>
         </View>
       )}
-      <FieldLabel label="Floor Area (sq ft)" />
-      <Field value={sqft} onChange={setSqft} placeholder="e.g. 500" />
-      <FieldLabel label="Occupant Count" />
-      <Field value={occupants} onChange={setOccupants} placeholder="e.g. 20" keyboardType="number-pad" />
+      <FieldLabel label={t('stmFloorAreaSqft')} />
+      <Field value={sqft} onChange={setSqft} placeholder={t('stmFloorAreaPlaceholder')} />
+      <FieldLabel label={t('stmOccupantCount')} />
+      <Field value={occupants} onChange={setOccupants} placeholder={t('stmOccupantCountPlaceholder')} keyboardType="number-pad" />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Required Outdoor Air (Vbz)" value={`${result.vbz.toFixed(0)} CFM`} color="blue" />
-          <ResultCard label="People Component (Rp × Pz)" value={`${result.perPerson.toFixed(0)} CFM`} color="teal" />
-          <ResultCard label="Area Component (Ra × Az)" value={`${result.perSqft.toFixed(0)} CFM`} color="green" />
-          <InfoBox text="Add system ventilation efficiency (Ez) correction if needed: Voz = Vbz / Ez. Ez = 1.0 for ceiling diffusers, 0.8 for floor supply." />
+          <ResultCard label={t('stmRequiredOutdoorAir')} value={`${result.vbz.toFixed(0)} CFM`} color="blue" />
+          <ResultCard label={t('stmPeopleComponent')} value={`${result.perPerson.toFixed(0)} CFM`} color="teal" />
+          <ResultCard label={t('stmAreaComponent')} value={`${result.perSqft.toFixed(0)} CFM`} color="green" />
+          <InfoBox text={t('stmVentFooter')} />
         </>
       )}
     </CalcModal>
@@ -533,7 +541,13 @@ function CalcVentilation({ onClose }: { onClose: () => void }) {
 // 1 ton = 12,000 BTU/hr; 1 BTU/hr = 0.0833 CFM (approx at 20F delta_T)
 
 function CalcCFMTons({ onClose }: { onClose: () => void }) {
-  const [mode, setMode] = useState('CFM to Tons')
+  const { t } = useLanguage()
+  // Mode is a stable internal key so language toggles don't break comparisons.
+  const [mode, setMode] = useState<'cfm_to_tons' | 'tons_to_cfm'>('cfm_to_tons')
+  const cfmToTonsLabel = t('stmCfmToTons')
+  const tonsToCfmLabel = t('stmTonsToCfm')
+  const labelToKey = (label: string): 'cfm_to_tons' | 'tons_to_cfm' =>
+    label === tonsToCfmLabel ? 'tons_to_cfm' : 'cfm_to_tons'
   const [value, setValue] = useState('')
   const [deltaT, setDeltaT] = useState('20')
   const [result, setResult] = useState<{ primary: number; secondary: number; btu: number } | null>(null)
@@ -544,10 +558,10 @@ function CalcCFMTons({ onClose }: { onClose: () => void }) {
     setResult(null)
     const v = parseFloat(value)
     const dt = parseFloat(deltaT)
-    if (isNaN(v) || v <= 0) { setError('Enter a valid value.'); return }
-    if (isNaN(dt) || dt <= 0) { setError('Enter valid temperature difference.'); return }
+    if (isNaN(v) || v <= 0) { setError(t('stmEnterValidValue')); return }
+    if (isNaN(dt) || dt <= 0) { setError(t('stmEnterValidDeltaT')); return }
 
-    if (mode === 'CFM to Tons') {
+    if (mode === 'cfm_to_tons') {
       // Q_btu = 1.08 × CFM × delta_T (sensible only)
       const btu = 1.08 * v * dt
       const tons = btu / 12000
@@ -562,31 +576,33 @@ function CalcCFMTons({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const currentLabel = mode === 'cfm_to_tons' ? cfmToTonsLabel : tonsToCfmLabel
+
   return (
-    <CalcModal visible onClose={onClose} title="CFM / Tons Converter">
-      <InfoBox text="Sensible heat equation: Q = 1.08 x CFM x delta_T. Rule of thumb: 400 CFM/ton for residential, 350-450 for commercial." />
-      <FieldLabel label="Conversion Direction" />
-      <SelectRow options={['CFM to Tons', 'Tons to CFM']} value={mode} onChange={setMode} />
-      <FieldLabel label={mode === 'CFM to Tons' ? 'Airflow (CFM)' : 'Capacity (Tons)'} />
-      <Field value={value} onChange={setValue} placeholder={mode === 'CFM to Tons' ? 'e.g. 1600' : 'e.g. 4'} />
-      <FieldLabel label="Supply/Return Delta-T (F)" />
+    <CalcModal visible onClose={onClose} title={t('stmCfmTonsTitle')}>
+      <InfoBox text={t('stmCfmTonsInfo')} />
+      <FieldLabel label={t('stmConversionDirection')} />
+      <SelectRow options={[cfmToTonsLabel, tonsToCfmLabel]} value={currentLabel} onChange={(label) => setMode(labelToKey(label))} />
+      <FieldLabel label={mode === 'cfm_to_tons' ? t('stmAirflowCfm') : t('stmCapacityTons')} />
+      <Field value={value} onChange={setValue} placeholder={mode === 'cfm_to_tons' ? t('stmCfmToTonsPlaceholder') : t('stmTonsToCfmPlaceholder')} />
+      <FieldLabel label={t('stmDeltaTF')} />
       <SelectRow options={['15', '18', '20', '22', '25']} value={deltaT} onChange={setDeltaT} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          {mode === 'CFM to Tons' ? (
+          {mode === 'cfm_to_tons' ? (
             <>
-              <ResultCard label="Sensible Cooling Capacity" value={`${result.primary.toFixed(2)} tons`} sub={`${Math.round(result.btu).toLocaleString()} BTU/hr — based on 1.08 x CFM x dT`} color="blue" />
-              <ResultCard label="Rule of Thumb (400 CFM/ton)" value={`${result.secondary.toFixed(2)} tons`} color="teal" />
+              <ResultCard label={t('stmSensibleCoolingCapacity')} value={`${result.primary.toFixed(2)} tons`} sub={t('stmSensibleSub', { btu: Math.round(result.btu).toLocaleString() })} color="blue" />
+              <ResultCard label={t('stmRuleOfThumb')} value={`${result.secondary.toFixed(2)} tons`} color="teal" />
             </>
           ) : (
             <>
-              <ResultCard label="Required Airflow" value={`${result.primary.toFixed(0)} CFM`} sub={`Based on 1.08 x CFM x dT = ${Math.round(result.btu).toLocaleString()} BTU/hr`} color="blue" />
-              <ResultCard label="Rule of Thumb (400 CFM/ton)" value={`${result.secondary.toFixed(0)} CFM`} color="teal" />
+              <ResultCard label={t('stmRequiredAirflow')} value={`${result.primary.toFixed(0)} CFM`} sub={t('stmRequiredAirflowSub', { btu: Math.round(result.btu).toLocaleString() })} color="blue" />
+              <ResultCard label={t('stmRuleOfThumb')} value={`${result.secondary.toFixed(0)} CFM`} color="teal" />
             </>
           )}
-          <InfoBox text="Delta-T across coil: 15-25 F typical for A/C. High humidity or low airflow = higher delta-T. Always verify with equipment manufacturer data." />
+          <InfoBox text={t('stmCfmTonsFooter')} />
         </>
       )}
     </CalcModal>
@@ -599,7 +615,13 @@ function CalcCFMTons({ onClose }: { onClose: () => void }) {
 // Round to rect: bisect — find width given height such that De = target round diameter
 
 function CalcDuctConversion({ onClose }: { onClose: () => void }) {
-  const [mode, setMode] = useState('Rect to Round')
+  const { t } = useLanguage()
+  // Mode is a stable internal key so language toggles don't break comparisons.
+  const [mode, setMode] = useState<'rect_to_round' | 'round_to_rect'>('rect_to_round')
+  const rectToRoundLabel = t('stmRectToRound')
+  const roundToRectLabel = t('stmRoundToRect')
+  const labelToKey = (label: string): 'rect_to_round' | 'round_to_rect' =>
+    label === roundToRectLabel ? 'round_to_rect' : 'rect_to_round'
   // Rect to Round
   const [rectW, setRectW] = useState('')
   const [rectH, setRectH] = useState('')
@@ -613,7 +635,7 @@ function CalcDuctConversion({ onClose }: { onClose: () => void }) {
   function calcRectToRound() {
     const a = parseFloat(rectW)
     const b = parseFloat(rectH)
-    if (isNaN(a) || isNaN(b) || a <= 0 || b <= 0) { setError('Enter valid width and height.'); return }
+    if (isNaN(a) || isNaN(b) || a <= 0 || b <= 0) { setError(t('stmEnterValidWH')); return }
     const De = 1.30 * Math.pow(a * b, 0.625) / Math.pow(a + b, 0.25)
     const area = (Math.PI / 4) * Math.pow(De / 12, 2) * 144
     const perimeter = Math.PI * De
@@ -623,8 +645,8 @@ function CalcDuctConversion({ onClose }: { onClose: () => void }) {
   function calcRoundToRect() {
     const D = parseFloat(roundD)
     const known = parseFloat(knownDim)
-    if (isNaN(D) || D <= 0) { setError('Enter valid round diameter.'); return }
-    if (isNaN(known) || known <= 0) { setError('Enter the known rect dimension.'); return }
+    if (isNaN(D) || D <= 0) { setError(t('stmEnterValidRoundD')); return }
+    if (isNaN(known) || known <= 0) { setError(t('stmEnterValidKnownDim')); return }
     // Bisect: find unknown dimension x such that De(known, x) = D
     let lo = 1, hi = 200, mid = 50
     for (let i = 0; i < 60; i++) {
@@ -640,50 +662,52 @@ function CalcDuctConversion({ onClose }: { onClose: () => void }) {
   function calc() {
     setError('')
     setResult(null)
-    if (mode === 'Rect to Round') calcRectToRound()
+    if (mode === 'rect_to_round') calcRectToRound()
     else calcRoundToRect()
   }
 
+  const currentLabel = mode === 'rect_to_round' ? rectToRoundLabel : roundToRectLabel
+
   return (
-    <CalcModal visible onClose={onClose} title="Duct Shape Conversion">
-      <InfoBox text="SMACNA equivalent diameter formula: De = 1.30 x (a x b)^0.625 / (a + b)^0.25. Preserves pressure drop characteristics." />
-      <FieldLabel label="Conversion" />
-      <SelectRow options={['Rect to Round', 'Round to Rect']} value={mode} onChange={(v) => { setMode(v); setResult(null); setError('') }} />
-      {mode === 'Rect to Round' ? (
+    <CalcModal visible onClose={onClose} title={t('stmDuctConvTitle')}>
+      <InfoBox text={t('stmDuctConvInfo')} />
+      <FieldLabel label={t('stmConversion')} />
+      <SelectRow options={[rectToRoundLabel, roundToRectLabel]} value={currentLabel} onChange={(label) => { setMode(labelToKey(label)); setResult(null); setError('') }} />
+      {mode === 'rect_to_round' ? (
         <>
-          <FieldLabel label="Rectangle Width (inches)" />
-          <Field value={rectW} onChange={setRectW} placeholder="e.g. 20" />
-          <FieldLabel label="Rectangle Height (inches)" />
-          <Field value={rectH} onChange={setRectH} placeholder="e.g. 12" />
+          <FieldLabel label={t('stmRectWidth')} />
+          <Field value={rectW} onChange={setRectW} placeholder={t('stmRectWidthPlaceholder')} />
+          <FieldLabel label={t('stmRectHeight')} />
+          <Field value={rectH} onChange={setRectH} placeholder={t('stmRectHeightPlaceholder')} />
         </>
       ) : (
         <>
-          <FieldLabel label="Round Duct Diameter (inches)" />
-          <Field value={roundD} onChange={setRoundD} placeholder="e.g. 16" />
-          <FieldLabel label="Known Rect Dimension (inches)" />
-          <Field value={knownDim} onChange={setKnownDim} placeholder="e.g. 10" />
+          <FieldLabel label={t('stmRoundDiameter')} />
+          <Field value={roundD} onChange={setRoundD} placeholder={t('stmRoundDiameterPlaceholder')} />
+          <FieldLabel label={t('stmKnownRectDim')} />
+          <Field value={knownDim} onChange={setKnownDim} placeholder={t('stmKnownRectDimPlaceholder')} />
         </>
       )}
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          {mode === 'Rect to Round' ? (
+          {mode === 'rect_to_round' ? (
             <ResultCard
-              label="Equivalent Round Diameter"
+              label={t('stmEquivRoundDiameter')}
               value={`${result.value.toFixed(1)}"`}
-              sub={`Round up to standard size — area: ${result.area.toFixed(1)} sq in`}
+              sub={t('stmEquivRoundSub', { area: result.area.toFixed(1) })}
               color="blue"
             />
           ) : (
             <ResultCard
-              label="Required Rectangle Width"
+              label={t('stmRequiredRectWidth')}
               value={`${result.value.toFixed(1)}"`}
-              sub={`${result.value.toFixed(1)}" x ${knownDim}" rect — area: ${(result.area * 144).toFixed(1)} sq in`}
+              sub={t('stmRequiredRectSub', { w: result.value.toFixed(1), h: knownDim, area: (result.area * 144).toFixed(1) })}
               color="blue"
             />
           )}
-          <InfoBox text="Standard round sizes: 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 24 in. Always round up the equivalent diameter." />
+          <InfoBox text={t('stmDuctConvFooter')} />
         </>
       )}
     </CalcModal>
@@ -691,69 +715,29 @@ function CalcDuctConversion({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Tool List ────────────────────────────────────────────────────────────────
-const TOOLS = [
-  {
-    id: 'hvacload',
-    icon: 'thermometer',
-    title: 'HVAC Load (Manual J)',
-    desc: 'Cooling tons and heating BTU/hr by climate zone',
-    color: '#C62828',
-    bg: '#FFEBEE',
-  },
-  {
-    id: 'ductsizing',
-    icon: 'air-filter',
-    title: 'Duct Sizing',
-    desc: 'Size round or rectangular ducts by velocity method',
-    color: '#2E7D32',
-    bg: '#E8F5E9',
-  },
-  {
-    id: 'refrigpt',
-    icon: 'gauge',
-    title: 'Refrigerant P-T Chart',
-    desc: 'Saturation temperature for R-410A, R-22, R-32, R-134a',
-    color: '#1565C0',
-    bg: '#E3F2FD',
-  },
-  {
-    id: 'ventilation',
-    icon: 'weather-windy',
-    title: 'Ventilation (ASHRAE 62.1)',
-    desc: 'Outdoor air CFM by space type, occupants, and area',
-    color: '#6A1B9A',
-    bg: '#F3E5F5',
-  },
-  {
-    id: 'cfmtons',
-    icon: 'snowflake',
-    title: 'CFM / Tons Converter',
-    desc: 'Convert airflow to tons and vice versa',
-    color: '#00838F',
-    bg: '#E0F7FA',
-  },
-  {
-    id: 'ductconv',
-    icon: 'swap-horizontal',
-    title: 'Duct Shape Conversion',
-    desc: 'Round to rectangular and back — SMACNA De formula',
-    color: '#EF6C00',
-    bg: '#FFF3E0',
-  },
-]
 
 export default function MechanicalScreen() {
+  const { t } = useLanguage()
   const [open, setOpen] = useState<string | null>(null)
+
+  const TOOLS = [
+    { id: 'hvacload',    icon: 'thermometer',     title: t('stmHvacLoadTitle'),    desc: t('stmHvacLoadDesc'),    color: '#C62828', bg: '#FFEBEE' },
+    { id: 'ductsizing',  icon: 'air-filter',      title: t('stmDuctSizingTitle'),  desc: t('stmDuctSizingDesc'),  color: '#2E7D32', bg: '#E8F5E9' },
+    { id: 'refrigpt',    icon: 'gauge',           title: t('stmRefrigPtTitle'),    desc: t('stmRefrigPtDesc'),    color: '#1565C0', bg: '#E3F2FD' },
+    { id: 'ventilation', icon: 'weather-windy',   title: t('stmVentilationTitle'), desc: t('stmVentilationDesc'), color: '#6A1B9A', bg: '#F3E5F5' },
+    { id: 'cfmtons',     icon: 'snowflake',       title: t('stmCfmTonsTitle'),     desc: t('stmCfmTonsDesc'),     color: '#00838F', bg: '#E0F7FA' },
+    { id: 'ductconv',    icon: 'swap-horizontal', title: t('stmDuctConvTitle'),    desc: t('stmDuctConvDesc'),    color: '#EF6C00', bg: '#FFF3E0' },
+  ]
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '900', marginBottom: 4 }}>
-            Mechanical Tools
+            {t('stmTitle')}
           </Text>
           <Text style={{ color: COLORS.subtext, fontSize: 14 }}>
-            HVAC / ASHRAE field calculators
+            {t('stmSubtitle')}
           </Text>
         </View>
 

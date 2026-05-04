@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
@@ -68,6 +69,8 @@ const EMPTY_FORM: FormState = {
   company_email: '',
 }
 
+import type { TranslationKey } from '../../lib/locales/en'
+
 const LICENSE_TYPES = [
   'Electrical',
   'Mechanical',
@@ -77,6 +80,16 @@ const LICENSE_TYPES = [
   'HVAC',
   'Other',
 ] as const
+
+const LICENSE_TYPE_KEY: Record<typeof LICENSE_TYPES[number], TranslationKey> = {
+  'Electrical':         'ltElectrical',
+  'Mechanical':         'ltMechanical',
+  'Plumbing':           'ltPlumbing',
+  'Building':           'ltBuilding',
+  'General Contractor': 'ltGeneralContractor',
+  'HVAC':               'ltHvac',
+  'Other':              'ltOther',
+}
 
 type License = {
   id: number
@@ -106,8 +119,8 @@ function licenseExpiryStatus(dateStr: string | null) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const days = Math.round((exp.getTime() - today.getTime()) / 86400000)
-  if (days < 0)  return { kind: 'expired',  label: `Expired ${-days}d ago`, color: '#C62828', bg: '#FFEBEE' }
-  if (days < 60) return { kind: 'expiring', label: `Expires in ${days}d`,    color: '#E65100', bg: '#FFF3E0' }
+  if (days < 0)  return { kind: 'expired'  as const, days: -days, color: '#C62828', bg: '#FFEBEE' }
+  if (days < 60) return { kind: 'expiring' as const, days,        color: '#E65100', bg: '#FFF3E0' }
   return null
 }
 
@@ -206,6 +219,7 @@ async function uploadImageToCompanyLogos(uri: string, mimeType: string, fileName
 }
 
 export default function CompanyScreen() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -235,7 +249,7 @@ export default function CompanyScreen() {
       } = await supabase.auth.getSession()
 
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('mustBeSignedIn'))
         return
       }
 
@@ -289,7 +303,7 @@ export default function CompanyScreen() {
 
       await loadLicenses()
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load company settings.')
+      setErrorMessage(error?.message || t('failedToLoadCompanySettings'))
     } finally {
       setLoading(false)
     }
@@ -309,7 +323,7 @@ export default function CompanyScreen() {
 
   async function addLicense() {
     if (!newLicense.license_number.trim()) {
-      Alert.alert('Required', 'License number is required.')
+      Alert.alert(t('requiredTitle'), t('licenseNumberRequired'))
       return
     }
     setSavingLicense(true)
@@ -321,7 +335,7 @@ export default function CompanyScreen() {
     })
     setSavingLicense(false)
     if (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert(t('error'), error.message)
       return
     }
     setNewLicense(EMPTY_LICENSE)
@@ -329,13 +343,13 @@ export default function CompanyScreen() {
   }
 
   function deleteLicense(lic: License) {
-    Alert.alert('Delete License', `Delete "${lic.license_number}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('deleteLicenseTitle'), t('deleteLicenseConfirm', { number: lic.license_number }), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           const { error } = await supabase.from('company_licenses').delete().eq('id', lic.id)
-          if (error) { Alert.alert('Error', error.message); return }
+          if (error) { Alert.alert(t('error'), error.message); return }
           await loadLicenses()
         },
       },
@@ -343,10 +357,10 @@ export default function CompanyScreen() {
   }
 
   function pickLicenseType() {
-    Alert.alert('License Type', undefined,
+    Alert.alert(t('licenseTypeTitle'), undefined,
       [
-        ...LICENSE_TYPES.map(t => ({ text: t, onPress: () => setNewLicense(prev => ({ ...prev, license_type: t })) })),
-        { text: 'Cancel', style: 'cancel' as const },
+        ...LICENSE_TYPES.map(lt => ({ text: t(LICENSE_TYPE_KEY[lt]), onPress: () => setNewLicense(prev => ({ ...prev, license_type: lt })) })),
+        { text: t('cancel'), style: 'cancel' as const },
       ]
     )
   }
@@ -380,7 +394,7 @@ export default function CompanyScreen() {
 
   async function handleSave() {
     if (!form.company_name.trim()) {
-      Alert.alert('Missing Information', 'Company name is required.')
+      Alert.alert(t('missingInformation'), t('companyNameRequired'))
       return
     }
 
@@ -406,7 +420,7 @@ export default function CompanyScreen() {
           .eq('id', settingsId)
 
         if (error) {
-          Alert.alert('Update Error', error.message)
+          Alert.alert(t('updateError'), error.message)
           return
         }
       } else {
@@ -417,17 +431,17 @@ export default function CompanyScreen() {
           .single()
 
         if (error) {
-          Alert.alert('Save Error', error.message)
+          Alert.alert(t('saveError'), error.message)
           return
         }
 
         setSettingsId(data.id)
       }
 
-      Alert.alert('Success', 'Company settings updated.')
+      Alert.alert(t('success'), t('companySettingsUpdated'))
       await loadScreen()
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not save company settings.')
+      Alert.alert(t('error'), error?.message || t('couldNotSaveCompanySettings'))
     } finally {
       setSaving(false)
     }
@@ -438,7 +452,7 @@ export default function CompanyScreen() {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
 
       if (!permission.granted) {
-        Alert.alert('Permission Needed', 'Please allow access to photos.')
+        Alert.alert(t('permissionNeededTitle'), t('pleaseAllowPhotosAccess'))
         return
       }
 
@@ -475,7 +489,7 @@ export default function CompanyScreen() {
 
       if (updateError) {
         await supabase.storage.from('company-logos').remove([uploaded.filePath])
-        Alert.alert('Logo Error', updateError.message)
+        Alert.alert(t('logoError'), updateError.message)
         return
       }
 
@@ -484,9 +498,9 @@ export default function CompanyScreen() {
       }
 
       setField('logo_url', uploaded.publicUrl)
-      Alert.alert('Success', 'Company logo updated.')
+      Alert.alert(t('success'), t('companyLogoUpdated'))
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not upload logo.')
+      Alert.alert(t('error'), error?.message || t('couldNotUploadLogo'))
     } finally {
       setUploadingLogo(false)
     }
@@ -505,7 +519,7 @@ export default function CompanyScreen() {
           .eq('id', settingsId)
 
         if (error) {
-          Alert.alert('Delete Error', error.message)
+          Alert.alert(t('deleteError'), error.message)
           return
         }
       }
@@ -515,9 +529,9 @@ export default function CompanyScreen() {
       }
 
       setField('logo_url', '')
-      Alert.alert('Success', 'Logo removed.')
+      Alert.alert(t('success'), t('logoRemoved'))
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not remove logo.')
+      Alert.alert(t('error'), error?.message || t('couldNotRemoveLogo'))
     } finally {
       setSaving(false)
     }
@@ -535,7 +549,7 @@ export default function CompanyScreen() {
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
         <Text style={{ marginTop: 12, color: COLORS.text }}>
-          Loading company settings...
+          {t('loadingCompanySettings')}
         </Text>
       </SafeAreaView>
     )
@@ -553,7 +567,7 @@ export default function CompanyScreen() {
         }}
       >
         <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>
@@ -569,7 +583,7 @@ export default function CompanyScreen() {
             paddingVertical: 12,
           }}
         >
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -594,11 +608,11 @@ export default function CompanyScreen() {
             marginBottom: 10,
           }}
         >
-          Manager Only
+          {t('managerOnly')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          You do not have permission to view company settings.
+          {t('noPermissionCompany')}
         </Text>
       </SafeAreaView>
     )
@@ -623,11 +637,11 @@ export default function CompanyScreen() {
               marginBottom: 6,
             }}
           >
-            Company
+            {t('companyTitle')}
           </Text>
 
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Set up company information and manage the company logo.
+            {t('companyIntro')}
           </Text>
         </View>
 
@@ -649,63 +663,63 @@ export default function CompanyScreen() {
               marginBottom: 14,
             }}
           >
-            Company Information
+            {t('companyInformation')}
           </Text>
 
           <Field
-            label="Company Name"
+            label={t('companyNameField')}
             value={form.company_name}
             onChangeText={(text) => setField('company_name', text)}
-            placeholder="Company name"
+            placeholder={t('companyNamePh')}
           />
 
           <Field
-            label="Street Address"
+            label={t('streetAddress')}
             value={form.street}
             onChangeText={(text) => setField('street', text)}
-            placeholder="Street address"
+            placeholder={t('streetAddressPh')}
           />
 
           <Field
-            label="City"
+            label={t('cityField')}
             value={form.city}
             onChangeText={(text) => setField('city', text)}
-            placeholder="City"
+            placeholder={t('cityPh')}
           />
 
           <Field
-            label="State"
+            label={t('stateField')}
             value={form.state}
             onChangeText={(text) => setField('state', text)}
-            placeholder="TX"
+            placeholder={t('statePh')}
           />
 
           <Field
-            label="Zip"
+            label={t('zipField')}
             value={form.zip}
             onChangeText={(text) => setField('zip', text)}
-            placeholder="Zip"
+            placeholder={t('zipPh')}
           />
 
           <Field
-            label="EIN Number"
+            label={t('einField')}
             value={form.ein_number}
             onChangeText={(text) => setField('ein_number', text)}
-            placeholder="EIN number"
+            placeholder={t('einPh')}
           />
 
           <Field
-            label="Sales Tax ID"
+            label={t('salesTaxIdField')}
             value={form.sales_tax_id}
             onChangeText={(text) => setField('sales_tax_id', text)}
-            placeholder="Sales tax ID"
+            placeholder={t('salesTaxIdPh')}
           />
 
           <Field
-            label="Company Email"
+            label={t('companyEmailField')}
             value={form.company_email}
             onChangeText={(text) => setField('company_email', text)}
-            placeholder="company@email.com"
+            placeholder={t('companyEmailPh')}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -723,32 +737,39 @@ export default function CompanyScreen() {
           }}
         >
           <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
-            Licenses ({licenses.length})
+            {t('licensesCount', { count: licenses.length })}
           </Text>
           <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 14 }}>
-            Rows turn red when expired and orange in the 60 days before expiration.
+            {t('licensesHint')}
           </Text>
 
           {licenses.map(lic => {
             const status = licenseExpiryStatus(lic.expiration_date)
+            const statusLabel = status
+              ? (status.kind === 'expired'
+                  ? t('expiredAgo', { days: status.days })
+                  : t('expiresInDays', { days: status.days }))
+              : ''
+            const typeKey = LICENSE_TYPE_KEY[lic.license_type as typeof LICENSE_TYPES[number]]
+            const typeLabel = typeKey ? t(typeKey) : lic.license_type
             return (
               <View key={lic.id} style={{ borderTopWidth: 1, borderColor: COLORS.border, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                     <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 14 }}>{lic.license_number}</Text>
                     <View style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
-                      <Text style={{ color: COLORS.subtext, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{lic.license_type.toUpperCase()}</Text>
+                      <Text style={{ color: COLORS.subtext, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{typeLabel.toUpperCase()}</Text>
                     </View>
                     {status && (
                       <View style={{ backgroundColor: status.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
-                        <Text style={{ color: status.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{status.label.toUpperCase()}</Text>
+                        <Text style={{ color: status.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>{statusLabel.toUpperCase()}</Text>
                       </View>
                     )}
                   </View>
                   <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 4 }}>
                     {lic.expiration_date
-                      ? `Expires ${new Date(lic.expiration_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-                      : 'No expiration set'}
+                      ? t('expiresOn', { date: new Date(lic.expiration_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })
+                      : t('noExpirationSet')}
                     {lic.notes ? ` · ${lic.notes}` : ''}
                   </Text>
                 </View>
@@ -756,7 +777,7 @@ export default function CompanyScreen() {
                   onPress={() => deleteLicense(lic)}
                   style={{ backgroundColor: COLORS.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                 >
-                  <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                  <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 12 }}>{t('delete')}</Text>
                 </Pressable>
               </View>
             )
@@ -764,28 +785,28 @@ export default function CompanyScreen() {
 
           <View style={{ marginTop: licenses.length > 0 ? 14 : 0, paddingTop: licenses.length > 0 ? 14 : 0, borderTopWidth: licenses.length > 0 ? 1 : 0, borderColor: COLORS.border, gap: 10 }}>
             <Field
-              label="License Number *"
+              label={t('licenseNumberField')}
               value={newLicense.license_number}
               onChangeText={(text) => setNewLicense(prev => ({ ...prev, license_number: text }))}
-              placeholder="e.g. TECL-12345"
+              placeholder={t('licenseNumberPh')}
             />
             <View>
-              <Text style={{ color: COLORS.navy, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>License Type</Text>
+              <Text style={{ color: COLORS.navy, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{t('licenseTypeLabel')}</Text>
               <Pressable onPress={pickLicenseType} style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: COLORS.white }}>
-                <Text style={{ color: COLORS.text, fontWeight: '700' }}>{newLicense.license_type}</Text>
+                <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t(LICENSE_TYPE_KEY[newLicense.license_type as typeof LICENSE_TYPES[number]] ?? 'ltOther')}</Text>
               </Pressable>
             </View>
             <Field
-              label="Expiration Date (YYYY-MM-DD)"
+              label={t('expirationDateField')}
               value={newLicense.expiration_date}
               onChangeText={(text) => setNewLicense(prev => ({ ...prev, expiration_date: text }))}
-              placeholder="2027-12-31"
+              placeholder={t('expirationDatePh')}
             />
             <Field
-              label="Notes"
+              label={t('notesField')}
               value={newLicense.notes}
               onChangeText={(text) => setNewLicense(prev => ({ ...prev, notes: text }))}
-              placeholder="state issued, holder, etc."
+              placeholder={t('notesPh')}
             />
             <Pressable
               onPress={addLicense}
@@ -793,7 +814,7 @@ export default function CompanyScreen() {
               style={{ backgroundColor: !newLicense.license_number.trim() ? COLORS.muted : COLORS.teal, borderRadius: 18, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
             >
               <Text style={{ color: COLORS.white, fontSize: 15, fontWeight: '800' }}>
-                {savingLicense ? 'Adding…' : '+ Add License'}
+                {savingLicense ? t('addingEllipsis') : t('addLicenseBtn')}
               </Text>
             </Pressable>
           </View>
@@ -817,7 +838,7 @@ export default function CompanyScreen() {
               marginBottom: 14,
             }}
           >
-            Company Logo
+            {t('companyLogo')}
           </Text>
 
           {form.logo_url ? (
@@ -849,7 +870,7 @@ export default function CompanyScreen() {
                 marginBottom: 16,
               }}
             >
-              <Text style={{ color: COLORS.subtext }}>No logo uploaded</Text>
+              <Text style={{ color: COLORS.subtext }}>{t('noLogoUploaded')}</Text>
             </View>
           )}
 
@@ -865,7 +886,7 @@ export default function CompanyScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '800' }}>
-                {uploadingLogo ? 'Uploading Logo...' : form.logo_url ? 'Change Logo' : 'Add Logo'}
+                {uploadingLogo ? t('uploadingLogo') : form.logo_url ? t('changeLogo') : t('addLogo')}
               </Text>
             </Pressable>
 
@@ -886,7 +907,7 @@ export default function CompanyScreen() {
                   fontWeight: '800',
                 }}
               >
-                Delete Logo
+                {t('deleteLogo')}
               </Text>
             </Pressable>
 
@@ -901,7 +922,7 @@ export default function CompanyScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '800' }}>
-                {saving ? 'Saving...' : 'Save Company Settings'}
+                {saving ? t('saving') : t('saveCompanySettings')}
               </Text>
             </Pressable>
           </View>

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 
 type SafetyDocument = {
@@ -20,12 +21,16 @@ type SafetyDocument = {
   pdf_url: string | null;
   is_active: boolean | null;
   sort_order: number | null;
+  language: 'en' | 'es' | null;
 };
 
+type Lang = 'en' | 'es';
+
 export default function SafetyDocumentsScreen() {
+  const { t, language } = useLanguage();
   const [documents, setDocuments] = useState<SafetyDocument[]>([]);
-  const [filtered, setFiltered] = useState<SafetyDocument[]>([]);
   const [search, setSearch] = useState('');
+  const [docLang, setDocLang] = useState<Lang>(language === 'es' ? 'es' : 'en');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -33,28 +38,17 @@ export default function SafetyDocumentsScreen() {
     loadDocuments();
   }, []);
 
-  useEffect(() => {
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-
-    if (!q) {
-      setFiltered(documents);
-      return;
-    }
-
-    setFiltered(
-      documents.filter((doc) => {
-        const title = (doc.title || '').toLowerCase();
-        const category = (doc.category || '').toLowerCase();
-        const description = (doc.description || '').toLowerCase();
-
-        return (
-          title.includes(q) ||
-          category.includes(q) ||
-          description.includes(q)
-        );
-      })
-    );
-  }, [search, documents]);
+    return documents.filter((doc) => {
+      if ((doc.language || 'en') !== docLang) return false;
+      if (!q) return true;
+      const title = (doc.title || '').toLowerCase();
+      const category = (doc.category || '').toLowerCase();
+      const description = (doc.description || '').toLowerCase();
+      return title.includes(q) || category.includes(q) || description.includes(q);
+    });
+  }, [search, documents, docLang]);
 
   async function loadDocuments() {
     try {
@@ -62,15 +56,16 @@ export default function SafetyDocumentsScreen() {
 
       const { data, error } = await supabase
         .from('safety_documents')
-        .select('id, title, description, category, pdf_url, is_active, sort_order')
+        .select('id, title, description, category, pdf_url, is_active, sort_order, language')
         .eq('is_active', true)
+        .neq('document_type', 'company_safety_manual')
         .not('pdf_url', 'is', null)
-        .order('sort_order', { ascending: true });
+        .order('sort_order', { ascending: true })
+        .order('title', { ascending: true });
 
       if (error) throw error;
 
       setDocuments((data as SafetyDocument[]) || []);
-      setFiltered((data as SafetyDocument[]) || []);
     } catch (error) {
       console.error('Error loading safety documents:', error);
     } finally {
@@ -88,7 +83,7 @@ export default function SafetyDocumentsScreen() {
     router.push({
       pathname: '/safety-document-viewer',
       params: {
-        title: item.title || 'Document',
+        title: item.title || t('documentLabel'),
         pdfUrl: item.pdf_url || '',
       },
     });
@@ -97,7 +92,7 @@ export default function SafetyDocumentsScreen() {
   function renderItem({ item }: { item: SafetyDocument }) {
     return (
       <View style={styles.card}>
-        <Text style={styles.title}>{item.title || 'Untitled Document'}</Text>
+        <Text style={styles.title}>{item.title || t('untitledDocument')}</Text>
 
         {!!item.category && <Text style={styles.category}>{item.category}</Text>}
 
@@ -106,27 +101,49 @@ export default function SafetyDocumentsScreen() {
         )}
 
         <TouchableOpacity style={styles.button} onPress={() => openDocument(item)}>
-          <Text style={styles.buttonText}>Open Document</Text>
+          <Text style={styles.buttonText}>{t('openDocument')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const enCount = documents.filter(d => (d.language || 'en') === 'en').length;
+  const esCount = documents.filter(d => d.language === 'es').length;
+
   if (loading) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading OSHA publications...</Text>
+        <Text style={styles.loadingText}>{t('loadingOshaPublications')}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>OSHA Publications</Text>
+      <Text style={styles.header}>{t('oshaPublications')}</Text>
+
+      <View style={styles.langRow}>
+        <TouchableOpacity
+          style={[styles.langTab, docLang === 'en' && styles.langTabActive]}
+          onPress={() => setDocLang('en')}
+        >
+          <Text style={[styles.langTabText, docLang === 'en' && styles.langTabTextActive]}>
+            {t('english')} ({enCount})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.langTab, docLang === 'es' && styles.langTabActive]}
+          onPress={() => setDocLang('es')}
+        >
+          <Text style={[styles.langTabText, docLang === 'es' && styles.langTabTextActive]}>
+            {t('spanish')} ({esCount})
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <TextInput
-        placeholder="Search publications..."
+        placeholder={t('searchPublications')}
         value={search}
         onChangeText={setSearch}
         style={styles.search}
@@ -141,7 +158,7 @@ export default function SafetyDocumentsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No OSHA publications found.</Text>
+          <Text style={styles.emptyText}>{t('noOshaPublicationsFound')}</Text>
         }
       />
     </View>
@@ -170,6 +187,31 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 12,
     color: '#111',
+  },
+  langRow: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: '#d9dce1',
+    marginBottom: 12,
+  },
+  langTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  langTabActive: {
+    backgroundColor: '#1f6feb',
+  },
+  langTabText: {
+    color: '#444',
+    fontWeight: '600',
+  },
+  langTabTextActive: {
+    color: '#fff',
   },
   search: {
     backgroundColor: '#fff',

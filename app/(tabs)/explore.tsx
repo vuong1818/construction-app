@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useManagerSummary } from '../../hooks/useManagerSummary'
+import { useLanguage } from '../../lib/i18n'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -104,6 +105,7 @@ function ManagerCard({
 export default function ManagerSummaryScreen() {
   const router = useRouter()
   const { logoUrl } = useCompanyLogo()
+  const { t } = useLanguage()
 
   const {
     userRole,
@@ -124,7 +126,7 @@ export default function ManagerSummaryScreen() {
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
         <Text style={{ marginTop: 12, color: COLORS.text }}>
-          Loading manager dashboard...
+          {t('loadingManagerDashboard')}
         </Text>
       </SafeAreaView>
     )
@@ -142,7 +144,7 @@ export default function ManagerSummaryScreen() {
         }}
       >
         <Text style={{ color: COLORS.red, marginBottom: 12, fontWeight: '700' }}>
-          Error
+          {t('error')}
         </Text>
 
         <Text
@@ -164,7 +166,7 @@ export default function ManagerSummaryScreen() {
             borderRadius: 14,
           }}
         >
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -207,7 +209,7 @@ export default function ManagerSummaryScreen() {
             marginBottom: 10,
           }}
         >
-          Manager Only
+          {t('managerOnly')}
         </Text>
 
         <Text
@@ -217,7 +219,7 @@ export default function ManagerSummaryScreen() {
             lineHeight: 22,
           }}
         >
-          You do not have permission to view the manager dashboard.
+          {t('noPermissionManagerDashboard')}
         </Text>
       </SafeAreaView>
     )
@@ -268,7 +270,7 @@ export default function ManagerSummaryScreen() {
               marginBottom: 6,
             }}
           >
-            Manager Dashboard
+            {t('managerDashboard')}
           </Text>
 
           <Text
@@ -277,13 +279,13 @@ export default function ManagerSummaryScreen() {
               lineHeight: 22,
             }}
           >
-            Manage workers, review weekly time, maintain plans, update reports, configure company settings, and manage safety.
+            {t('managerDashboardIntro')}
           </Text>
         </View>
 
         <ManagerCard
-          title="Time and Payroll"
-          subtitle="Choose a work week, review worker totals, and modify hours, gas, and receipts."
+          title={t('timeAndPayroll')}
+          subtitle={t('timeAndPayrollSubtitle')}
           icon="clock-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
@@ -291,8 +293,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Projects & Plans"
-          subtitle="Create projects, upload and delete PDF plans, manage project status."
+          title={t('projectsAndPlans')}
+          subtitle={t('projectsAndPlansSubtitle')}
           icon="briefcase-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
@@ -300,8 +302,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Tasks"
-          subtitle="All open tasks across active projects, sorted by overdue first."
+          title={t('tasks')}
+          subtitle={t('tasksSubtitle')}
           icon="format-list-checks"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
@@ -309,8 +311,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Finance"
-          subtitle="Per-project contract, change orders, expenses, and net totals."
+          title={t('finance')}
+          subtitle={t('financeSubtitle')}
           icon="cash-multiple"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
@@ -318,8 +320,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Reports"
-          subtitle="Browse reports by project and modify or delete daily reports."
+          title={t('reports')}
+          subtitle={t('reportsSubtitle')}
           icon="clipboard-text-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
@@ -327,8 +329,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Inspections"
-          subtitle="Update inspection status, dates, and notes for each project."
+          title={t('inspections')}
+          subtitle={t('inspectionsSubtitle')}
           icon="clipboard-check-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
@@ -336,8 +338,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Safety"
-          subtitle="Enter weekly safety topic and review weekly acknowledgements."
+          title={t('safety')}
+          subtitle={t('safetySubtitle')}
           icon="shield-check-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
@@ -345,8 +347,8 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
-          title="Settings"
-          subtitle="Manage workers and company information."
+          title={t('settings')}
+          subtitle={t('settingsSubtitle')}
           icon="cog-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}

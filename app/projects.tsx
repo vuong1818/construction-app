@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
+import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 
 type Project = {
@@ -37,6 +38,7 @@ const COLORS = {
 export default function ProjectsScreen() {
   const router = useRouter()
   const { logoUrl } = useCompanyLogo()
+  const { t } = useLanguage()
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,7 +66,7 @@ export default function ProjectsScreen() {
 
       setProjects(data || [])
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load projects.')
+      setErrorMessage(error?.message || t('failedToLoadProjects'))
     } finally {
       setLoading(false)
     }
@@ -81,7 +83,7 @@ export default function ProjectsScreen() {
         }}
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loading')}</Text>
       </SafeAreaView>
     )
   }
@@ -98,7 +100,7 @@ export default function ProjectsScreen() {
         }}
       >
         <Text style={{ color: '#EF4444', fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>
           {errorMessage}
@@ -112,7 +114,7 @@ export default function ProjectsScreen() {
             borderRadius: 14,
           }}
         >
-          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -163,7 +165,7 @@ export default function ProjectsScreen() {
               marginBottom: 6,
             }}
           >
-            Projects
+            {t('projects')}
           </Text>
 
           <Text
@@ -172,7 +174,7 @@ export default function ProjectsScreen() {
               lineHeight: 22,
             }}
           >
-            Browse active and recent projects.
+            {t('projectsListIntro')}
           </Text>
         </View>
 
@@ -213,10 +215,10 @@ export default function ProjectsScreen() {
                   {project.name}
                 </Text>
                 <Text style={{ color: COLORS.text, marginTop: 4 }}>
-                  Address: {project.address || 'No address'}
+                  {`${t('addressLabel')}: ${project.address || t('noAddress')}`}
                 </Text>
                 <Text style={{ color: COLORS.subtext, marginTop: 2 }}>
-                  Status: {project.status || 'No status'}
+                  {`${t('statusFieldLabel')}: ${project.status || t('noStatus')}`}
                 </Text>
               </View>
             </View>

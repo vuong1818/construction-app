@@ -5,8 +5,9 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
@@ -14,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
@@ -199,6 +201,7 @@ function WorkerCard({
   item: WorkerSummary
   onEdit: (item: WorkerSummary) => void
 }) {
+  const { t } = useLanguage()
   return (
     <View
       style={{
@@ -230,27 +233,27 @@ function WorkerCard({
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Wage: {formatMoney(item.wage)}/hr
+            {t('wageColon', { amount: formatMoney(item.wage) })}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Total Hours: {formatHours(item.totalHours)}
+            {t('totalHoursColon', { hours: formatHours(item.totalHours) })}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Labor: {formatMoney(item.labor)}
+            {t('laborColon', { amount: formatMoney(item.labor) })}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Gas: {formatMoney(item.gasAmount)}
+            {t('gasColon', { amount: formatMoney(item.gasAmount) })}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Receipts: {formatMoney(item.receiptsAmount)}
+            {t('receiptsColon', { amount: formatMoney(item.receiptsAmount) })}
           </Text>
 
           <Text style={{ color: COLORS.navy, fontWeight: '800' }}>
-            Total Amount: {formatMoney(item.totalAmount)}
+            {t('totalAmountColon', { amount: formatMoney(item.totalAmount) })}
           </Text>
         </View>
 
@@ -273,6 +276,7 @@ function WorkerCard({
 }
 
 export default function ManagerTimeClockScreen() {
+  const { t } = useLanguage()
   const weekOptions = useMemo(() => buildWeekOptions(16), [])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
   const [userRole, setUserRole] = useState('')
@@ -324,7 +328,7 @@ export default function ManagerTimeClockScreen() {
       } = await supabase.auth.getSession()
 
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('mustBeSignedIn'))
         return
       }
 
@@ -390,7 +394,7 @@ export default function ManagerTimeClockScreen() {
       setProfiles(profilesResult.data || [])
       setAdjustments(adjustmentsResult.data || [])
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load time clock.')
+      setErrorMessage(error?.message || t('failedToLoadTimeClock'))
     } finally {
       setLoading(false)
     }
@@ -404,7 +408,7 @@ export default function ManagerTimeClockScreen() {
 
       if (!groupedHours[entry.user_id]) {
         groupedHours[entry.user_id] = {
-          workerName: entry.user_name || 'Unknown Worker',
+          workerName: entry.user_name || t('unknownWorkerName'),
           rawHours: 0,
         }
       }
@@ -431,7 +435,7 @@ export default function ManagerTimeClockScreen() {
         `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() ||
         profile?.full_name ||
         grouped?.workerName ||
-        'Unknown Worker'
+        t('unknownWorkerName')
 
       const wage = Number(profile?.wage || 0)
       const rawHours = grouped?.rawHours || 0
@@ -459,7 +463,7 @@ export default function ManagerTimeClockScreen() {
     })
 
     return summaryList.sort((a, b) => a.workerName.localeCompare(b.workerName))
-  }, [entries, profiles, adjustments])
+  }, [entries, profiles, adjustments, t])
 
   function openEditModal(item: WorkerSummary) {
     setEditingWorkerId(item.workerId)
@@ -476,7 +480,7 @@ export default function ManagerTimeClockScreen() {
   function validateAmount(value: string, label: string) {
     if (!value.trim()) return true
     if (Number.isNaN(Number(value))) {
-      Alert.alert('Invalid Number', `${label} must be a valid number.`)
+      Alert.alert(t('invalidNumber'), t('fieldMustBeNumber', { label }))
       return false
     }
     return true
@@ -484,13 +488,13 @@ export default function ManagerTimeClockScreen() {
 
   async function handleSaveEdit() {
     if (!editingWorkerId || !selectedWeek) {
-      Alert.alert('Error', 'No worker selected.')
+      Alert.alert(t('error'), t('noWorkerSelected'))
       return
     }
 
-    if (!validateAmount(form.hours, 'Hours')) return
-    if (!validateAmount(form.gasAmount, 'Gas')) return
-    if (!validateAmount(form.receiptsAmount, 'Receipts')) return
+    if (!validateAmount(form.hours, t('hoursLabelShort'))) return
+    if (!validateAmount(form.gasAmount, t('gasLabelShort'))) return
+    if (!validateAmount(form.receiptsAmount, t('receiptsLabelShort'))) return
 
     try {
       setSaving(true)
@@ -510,16 +514,16 @@ export default function ManagerTimeClockScreen() {
         })
 
       if (error) {
-        Alert.alert('Save Error', error.message)
+        Alert.alert(t('saveError'), error.message)
         return
       }
 
-      Alert.alert('Success', 'Worker weekly amounts updated.')
+      Alert.alert(t('success'), t('weeklyAmountsUpdated'))
       setModalVisible(false)
       resetForm()
       await loadScreen(selectedWeek.start, selectedWeek.end)
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not update weekly amounts.')
+      Alert.alert(t('error'), error?.message || t('couldNotUpdateWeeklyAmounts'))
     } finally {
       setSaving(false)
     }
@@ -537,7 +541,7 @@ export default function ManagerTimeClockScreen() {
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
         <Text style={{ marginTop: 12, color: COLORS.text }}>
-          Loading time clock...
+          {t('loadingTimeClock')}
         </Text>
       </SafeAreaView>
     )
@@ -555,7 +559,7 @@ export default function ManagerTimeClockScreen() {
         }}
       >
         <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>
@@ -573,7 +577,7 @@ export default function ManagerTimeClockScreen() {
             paddingVertical: 12,
           }}
         >
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -598,11 +602,11 @@ export default function ManagerTimeClockScreen() {
             marginBottom: 10,
           }}
         >
-          Manager Only
+          {t('managerOnly')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          You do not have permission to view time clock management.
+          {t('noPermissionTimeClock')}
         </Text>
       </SafeAreaView>
     )
@@ -627,11 +631,11 @@ export default function ManagerTimeClockScreen() {
               marginBottom: 6,
             }}
           >
-            Time Clock
+            {t('timeClockTitle')}
           </Text>
 
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Select a work week, review each worker’s totals, and update hours, gas, and receipts.
+            {t('timeClockIntro')}
           </Text>
         </View>
 
@@ -643,7 +647,7 @@ export default function ManagerTimeClockScreen() {
             marginBottom: 10,
           }}
         >
-          Work Week
+          {t('workWeekHeader')}
         </Text>
 
         <View
@@ -659,6 +663,7 @@ export default function ManagerTimeClockScreen() {
           <Picker
             selectedValue={selectedWeekKey}
             onValueChange={(value) => setSelectedWeekKey(String(value))}
+            itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
             style={{
               color: COLORS.text,
               backgroundColor: COLORS.card,
@@ -683,7 +688,7 @@ export default function ManagerTimeClockScreen() {
             marginBottom: 10,
           }}
         >
-          Workers
+          {t('workersHeader')}
         </Text>
 
         {workerSummaries.length === 0 ? (
@@ -697,7 +702,7 @@ export default function ManagerTimeClockScreen() {
             }}
           >
             <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-              No workers found for this work week.
+              {t('noWorkersForWeek')}
             </Text>
           </View>
         ) : (
@@ -744,7 +749,7 @@ export default function ManagerTimeClockScreen() {
                   marginBottom: 8,
                 }}
               >
-                Update Worker Totals
+                {t('updateWorkerTotals')}
               </Text>
 
               <Text
@@ -757,24 +762,24 @@ export default function ManagerTimeClockScreen() {
               </Text>
 
               <Field
-                label="Total Hours"
+                label={t('totalHoursField')}
                 value={form.hours}
                 onChangeText={(text) => setField('hours', text)}
-                placeholder="Enter total hours"
+                placeholder={t('totalHoursPh')}
               />
 
               <Field
-                label="Gas Amount"
+                label={t('gasAmountField')}
                 value={form.gasAmount}
                 onChangeText={(text) => setField('gasAmount', text)}
-                placeholder="Enter gas amount"
+                placeholder={t('gasAmountPh')}
               />
 
               <Field
-                label="Receipts Amount"
+                label={t('receiptsAmountField')}
                 value={form.receiptsAmount}
                 onChangeText={(text) => setField('receiptsAmount', text)}
-                placeholder="Enter receipts amount"
+                placeholder={t('receiptsAmountPh')}
               />
 
               <View style={{ gap: 12, marginTop: 10 }}>
@@ -795,7 +800,7 @@ export default function ManagerTimeClockScreen() {
                       fontWeight: '800',
                     }}
                   >
-                    {saving ? 'Saving...' : 'Update'}
+                    {saving ? t('saving') : t('update')}
                   </Text>
                 </Pressable>
 
@@ -817,7 +822,7 @@ export default function ManagerTimeClockScreen() {
                       fontWeight: '700',
                     }}
                   >
-                    Cancel
+                    {t('cancel')}
                   </Text>
                 </Pressable>
               </View>

@@ -2,14 +2,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useLanguage } from '../lib/i18n';
 
 export default function SafetyDocumentViewer() {
+  const { t } = useLanguage();
   const params = useLocalSearchParams<{
     title?: string;
     pdfUrl?: string;
   }>();
 
-  const title = params.title || 'Document';
+  const title = params.title || t('documentLabel');
   const pdfUrl = params.pdfUrl || '';
 
   const viewerUrl = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(
@@ -28,7 +30,7 @@ export default function SafetyDocumentViewer() {
 
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-          <Text style={styles.closeButtonText}>Close</Text>
+          <Text style={styles.closeButtonText}>{t('close')}</Text>
         </TouchableOpacity>
       </View>
     </View>

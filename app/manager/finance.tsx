@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
@@ -46,6 +47,7 @@ function fmtMoney(n: number): string {
 
 export default function ManagerFinanceScreen() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -58,10 +60,10 @@ export default function ManagerFinanceScreen() {
   const load = useCallback(async () => {
     setErrorMessage('')
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) { setErrorMessage('Sign in required.'); setLoading(false); return }
+    if (!session?.user) { setErrorMessage(t('signInRequired')); setLoading(false); return }
 
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-    if (me?.role !== 'manager') { setErrorMessage('Manager access required.'); setLoading(false); return }
+    if (me?.role !== 'manager') { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
     const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),
@@ -167,7 +169,7 @@ export default function ManagerFinanceScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, padding: 20 }}>
         <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700' }}>{errorMessage}</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16, backgroundColor: COLORS.navySoft, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12 }}>
-          <Text style={{ color: COLORS.navy, fontWeight: '700' }}>Back</Text>
+          <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('back')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -182,28 +184,28 @@ export default function ManagerFinanceScreen() {
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
           <Pressable onPress={() => router.back()} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <Ionicons name="chevron-back" size={18} color="#D9F6FB" />
-            <Text style={{ color: '#D9F6FB' }}>Back</Text>
+            <Text style={{ color: '#D9F6FB' }}>{t('back')}</Text>
           </Pressable>
-          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>Finance</Text>
+          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>{t('finance')}</Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 20, fontSize: 13 }}>
-            Per-project totals across every project. Detailed expense list lives on the web portal.
+            {t('managerFinanceIntro')}
           </Text>
         </View>
 
         {/* Top totals */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          <Tile label="Contract"      value={fmtMoney(totals.contract)}      bg={COLORS.blueSoft}   color={COLORS.blue} />
-          <Tile label="Change Orders" value={fmtMoney(totals.changeOrders)}  bg={COLORS.orangeSoft} color={COLORS.orange} />
-          <Tile label="Total Contract" value={fmtMoney(totals.totalContract)} bg={COLORS.greenSoft}  color={COLORS.green} />
-          <Tile label="Expenses"      value={fmtMoney(totals.expenses)}      bg={COLORS.redSoft}    color={COLORS.red} />
-          <Tile label="A/R"           value={fmtMoney(totals.accountsReceivable)} bg={COLORS.orangeSoft} color={COLORS.orange} />
-          <Tile label="A/P"           value={fmtMoney(totals.accountsPayable)}    bg={COLORS.redSoft}    color={COLORS.red} />
-          <Tile label="Net"           value={fmtMoney(totals.net)}           bg={totals.net >= 0 ? COLORS.greenSoft : COLORS.redSoft} color={totals.net >= 0 ? COLORS.green : COLORS.red} />
+          <Tile label={t('contract')}       value={fmtMoney(totals.contract)}      bg={COLORS.blueSoft}   color={COLORS.blue} />
+          <Tile label={t('changeOrders')}   value={fmtMoney(totals.changeOrders)}  bg={COLORS.orangeSoft} color={COLORS.orange} />
+          <Tile label={t('totalContract')}  value={fmtMoney(totals.totalContract)} bg={COLORS.greenSoft}  color={COLORS.green} />
+          <Tile label={t('expenses')}       value={fmtMoney(totals.expenses)}      bg={COLORS.redSoft}    color={COLORS.red} />
+          <Tile label={t('arShort')}        value={fmtMoney(totals.accountsReceivable)} bg={COLORS.orangeSoft} color={COLORS.orange} />
+          <Tile label={t('apShort')}        value={fmtMoney(totals.accountsPayable)}    bg={COLORS.redSoft}    color={COLORS.red} />
+          <Tile label={t('net')}            value={fmtMoney(totals.net)}           bg={totals.net >= 0 ? COLORS.greenSoft : COLORS.redSoft} color={totals.net >= 0 ? COLORS.green : COLORS.red} />
         </View>
 
         {rows.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: COLORS.subtext }}>No projects yet.</Text>
+            <Text style={{ color: COLORS.subtext }}>{t('noProjectsYet')}</Text>
           </View>
         ) : (
           rows.map(r => (
@@ -223,26 +225,26 @@ export default function ManagerFinanceScreen() {
                 <Text style={{ color: COLORS.navy, fontSize: 17, fontWeight: '800' }}>{r.project.name}</Text>
                 {r.project.status === 'completed' && (
                   <View style={{ backgroundColor: COLORS.greenSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
-                    <Text style={{ color: COLORS.green, fontSize: 10, fontWeight: '800', letterSpacing: 0.3 }}>COMPLETED</Text>
+                    <Text style={{ color: COLORS.green, fontSize: 10, fontWeight: '800', letterSpacing: 0.3 }}>{t('completedBadge')}</Text>
                   </View>
                 )}
                 <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.subtext} style={{ marginLeft: 'auto' }} />
               </View>
 
-              <Row label="Contract"       value={fmtMoney(r.contract)}      color={COLORS.blue} />
-              <Row label="Change Orders"  value={fmtMoney(r.changeOrders)}  color={COLORS.orange} />
-              <Row label="Total Contract" value={fmtMoney(r.totalContract)} color={COLORS.green} bold />
-              <Row label="Expenses"       value={fmtMoney(r.expenses)}      color={COLORS.red} />
+              <Row label={t('contract')}       value={fmtMoney(r.contract)}      color={COLORS.blue} />
+              <Row label={t('changeOrders')}   value={fmtMoney(r.changeOrders)}  color={COLORS.orange} />
+              <Row label={t('totalContract')}  value={fmtMoney(r.totalContract)} color={COLORS.green} bold />
+              <Row label={t('expenses')}       value={fmtMoney(r.expenses)}      color={COLORS.red} />
               <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 6 }} />
-              <Row label="Net" value={fmtMoney(r.net)} color={r.net >= 0 ? COLORS.green : COLORS.red} bold />
+              <Row label={t('net')} value={fmtMoney(r.net)} color={r.net >= 0 ? COLORS.green : COLORS.red} bold />
               {r.payAppCount > 0 && (
-                <Row label={`Pay Apps (${r.payAppCount}) — Billed`} value={fmtMoney(r.billedToDate)} color={COLORS.blue} />
+                <Row label={t('payAppsBilledShort', { count: r.payAppCount })} value={fmtMoney(r.billedToDate)} color={COLORS.blue} />
               )}
               {r.accountsReceivable > 0 && (
-                <Row label="A/R Outstanding" value={fmtMoney(r.accountsReceivable)} color={COLORS.orange} />
+                <Row label={t('arOutstanding')} value={fmtMoney(r.accountsReceivable)} color={COLORS.orange} />
               )}
               {r.accountsPayable > 0 && (
-                <Row label="A/P Unpaid Bills" value={fmtMoney(r.accountsPayable)} color={COLORS.red} />
+                <Row label={t('apUnpaidBills')} value={fmtMoney(r.accountsPayable)} color={COLORS.red} />
               )}
             </Pressable>
           ))

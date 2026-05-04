@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 const COLORS = {
@@ -117,10 +118,11 @@ function RoleSelector({
   value: 'worker' | 'manager'
   onChange: (value: 'worker' | 'manager') => void
 }) {
+  const { t } = useLanguage()
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>
-        Role
+        {t('role')}
       </Text>
 
       <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -142,7 +144,7 @@ function RoleSelector({
               fontWeight: '700',
             }}
           >
-            Worker
+            {t('worker')}
           </Text>
         </Pressable>
 
@@ -164,7 +166,7 @@ function RoleSelector({
               fontWeight: '700',
             }}
           >
-            Manager
+            {t('manager')}
           </Text>
         </Pressable>
       </View>
@@ -181,10 +183,11 @@ function UserCard({
   onEdit: (user: UserProfile) => void
   onDelete: (user: UserProfile) => void
 }) {
+  const { t } = useLanguage()
   const fullName =
     `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
     user.full_name ||
-    'Unnamed User'
+    t('unnamedUser')
 
   return (
     <View
@@ -217,23 +220,23 @@ function UserCard({
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Role: {user.role || 'worker'}
+            {t('roleLabel')} {user.role || 'worker'}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Email: {user.email || '—'}
+            {t('emailLabel')} {user.email || t('emDash')}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Phone: {user.phone || '—'}
+            {t('phoneLabel')} {user.phone || t('emDash')}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            Address: {[user.street, user.city, user.state, user.zip].filter(Boolean).join(', ') || '—'}
+            {t('addressColon')} {[user.street, user.city, user.state, user.zip].filter(Boolean).join(', ') || t('emDash')}
           </Text>
 
           <Text style={{ color: COLORS.subtext }}>
-            Wage: {user.wage !== null && user.wage !== undefined ? `$${Number(user.wage).toFixed(2)}/hr` : '—'}
+            {t('wageLabel')} {user.wage !== null && user.wage !== undefined ? t('wagePerHour', { amount: Number(user.wage).toFixed(2) }) : t('emDash')}
           </Text>
         </View>
 
@@ -272,6 +275,7 @@ function UserCard({
 }
 
 export default function WorkersManagerScreen() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -296,8 +300,8 @@ export default function WorkersManagerScreen() {
   }
 
   const modalTitle = useMemo(() => {
-    return editingUserId ? 'Update User' : 'Update User'
-  }, [editingUserId])
+    return editingUserId ? t('updateUser') : t('updateUser')
+  }, [editingUserId, t])
 
   async function loadScreen() {
     setLoading(true)
@@ -309,7 +313,7 @@ export default function WorkersManagerScreen() {
       } = await supabase.auth.getSession()
 
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('mustBeSignedIn'))
         return
       }
 
@@ -345,7 +349,7 @@ export default function WorkersManagerScreen() {
 
       setUsers(data || [])
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load users.')
+      setErrorMessage(error?.message || t('failedToLoadUsers'))
     } finally {
       setLoading(false)
     }
@@ -370,22 +374,22 @@ export default function WorkersManagerScreen() {
 
   function validateForm() {
     if (!form.first_name.trim()) {
-      Alert.alert('Missing Information', 'First name is required.')
+      Alert.alert(t('missingInformation'), t('firstNameRequired'))
       return false
     }
 
     if (!form.last_name.trim()) {
-      Alert.alert('Missing Information', 'Last name is required.')
+      Alert.alert(t('missingInformation'), t('lastNameRequired'))
       return false
     }
 
     if (!form.email.trim()) {
-      Alert.alert('Missing Information', 'Email is required.')
+      Alert.alert(t('missingInformation'), t('emailRequired'))
       return false
     }
 
     if (form.wage.trim() && Number.isNaN(Number(form.wage))) {
-      Alert.alert('Invalid Wage', 'Wage must be a valid number.')
+      Alert.alert(t('invalidWage'), t('wageMustBeNumber'))
       return false
     }
 
@@ -394,7 +398,7 @@ export default function WorkersManagerScreen() {
 
   async function handleSaveUser() {
     if (!editingUserId) {
-      Alert.alert('No User Selected', 'Please choose a user to update.')
+      Alert.alert(t('noUserSelected'), t('pleaseChooseUser'))
       return
     }
 
@@ -422,16 +426,16 @@ export default function WorkersManagerScreen() {
         .eq('id', editingUserId)
 
       if (error) {
-        Alert.alert('Update Error', error.message)
+        Alert.alert(t('updateError'), error.message)
         return
       }
 
-      Alert.alert('Success', 'User updated.')
+      Alert.alert(t('success'), t('userUpdated'))
       setModalVisible(false)
       resetForm()
       await loadScreen()
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not update user.')
+      Alert.alert(t('error'), error?.message || t('couldNotUpdateUser'))
     } finally {
       setSaving(false)
     }
@@ -441,15 +445,15 @@ export default function WorkersManagerScreen() {
     const fullName =
       `${user.first_name || ''} ${user.last_name || ''}`.trim() ||
       user.full_name ||
-      'this user'
+      t('thisUser')
 
     Alert.alert(
-      'Delete User',
-      `Are you sure you want to delete ${fullName}'s profile row?`,
+      t('deleteUserTitle'),
+      t('deleteUserConfirm', { name: fullName }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -461,14 +465,14 @@ export default function WorkersManagerScreen() {
                 .eq('id', user.id)
 
               if (error) {
-                Alert.alert('Delete Error', error.message)
+                Alert.alert(t('deleteError'), error.message)
                 return
               }
 
-              Alert.alert('Success', 'Profile row deleted.')
+              Alert.alert(t('success'), t('profileRowDeleted'))
               await loadScreen()
             } catch (error: any) {
-              Alert.alert('Error', error?.message || 'Could not delete profile.')
+              Alert.alert(t('error'), error?.message || t('couldNotDeleteProfile'))
             } finally {
               setSaving(false)
             }
@@ -489,7 +493,7 @@ export default function WorkersManagerScreen() {
         }}
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading users...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingUsers')}</Text>
       </SafeAreaView>
     )
   }
@@ -506,7 +510,7 @@ export default function WorkersManagerScreen() {
         }}
       >
         <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>
@@ -522,7 +526,7 @@ export default function WorkersManagerScreen() {
             paddingVertical: 12,
           }}
         >
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -547,11 +551,11 @@ export default function WorkersManagerScreen() {
             marginBottom: 10,
           }}
         >
-          Manager Only
+          {t('managerOnly')}
         </Text>
 
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          You do not have permission to view subscribed users.
+          {t('noPermissionWorkers')}
         </Text>
       </SafeAreaView>
     )
@@ -576,11 +580,11 @@ export default function WorkersManagerScreen() {
               marginBottom: 6,
             }}
           >
-            Workers
+            {t('workersTitle')}
           </Text>
 
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            View subscribed users, update user information, change roles, and delete profile rows.
+            {t('workersIntro')}
           </Text>
         </View>
 
@@ -595,7 +599,7 @@ export default function WorkersManagerScreen() {
           }}
         >
           <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-            Update Worker
+            {t('updateWorker')}
           </Text>
         </Pressable>
 
@@ -610,7 +614,7 @@ export default function WorkersManagerScreen() {
             }}
           >
             <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-              No subscribed users found.
+              {t('noSubscribedUsers')}
             </Text>
           </View>
         ) : (
@@ -662,69 +666,69 @@ export default function WorkersManagerScreen() {
               </Text>
 
               <Field
-                label="First Name"
+                label={t('firstNameField')}
                 value={form.first_name}
                 onChangeText={(text) => setField('first_name', text)}
-                placeholder="First name"
+                placeholder={t('firstNamePh')}
               />
 
               <Field
-                label="Last Name"
+                label={t('lastNameField')}
                 value={form.last_name}
                 onChangeText={(text) => setField('last_name', text)}
-                placeholder="Last name"
+                placeholder={t('lastNamePh')}
               />
 
               <Field
-                label="Phone Number"
+                label={t('phoneNumberField')}
                 value={form.phone}
                 onChangeText={(text) => setField('phone', text)}
-                placeholder="Phone number"
+                placeholder={t('phoneNumberPh')}
                 keyboardType="phone-pad"
               />
 
               <Field
-                label="Email"
+                label={t('emailField')}
                 value={form.email}
                 onChangeText={(text) => setField('email', text)}
-                placeholder="Email"
+                placeholder={t('emailPh')}
                 keyboardType="email-address"
               />
 
               <Field
-                label="Street"
+                label={t('streetField')}
                 value={form.street}
                 onChangeText={(text) => setField('street', text)}
-                placeholder="Street address"
+                placeholder={t('streetAddressPh')}
               />
 
               <Field
-                label="City"
+                label={t('cityField')}
                 value={form.city}
                 onChangeText={(text) => setField('city', text)}
-                placeholder="City"
+                placeholder={t('cityPh')}
               />
 
               <Field
-                label="State"
+                label={t('stateField')}
                 value={form.state}
                 onChangeText={(text) => setField('state', text)}
-                placeholder="TX"
+                placeholder={t('statePh')}
               />
 
               <Field
-                label="Zip"
+                label={t('zipField')}
                 value={form.zip}
                 onChangeText={(text) => setField('zip', text)}
-                placeholder="Zip"
+                placeholder={t('zipPh')}
                 keyboardType="numeric"
               />
 
               <Field
-                label="Wage"
+                label={t('wageField')}
                 value={form.wage}
                 onChangeText={(text) => setField('wage', text)}
-                placeholder="Hourly wage"
+                placeholder={t('wagePh')}
                 keyboardType="numeric"
               />
 
@@ -751,7 +755,7 @@ export default function WorkersManagerScreen() {
                       fontWeight: '800',
                     }}
                   >
-                    {saving ? 'Saving...' : 'Update Worker'}
+                    {saving ? t('saving') : t('updateWorker')}
                   </Text>
                 </Pressable>
 
@@ -773,7 +777,7 @@ export default function WorkersManagerScreen() {
                       fontWeight: '700',
                     }}
                   >
-                    Cancel
+                    {t('cancel')}
                   </Text>
                 </Pressable>
               </View>

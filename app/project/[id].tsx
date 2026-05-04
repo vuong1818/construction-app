@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -793,6 +795,10 @@ export default function ProjectDetailScreen() {
           if (!photo) return null
           const canEdit = isManager || (currentUserId != null && photo.uploaded_by === currentUserId)
           return (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 16}
+            >
             <SafeAreaView edges={['bottom']} style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}>
               <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
                 {captionEditing && canEdit ? (
@@ -853,6 +859,7 @@ export default function ProjectDetailScreen() {
                 )}
               </View>
             </SafeAreaView>
+            </KeyboardAvoidingView>
           )
         }}
       />

@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage, type TranslationKey } from '../../lib/i18n'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -14,57 +15,77 @@ const COLORS = {
   white: '#FFFFFF',
 }
 
-const CATEGORIES = [
+type Category = {
+  route: string
+  icon: 'lightning-bolt' | 'pipe' | 'snowflake' | 'office-building' | 'water-pump'
+  labelKey: TranslationKey
+  descKey: TranslationKey
+  iconBg: string
+  iconColor: string
+  accent: string
+}
+
+const CATEGORIES: Category[] = [
   {
     route: '/smart-tools/electrical',
-    icon: 'lightning-bolt' as const,
-    label: 'Electrical',
-    desc: 'Ampacity, conduit fill, voltage drop, fault current, box fill',
+    icon: 'lightning-bolt',
+    labelKey: 'electrical',
+    descKey: 'electricalDesc',
     iconBg: '#FFF8E1',
     iconColor: '#F9A825',
     accent: '#F9A825',
   },
   {
     route: '/smart-tools/plumbing',
-    icon: 'pipe' as const,
-    label: 'Plumbing',
-    desc: 'Pipe sizing, fixture units, DWV, gas pipe, pressure loss',
+    icon: 'pipe',
+    labelKey: 'plumbing',
+    descKey: 'plumbingDesc',
     iconBg: '#E3F2FD',
     iconColor: '#1565C0',
     accent: '#1565C0',
   },
   {
     route: '/smart-tools/mechanical',
-    icon: 'snowflake' as const,
-    label: 'Mechanical',
-    desc: 'HVAC load, duct sizing, refrigerant P-T, ventilation, CFM/tons, duct conversion',
+    icon: 'snowflake',
+    labelKey: 'mechanical',
+    descKey: 'mechanicalDesc',
     iconBg: '#E8F5E9',
     iconColor: '#2E7D32',
     accent: '#2E7D32',
   },
   {
     route: '/smart-tools/building',
-    icon: 'office-building' as const,
-    label: 'Building',
-    desc: 'Concrete, span tables, footing reference, material estimator',
+    icon: 'office-building',
+    labelKey: 'building',
+    descKey: 'buildingDesc',
     iconBg: '#F3E5F5',
     iconColor: '#6A1B9A',
     accent: '#6A1B9A',
+  },
+  {
+    route: '/smart-tools/backflow',
+    icon: 'water-pump',
+    labelKey: 'backflow',
+    descKey: 'backflowDesc',
+    iconBg: '#E0F2F1',
+    iconColor: '#00695C',
+    accent: '#00695C',
   },
 ]
 
 export default function SmartToolsIndex() {
   const router = useRouter()
+  const { t } = useLanguage()
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '900', marginBottom: 4 }}>
-            Smart Tools
+            {t('smartToolsTitle')}
           </Text>
           <Text style={{ color: COLORS.subtext, fontSize: 14 }}>
-            Field-ready calculators based on current codes
+            {t('smartToolsHeaderSub')}
           </Text>
         </View>
 
@@ -101,11 +122,11 @@ export default function SmartToolsIndex() {
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800' }}>
-                  {cat.label}
+                  {t(cat.labelKey)}
                 </Text>
-  
+
               </View>
-              <Text style={{ color: COLORS.subtext, fontSize: 13, lineHeight: 18 }}>{cat.desc}</Text>
+              <Text style={{ color: COLORS.subtext, fontSize: 13, lineHeight: 18 }}>{t(cat.descKey)}</Text>
             </View>
 
             <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.subtext} />

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -63,21 +64,22 @@ function initial(name: string | null): string {
 
 // ─── Report Detail Modal ──────────────────────────────────────────────────────
 function ReportModal({ report, visible, onClose }: { report: Report | null; visible: boolean; onClose: () => void }) {
+  const { t } = useLanguage()
   if (!report) return null
   const rows: { label: string; value: string | null }[] = [
-    { label: 'Project',        value: report.project_name },
-    { label: 'Worker',         value: report.created_by_name },
-    { label: 'Report Date',    value: fmtDate(report.report_date) },
-    { label: 'Work Completed', value: report.work_completed },
-    { label: 'Issues / Delays', value: report.issues },
-    { label: 'Materials Used', value: report.materials_used },
-    { label: 'Weather',        value: report.weather },
+    { label: t('project'),         value: report.project_name },
+    { label: t('workerLabel'),     value: report.created_by_name },
+    { label: t('reportDate'),      value: fmtDate(report.report_date) },
+    { label: t('workCompleted'),   value: report.work_completed },
+    { label: t('issuesDelays'),    value: report.issues },
+    { label: t('materialsUsed'),   value: report.materials_used },
+    { label: t('weather'),         value: report.weather },
   ]
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
         <View style={{ backgroundColor: C.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>Daily Report</Text>
+          <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>{t('dailyReport')}</Text>
           <Pressable onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Text style={{ color: C.white, fontSize: 22 }}>✕</Text>
           </Pressable>
@@ -103,6 +105,7 @@ function ReportModal({ report, visible, onClose }: { report: Report | null; visi
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerReportsScreen() {
+  const { t } = useLanguage()
   const [reports, setReports]         = useState<Report[]>([])
   const [projects, setProjects]       = useState<Project[]>([])
   const [loading, setLoading]         = useState(true)
@@ -174,15 +177,15 @@ export default function ManagerReportsScreen() {
 
   async function deleteReport(report: Report) {
     Alert.alert(
-      'Delete Report',
-      `Delete this report by ${report.created_by_name || 'worker'} from ${fmtDate(report.report_date)}?`,
+      t('deleteReport'),
+      t('deleteReportConfirm', { worker: report.created_by_name || t('workerFallback'), date: fmtDate(report.report_date) }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('daily_reports').delete().eq('id', report.id)
-            if (error) { Alert.alert('Error', error.message); return }
+            if (error) { Alert.alert(t('error'), error.message); return }
             setReports(prev => prev.filter(r => r.id !== report.id))
             if (selected?.id === report.id) setSelected(null)
           },
@@ -204,7 +207,7 @@ export default function ManagerReportsScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={C.teal} />
-        <Text style={{ marginTop: 12, color: C.sub }}>Loading reports...</Text>
+        <Text style={{ marginTop: 12, color: C.sub }}>{t('loadingReports')}</Text>
       </SafeAreaView>
     )
   }
@@ -228,7 +231,7 @@ export default function ManagerReportsScreen() {
         >
           <Text style={{ fontSize: 14 }}>🏗️</Text>
           <Text style={{ flex: 1, color: filterProject !== null ? C.navy : C.sub, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
-            {activeProjectName || 'All Projects'}
+            {activeProjectName || t('allProjects')}
           </Text>
           <Text style={{ color: C.sub }}>▾</Text>
         </Pressable>
@@ -237,7 +240,7 @@ export default function ManagerReportsScreen() {
             onPress={() => setFilterProject(null)}
             style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}
           >
-            <Text style={{ color: C.red, fontWeight: '800', fontSize: 13 }}>Clear</Text>
+            <Text style={{ color: C.red, fontWeight: '800', fontSize: 13 }}>{t('clear')}</Text>
           </Pressable>
         )}
         <View style={{ backgroundColor: C.navySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
@@ -252,9 +255,9 @@ export default function ManagerReportsScreen() {
         {filtered.length === 0 ? (
           <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginTop: 20 }}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
-            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>No Reports</Text>
+            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noReportsTitle')}</Text>
             <Text style={{ color: C.sub, textAlign: 'center' }}>
-              {filterProject !== null ? 'No reports for this project.' : 'No daily reports submitted yet.'}
+              {filterProject !== null ? t('noReportsForProject') : t('noReportsSubmitted')}
             </Text>
           </View>
         ) : (
@@ -269,10 +272,10 @@ export default function ManagerReportsScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>
-                    {report.created_by_name || 'Unknown Worker'}
+                    {report.created_by_name || t('unknownWorkerLabel')}
                   </Text>
                   <Text style={{ color: C.teal, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
-                    {report.project_name || 'Unknown Project'}
+                    {report.project_name || t('unknownProjectLabel')}
                   </Text>
                   <Text style={{ color: C.sub, fontSize: 12, marginTop: 1 }}>
                     {fmtDate(report.report_date)}
@@ -290,12 +293,12 @@ export default function ManagerReportsScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                 {report.issues ? (
                   <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <Text style={{ color: '#92400E', fontSize: 11, fontWeight: '700' }}>⚠ Issues noted</Text>
+                    <Text style={{ color: '#92400E', fontSize: 11, fontWeight: '700' }}>{t('issuesNoted')}</Text>
                   </View>
                 ) : null}
                 {report.materials_used ? (
                   <View style={{ backgroundColor: C.tealSoft, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <Text style={{ color: C.teal, fontSize: 11, fontWeight: '700' }}>📦 Materials listed</Text>
+                    <Text style={{ color: C.teal, fontSize: 11, fontWeight: '700' }}>{t('materialsListed')}</Text>
                   </View>
                 ) : null}
                 {report.weather ? (
@@ -310,7 +313,7 @@ export default function ManagerReportsScreen() {
                   onPress={() => setSelected(report)}
                   style={{ flex: 1, backgroundColor: C.navySoft, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
                 >
-                  <Text style={{ color: C.navy, fontWeight: '800', fontSize: 13 }}>View Full Report</Text>
+                  <Text style={{ color: C.navy, fontWeight: '800', fontSize: 13 }}>{t('viewFullReport')}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => deleteReport(report)}
@@ -328,7 +331,7 @@ export default function ManagerReportsScreen() {
       <Modal visible={showFilter} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowFilter(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
           <View style={{ backgroundColor: C.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>Filter by Project</Text>
+            <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>{t('filterByProject')}</Text>
             <Pressable onPress={() => setShowFilter(false)}>
               <Text style={{ color: C.white, fontSize: 22 }}>✕</Text>
             </Pressable>
@@ -343,7 +346,7 @@ export default function ManagerReportsScreen() {
               }}
             >
               <Text style={{ color: filterProject === null ? C.white : C.text, fontWeight: '800', fontSize: 15 }}>
-                All Projects
+                {t('allProjects')}
               </Text>
             </Pressable>
             {projects.map(p => (

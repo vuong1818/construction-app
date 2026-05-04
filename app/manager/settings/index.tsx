@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 const COLORS = {
@@ -72,6 +73,7 @@ function SettingsCard({ title, subtitle, icon, iconBg, iconColor, onPress }: Car
 
 export default function ManagerSettingsScreen() {
   const router = useRouter()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const [userRole, setUserRole] = useState('')
@@ -84,7 +86,7 @@ export default function ManagerSettingsScreen() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { setErrorMessage('You must be signed in.'); return }
+      if (!session?.user) { setErrorMessage(t('signInRequired')); return }
 
       const { data: me, error } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
@@ -92,7 +94,7 @@ export default function ManagerSettingsScreen() {
       if (error) { setErrorMessage(error.message); return }
       setUserRole(me?.role || 'worker')
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to load settings.')
+      setErrorMessage(err?.message || t('failedToLoadSettings'))
     } finally {
       setLoading(false)
     }
@@ -109,10 +111,10 @@ export default function ManagerSettingsScreen() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={load} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Retry</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('retry')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -121,8 +123,8 @@ export default function ManagerSettingsScreen() {
   if (userRole !== 'manager') {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>Manager Only</Text>
-        <Text style={{ color: COLORS.text, textAlign: 'center' }}>You do not have permission to view settings.</Text>
+        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
+        <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noPermissionSettings')}</Text>
       </SafeAreaView>
     )
   }
@@ -131,15 +133,15 @@ export default function ManagerSettingsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
-          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>Settings</Text>
+          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>{t('settings')}</Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Manage workers and company information.
+            {t('settingsSubtitle')}
           </Text>
         </View>
 
         <SettingsCard
-          title="Workers"
-          subtitle="Add, edit, terminate workers. Update wages, contact info, and roles."
+          title={t('workersTitle')}
+          subtitle={t('workersCardSubtitle')}
           icon="account-group-outline"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
@@ -147,8 +149,8 @@ export default function ManagerSettingsScreen() {
         />
 
         <SettingsCard
-          title="Company Information"
-          subtitle="Set up company information and add, change, or delete the company logo."
+          title={t('companyInformation')}
+          subtitle={t('companyCardSubtitle')}
           icon="office-building-cog-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}

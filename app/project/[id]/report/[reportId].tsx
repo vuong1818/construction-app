@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../../../lib/i18n'
 import { supabase } from '../../../../lib/supabase'
 
 type DailyReport = {
@@ -79,7 +80,7 @@ function DetailCard({
       </View>
 
       <Text style={{ color: COLORS.text, lineHeight: 22 }}>
-        {value || 'None'}
+        {value}
       </Text>
     </View>
   )
@@ -87,6 +88,7 @@ function DetailCard({
 
 export default function DailyReportDetailScreen() {
   const { reportId } = useLocalSearchParams<{ reportId: string }>()
+  const { t } = useLanguage()
   const [report, setReport] = useState<DailyReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
@@ -115,7 +117,7 @@ export default function DailyReportDetailScreen() {
         setReport(data)
       }
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load report.')
+      setErrorMessage(error?.message || t('failedToLoadReport'))
       setReport(null)
     } finally {
       setLoading(false)
@@ -133,7 +135,7 @@ export default function DailyReportDetailScreen() {
         }}
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loading')}</Text>
       </SafeAreaView>
     )
   }
@@ -150,10 +152,10 @@ export default function DailyReportDetailScreen() {
         }}
       >
         <Text style={{ color: '#EF4444', fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          {errorMessage || 'Report not found.'}
+          {errorMessage || t('reportNotFound')}
         </Text>
       </SafeAreaView>
     )
@@ -180,15 +182,15 @@ export default function DailyReportDetailScreen() {
               marginBottom: 8,
             }}
           >
-            Daily Report
+            {t('dailyReport')}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
-            Date: {report.report_date}
+            {`${t('date')}: ${report.report_date}`}
           </Text>
 
           <Text style={{ color: COLORS.subtext }}>
-            Prepared By: {report.created_by_name || 'Unknown'}
+            {`${t('preparedBy')}: ${report.created_by_name || t('unknown')}`}
           </Text>
         </View>
 
@@ -196,32 +198,32 @@ export default function DailyReportDetailScreen() {
           icon="hammer-wrench"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Work Completed"
-          value={report.work_completed || 'None'}
+          title={t('workCompleted')}
+          value={report.work_completed || t('none')}
         />
 
         <DetailCard
           icon="alert-circle-outline"
           iconBg="#FEF2F2"
           iconColor="#EF4444"
-          title="Issues / Delays"
-          value={report.issues || 'None'}
+          title={t('issuesDelays')}
+          value={report.issues || t('none')}
         />
 
         <DetailCard
           icon="package-variant-closed"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title="Materials Used"
-          value={report.materials_used || 'None'}
+          title={t('materialsUsed')}
+          value={report.materials_used || t('none')}
         />
 
         <DetailCard
           icon="weather-partly-cloudy"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}
-          title="Weather"
-          value={report.weather || 'None'}
+          title={t('weather')}
+          value={report.weather || t('none')}
         />
       </ScrollView>
     </SafeAreaView>

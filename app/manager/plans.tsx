@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -60,20 +61,23 @@ type Plan = {
   created_at: string
 }
 
-const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  architectural: { bg: '#E3F2FD', color: '#1565C0', label: 'Architectural' },
-  civil:         { bg: '#E0F2F1', color: '#00695C', label: 'Civil' },
-  structural:    { bg: '#FCE4EC', color: '#AD1457', label: 'Structural' },
-  electrical:    { bg: '#FFF8E1', color: '#F57F17', label: 'Electrical' },
-  mechanical:    { bg: '#EDE7F6', color: '#4527A0', label: 'Mechanical' },
-  plumbing:      { bg: '#E1F5FE', color: '#0277BD', label: 'Plumbing' },
-  redline:       { bg: '#FFEBEE', color: '#C62828', label: 'Redline' },
-  landscape:     { bg: '#E8F5E9', color: '#2E7D32', label: 'Landscape' },
-  other:         { bg: '#F4F7FA', color: '#555555', label: 'Other' },
-  mep:           { bg: '#EDE7F6', color: '#4527A0', label: 'MEP' },
+import type { TranslationKey } from '../../lib/locales/en'
+
+const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; labelKey: TranslationKey | null; fallback: string }> = {
+  architectural: { bg: '#E3F2FD', color: '#1565C0', labelKey: 'ptArchitectural', fallback: 'Architectural' },
+  civil:         { bg: '#E0F2F1', color: '#00695C', labelKey: 'ptCivil',         fallback: 'Civil' },
+  structural:    { bg: '#FCE4EC', color: '#AD1457', labelKey: 'ptStructural',    fallback: 'Structural' },
+  electrical:    { bg: '#FFF8E1', color: '#F57F17', labelKey: 'ptElectrical',    fallback: 'Electrical' },
+  mechanical:    { bg: '#EDE7F6', color: '#4527A0', labelKey: 'ptMechanical',    fallback: 'Mechanical' },
+  plumbing:      { bg: '#E1F5FE', color: '#0277BD', labelKey: 'ptPlumbing',      fallback: 'Plumbing' },
+  redline:       { bg: '#FFEBEE', color: '#C62828', labelKey: 'ptRedline',       fallback: 'Redline' },
+  landscape:     { bg: '#E8F5E9', color: '#2E7D32', labelKey: 'ptLandscape',     fallback: 'Landscape' },
+  other:         { bg: '#F4F7FA', color: '#555555', labelKey: 'ptOther',         fallback: 'Other' },
+  mep:           { bg: '#EDE7F6', color: '#4527A0', labelKey: null,              fallback: 'MEP' },
 }
 
-const STATUS_OPTIONS = ['Active', 'Bidding', 'On Hold', 'Completed']
+const STATUS_KEYS = ['statusActive', 'statusBidding', 'statusOnHold', 'statusCompletedLabel'] as const
+const STATUS_VALUES = ['Active', 'Bidding', 'On Hold', 'Completed']
 
 function statusColor(status: string | null) {
   switch ((status || '').toLowerCase()) {
@@ -87,6 +91,7 @@ function statusColor(status: string | null) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerPlansScreen() {
   const router = useRouter()
+  const { t } = useLanguage()
 
   const [projects, setProjects]       = useState<Project[]>([])
   const [loading, setLoading]         = useState(true)
@@ -115,7 +120,7 @@ export default function ManagerPlansScreen() {
       .select('id, name, address, status, description, created_at')
       .order('created_at', { ascending: false })
     if (error) {
-      Alert.alert('Could not load projects', error.message)
+      Alert.alert(t('couldNotLoadProjects'), error.message)
     } else {
       setProjects((data as Project[]) || [])
     }
@@ -166,17 +171,17 @@ export default function ManagerPlansScreen() {
     | 'redline' | 'landscape' | 'other'
 
   function promptForPlanTypeAndUpload(projectId: number) {
-    Alert.alert('Plan Type', 'What kind of plan is this?', [
-      { text: 'Architectural', onPress: () => uploadPlan(projectId, 'architectural') },
-      { text: 'Civil',         onPress: () => uploadPlan(projectId, 'civil') },
-      { text: 'Structural',    onPress: () => uploadPlan(projectId, 'structural') },
-      { text: 'Electrical',    onPress: () => uploadPlan(projectId, 'electrical') },
-      { text: 'Mechanical',    onPress: () => uploadPlan(projectId, 'mechanical') },
-      { text: 'Plumbing',      onPress: () => uploadPlan(projectId, 'plumbing') },
-      { text: 'Redline',       onPress: () => uploadPlan(projectId, 'redline') },
-      { text: 'Landscape',     onPress: () => uploadPlan(projectId, 'landscape') },
-      { text: 'Other',         onPress: () => uploadPlan(projectId, 'other') },
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('planType'), t('planTypePrompt'), [
+      { text: t('ptArchitectural'), onPress: () => uploadPlan(projectId, 'architectural') },
+      { text: t('ptCivil'),         onPress: () => uploadPlan(projectId, 'civil') },
+      { text: t('ptStructural'),    onPress: () => uploadPlan(projectId, 'structural') },
+      { text: t('ptElectrical'),    onPress: () => uploadPlan(projectId, 'electrical') },
+      { text: t('ptMechanical'),    onPress: () => uploadPlan(projectId, 'mechanical') },
+      { text: t('ptPlumbing'),      onPress: () => uploadPlan(projectId, 'plumbing') },
+      { text: t('ptRedline'),       onPress: () => uploadPlan(projectId, 'redline') },
+      { text: t('ptLandscape'),     onPress: () => uploadPlan(projectId, 'landscape') },
+      { text: t('ptOther'),         onPress: () => uploadPlan(projectId, 'other') },
+      { text: t('cancel'), style: 'cancel' },
     ])
   }
 
@@ -189,10 +194,10 @@ export default function ManagerPlansScreen() {
       })
       if (result.canceled) return
       const file = result.assets?.[0]
-      if (!file?.uri) throw new Error('No file selected.')
+      if (!file?.uri) throw new Error(t('noFileSelected'))
 
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) throw new Error('Not authenticated.')
+      if (!session?.user) throw new Error(t('notAuthenticated'))
       const token = session.access_token
 
       const safeName = (file.name || 'plan.pdf')
@@ -214,7 +219,7 @@ export default function ManagerPlansScreen() {
           },
         }
       )
-      if (uploadResult.status >= 400) throw new Error(`Upload failed: ${uploadResult.body}`)
+      if (uploadResult.status >= 400) throw new Error(t('uploadFailed', { body: uploadResult.body }))
 
       const fileUrl = supabase.storage.from('project-plans').getPublicUrl(filePath).data.publicUrl
       const { error: dbErr } = await supabase.from('project_plans').insert({
@@ -226,10 +231,10 @@ export default function ManagerPlansScreen() {
       })
       if (dbErr) throw dbErr
 
-      Alert.alert('Uploaded', 'Plan uploaded successfully.')
+      Alert.alert(t('uploaded'), t('planUploadedSuccessfully'))
       await loadPlans(projectId)
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not upload plan.')
+      Alert.alert(t('error'), err?.message || t('couldNotUploadPlan'))
     } finally {
       setUploading(false)
     }
@@ -240,18 +245,18 @@ export default function ManagerPlansScreen() {
       const { data, error } = await supabase.storage
         .from('project-plans')
         .createSignedUrl(plan.file_path, 3600)
-      if (error || !data?.signedUrl) throw new Error('Could not generate link.')
+      if (error || !data?.signedUrl) throw new Error(t('couldNotGenerateLink'))
       await Linking.openURL(data.signedUrl)
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not open plan.')
+      Alert.alert(t('error'), err?.message || t('couldNotOpenPlan'))
     }
   }
 
   async function deletePlan(plan: Plan) {
-    Alert.alert('Delete Plan', `Delete "${plan.original_name || plan.file_name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('deletePlanTitle'), t('deletePlanConfirm', { name: plan.original_name || plan.file_name }), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           try {
             await supabase.storage.from('project-plans').remove([plan.file_path])
@@ -259,7 +264,7 @@ export default function ManagerPlansScreen() {
             if (error) throw error
             setPlans(prev => prev.filter(p => p.id !== plan.id))
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Could not delete plan.')
+            Alert.alert(t('error'), err?.message || t('couldNotDeletePlan'))
           }
         },
       },
@@ -277,7 +282,7 @@ export default function ManagerPlansScreen() {
 
   async function handleCreate() {
     if (!name.trim()) {
-      Alert.alert('Required', 'Project name is required.')
+      Alert.alert(t('requiredTitle'), t('projectNameIsRequired'))
       return
     }
     try {
@@ -289,7 +294,7 @@ export default function ManagerPlansScreen() {
         .insert({
           name: name.trim(),
           address: address.trim() || null,
-          status: STATUS_OPTIONS[statusIdx],
+          status: STATUS_VALUES[statusIdx],
           description: description.trim() || null,
         })
         .select('id, name, address, status, description, created_at')
@@ -299,13 +304,13 @@ export default function ManagerPlansScreen() {
         setProjects((prev) => [created as Project, ...prev])
       }
       setShowCreate(false)
-      Alert.alert('Created', `"${name.trim()}" has been created.`)
+      Alert.alert(t('created'), t('projectCreatedMessage', { name: name.trim() }))
       // Best-effort refresh in the background; new row is already visible regardless
       loadProjects().catch((err) =>
         console.warn('Project list refresh failed:', err?.message),
       )
     } catch (err: any) {
-      Alert.alert('Could not create project', err?.message || 'Unknown error.')
+      Alert.alert(t('couldNotCreateProject'), err?.message || t('unknownErrorPeriod'))
     } finally {
       setSaving(false)
     }
@@ -313,12 +318,12 @@ export default function ManagerPlansScreen() {
 
   async function deleteProject(project: Project) {
     Alert.alert(
-      'Delete Project',
-      `Delete "${project.name}"? Plans stored here will be removed. Photos and reports are kept.`,
+      t('deleteProjectTitle'),
+      t('deleteProjectConfirm', { name: project.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             try {
               // Remove plan files from storage
@@ -335,7 +340,7 @@ export default function ManagerPlansScreen() {
               setProjects(prev => prev.filter(p => p.id !== project.id))
               if (expandedId === project.id) { setExpandedId(null); setPlans([]) }
             } catch (err: any) {
-              Alert.alert('Error', err?.message || 'Could not delete project.')
+              Alert.alert(t('error'), err?.message || t('couldNotDeleteProject'))
             }
           },
         },
@@ -348,7 +353,7 @@ export default function ManagerPlansScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={C.teal} />
-        <Text style={{ marginTop: 12, color: C.sub }}>Loading projects...</Text>
+        <Text style={{ marginTop: 12, color: C.sub }}>{t('loadingProjects')}</Text>
       </SafeAreaView>
     )
   }
@@ -364,14 +369,14 @@ export default function ManagerPlansScreen() {
           onPress={openCreate}
           style={{ backgroundColor: C.teal, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginBottom: 16 }}
         >
-          <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>+ Create New Project</Text>
+          <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>{t('createNewProject')}</Text>
         </Pressable>
 
         {projects.length === 0 ? (
           <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: C.border }}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>🏗️</Text>
-            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>No Projects Yet</Text>
-            <Text style={{ color: C.sub, textAlign: 'center' }}>Tap "Create New Project" to add your first project.</Text>
+            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noProjectsTitle')}</Text>
+            <Text style={{ color: C.sub, textAlign: 'center' }}>{t('noProjectsHint')}</Text>
           </View>
         ) : (
           projects.map(project => {
@@ -392,7 +397,7 @@ export default function ManagerPlansScreen() {
                       ) : null}
                     </View>
                     <View style={{ backgroundColor: sc.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 8 }}>
-                      <Text style={{ color: sc.text, fontWeight: '800', fontSize: 12 }}>{project.status || 'Unknown'}</Text>
+                      <Text style={{ color: sc.text, fontWeight: '800', fontSize: 12 }}>{project.status || t('unknown')}</Text>
                     </View>
                   </View>
 
@@ -407,7 +412,7 @@ export default function ManagerPlansScreen() {
                       onPress={() => router.push(`/project/${project.id}`)}
                       style={{ flex: 1, backgroundColor: C.tealSoft, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
                     >
-                      <Text style={{ color: C.teal, fontWeight: '800', fontSize: 13 }}>📁 Open Project</Text>
+                      <Text style={{ color: C.teal, fontWeight: '800', fontSize: 13 }}>{t('openProject')}</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => deleteProject(project)}
@@ -422,7 +427,7 @@ export default function ManagerPlansScreen() {
                 {isOpen && (
                   <View style={{ borderTopWidth: 1, borderTopColor: C.border, padding: 14, backgroundColor: '#FAFBFD' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                      <Text style={{ flex: 1, color: C.navy, fontWeight: '800', fontSize: 14 }}>Project Plans</Text>
+                      <Text style={{ flex: 1, color: C.navy, fontWeight: '800', fontSize: 14 }}>{t('projectPlans')}</Text>
                       <Pressable
                         onPress={() => promptForPlanTypeAndUpload(project.id)}
                         disabled={uploading}
@@ -430,7 +435,7 @@ export default function ManagerPlansScreen() {
                       >
                         {uploading
                           ? <ActivityIndicator color={C.white} size="small" />
-                          : <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>⬆ Upload Plan</Text>
+                          : <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>{t('uploadPlanBtn')}</Text>
                         }
                       </Pressable>
                     </View>
@@ -439,7 +444,7 @@ export default function ManagerPlansScreen() {
                       <ActivityIndicator color={C.teal} style={{ marginVertical: 12 }} />
                     ) : plans.length === 0 ? (
                       <Text style={{ color: C.sub, textAlign: 'center', paddingVertical: 12, fontSize: 13 }}>
-                        No plans uploaded yet.
+                        {t('noPlansUploadedYet')}
                       </Text>
                     ) : (
                       plans.map(plan => {
@@ -457,7 +462,7 @@ export default function ManagerPlansScreen() {
                               {badge && (
                                 <View style={{ alignSelf: 'flex-start', marginTop: 4, backgroundColor: badge.bg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
                                   <Text style={{ color: badge.color, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-                                    {badge.label.toUpperCase()}
+                                    {(badge.labelKey ? t(badge.labelKey) : badge.fallback).toUpperCase()}
                                   </Text>
                                 </View>
                               )}
@@ -466,13 +471,13 @@ export default function ManagerPlansScreen() {
                               onPress={() => viewPlan(plan)}
                               style={{ backgroundColor: C.navySoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                             >
-                              <Text style={{ color: C.navy, fontWeight: '800', fontSize: 12 }}>View</Text>
+                              <Text style={{ color: C.navy, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
                             </Pressable>
                             <Pressable
                               onPress={() => deletePlan(plan)}
                               style={{ backgroundColor: C.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                             >
-                              <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>Delete</Text>
+                              <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{t('delete')}</Text>
                             </Pressable>
                           </View>
                         )
@@ -493,7 +498,7 @@ export default function ManagerPlansScreen() {
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-                <Text style={{ flex: 1, fontSize: 22, fontWeight: '900', color: C.navy }}>New Project</Text>
+                <Text style={{ flex: 1, fontSize: 22, fontWeight: '900', color: C.navy }}>{t('newProjectTitle')}</Text>
                 <Pressable onPress={() => setShowCreate(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <Text style={{ fontSize: 22, color: C.sub }}>✕</Text>
                 </Pressable>
@@ -501,34 +506,34 @@ export default function ManagerPlansScreen() {
 
               {/* Name */}
               <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                Project Name *
+                {t('projectNameLabel')}
               </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="e.g. Smith Residence — Rough Plumbing"
+                placeholder={t('projectNameExample')}
                 placeholderTextColor={C.sub}
                 style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text, marginBottom: 16 }}
               />
 
               {/* Address */}
               <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                Address
+                {t('addressFieldLabel')}
               </Text>
               <TextInput
                 value={address}
                 onChangeText={setAddress}
-                placeholder="123 Main St, Dallas, TX 75001"
+                placeholder={t('addressExample')}
                 placeholderTextColor={C.sub}
                 style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text, marginBottom: 16 }}
               />
 
               {/* Status */}
               <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-                Status
+                {t('statusLabel')}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {STATUS_OPTIONS.map((s, i) => (
+                {STATUS_VALUES.map((s, i) => (
                   <Pressable
                     key={s}
                     onPress={() => setStatusIdx(i)}
@@ -538,19 +543,19 @@ export default function ManagerPlansScreen() {
                       borderWidth: 1, borderColor: statusIdx === i ? C.navy : C.border,
                     }}
                   >
-                    <Text style={{ color: statusIdx === i ? C.white : C.sub, fontWeight: '700', fontSize: 14 }}>{s}</Text>
+                    <Text style={{ color: statusIdx === i ? C.white : C.sub, fontWeight: '700', fontSize: 14 }}>{t(STATUS_KEYS[i])}</Text>
                   </Pressable>
                 ))}
               </View>
 
               {/* Description */}
               <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                Description
+                {t('descriptionFieldLabel')}
               </Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Scope of work, notes, etc."
+                placeholder={t('descriptionExample')}
                 placeholderTextColor={C.sub}
                 multiline
                 numberOfLines={4}
@@ -571,7 +576,7 @@ export default function ManagerPlansScreen() {
               >
                 {saving
                   ? <ActivityIndicator color={C.white} />
-                  : <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>Create Project</Text>
+                  : <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>{t('createProjectBtn')}</Text>
                 }
               </Pressable>
             </ScrollView>

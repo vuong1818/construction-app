@@ -3,14 +3,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import DatePickerField from '../../../components/DatePickerField'
 import { useNewReport } from '../../../hooks/useNewReport'
+import { useLanguage } from '../../../lib/i18n'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -69,6 +71,7 @@ export default function NewReportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const projectId = Number(id)
+  const { t } = useLanguage()
 
   const {
     reportDate,
@@ -93,48 +96,51 @@ export default function NewReportScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Field
-            label="Date"
-            value={reportDate}
-            onChangeText={setReportDate}
-            required
-            placeholder="YYYY-MM-DD"
-          />
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 80 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>
+              {`${t('date')} *`}
+            </Text>
+            <DatePickerField value={reportDate} onChange={setReportDate} />
+          </View>
 
           <Field
-            label="Work Completed"
+            label={t('workCompleted')}
             value={workCompleted}
             onChangeText={setWorkCompleted}
             multiline
             required
-            placeholder="Describe work completed today"
+            placeholder={t('workCompletedPlaceholder')}
           />
 
           <Field
-            label="Issues / Delays"
+            label={t('issuesDelays')}
             value={issues}
             onChangeText={setIssues}
             multiline
-            placeholder="Describe any issues or delays"
+            placeholder={t('issuesPlaceholder')}
           />
 
           <Field
-            label="Materials Used"
+            label={t('materialsUsed')}
             value={materialsUsed}
             onChangeText={setMaterialsUsed}
             multiline
-            placeholder="List materials used"
+            placeholder={t('materialsPlaceholder')}
           />
 
           <Field
-            label="Weather"
+            label={t('weather')}
             value={weather}
             onChangeText={setWeather}
             multiline
-            placeholder="Describe weather conditions"
+            placeholder={t('weatherPlaceholder')}
           />
 
           <Pressable
@@ -149,7 +155,7 @@ export default function NewReportScreen() {
             }}
           >
             <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-              {saving ? 'Saving...' : 'Save Report'}
+              {saving ? t('saving') : t('saveReport')}
             </Text>
           </Pressable>
 
@@ -161,7 +167,7 @@ export default function NewReportScreen() {
               textAlign: 'center',
             }}
           >
-            Fields marked with * are required.
+            {t('requiredFieldsNote')}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

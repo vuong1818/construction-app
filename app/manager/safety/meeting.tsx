@@ -6,14 +6,16 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { WebView } from 'react-native-webview'
+import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 const COLORS = {
@@ -110,7 +112,11 @@ function getPreviewUrl(pdfUrl: string) {
   return pdfUrl
 }
 
-async function downloadAndSharePdf(pdfUrl: string, fileName: string) {
+async function downloadAndSharePdf(
+  pdfUrl: string,
+  fileName: string,
+  labels: { downloadComplete: string; savedTo: (path: string) => string },
+) {
   const target = `${FileSystem.cacheDirectory}${fileName}`
   const result = await FileSystem.downloadAsync(pdfUrl, target)
 
@@ -120,10 +126,11 @@ async function downloadAndSharePdf(pdfUrl: string, fileName: string) {
     return
   }
 
-  Alert.alert('Download Complete', `Saved to: ${result.uri}`)
+  Alert.alert(labels.downloadComplete, labels.savedTo(result.uri))
 }
 
 export default function ManagerSafetyMeetingScreen() {
+  const { t } = useLanguage()
   const weekOptions = useMemo(() => buildWeekOptions(16), [])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
   const [userRole, setUserRole] = useState('')
@@ -132,7 +139,7 @@ export default function ManagerSafetyMeetingScreen() {
   const [topicRow, setTopicRow] = useState<WeeklySafetyTopic | null>(null)
   const [rows, setRows] = useState<MeetingAckRow[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewTitle, setPreviewTitle] = useState('PDF Preview')
+  const [previewTitle, setPreviewTitle] = useState(t('pdfPreviewTitle'))
 
   const selectedWeek =
     weekOptions.find((option) => option.key === selectedWeekKey) || weekOptions[0]
@@ -153,7 +160,7 @@ export default function ManagerSafetyMeetingScreen() {
       } = await supabase.auth.getSession()
 
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('signInRequired'))
         return
       }
 
@@ -206,7 +213,7 @@ export default function ManagerSafetyMeetingScreen() {
       setTopicRow(topicResult.data || null)
       setRows(rowsResult.data || [])
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load weekly meeting acknowledgements.')
+      setErrorMessage(error?.message || t('failedToLoadMeetingAcks'))
     } finally {
       setLoading(false)
     }
@@ -221,9 +228,12 @@ export default function ManagerSafetyMeetingScreen() {
   async function handleDownload(url: string | null, fileName: string) {
     if (!url) return
     try {
-      await downloadAndSharePdf(url, fileName)
+      await downloadAndSharePdf(url, fileName, {
+        downloadComplete: t('downloadComplete'),
+        savedTo: (path: string) => t('downloadCompleteSavedTo', { path }),
+      })
     } catch (error: any) {
-      Alert.alert('Download Error', error?.message || 'Could not download PDF.')
+      Alert.alert(t('downloadError'), error?.message || t('couldNotDownloadPdf'))
     }
   }
 
@@ -232,7 +242,7 @@ export default function ManagerSafetyMeetingScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
         <Text style={{ marginTop: 12, color: COLORS.text }}>
-          Loading weekly meeting acknowledgements...
+          {t('loadingMeetingAcks')}
         </Text>
       </SafeAreaView>
     )
@@ -242,7 +252,7 @@ export default function ManagerSafetyMeetingScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
           {errorMessage}
@@ -255,10 +265,10 @@ export default function ManagerSafetyMeetingScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>
-          Manager Only
+          {t('managerOnly')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          You do not have permission to view weekly meeting acknowledgements.
+          {t('noPermissionMeetingAcks')}
         </Text>
       </SafeAreaView>
     )
@@ -269,22 +279,23 @@ export default function ManagerSafetyMeetingScreen() {
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
           <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>
-            Weekly Meeting Acknowledgements
+            {t('weeklyMeetingAcksTitle')}
           </Text>
 
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Select a work week to review the weekly safety topic and meeting sign-ins.
+            {t('weeklyMeetingAcksIntro')}
           </Text>
         </View>
 
         <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', marginBottom: 10 }}>
-          Work Week
+          {t('workWeek')}
         </Text>
 
         <View style={{ backgroundColor: COLORS.card, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', marginBottom: 18 }}>
           <Picker
             selectedValue={selectedWeekKey}
             onValueChange={(value) => setSelectedWeekKey(String(value))}
+            itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
             style={{ color: COLORS.text, backgroundColor: COLORS.card }}
           >
             {weekOptions.map((option) => (
@@ -309,16 +320,16 @@ export default function ManagerSafetyMeetingScreen() {
           }}
         >
           <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>
-            Weekly Topic
+            {t('weeklyTopicHeader')}
           </Text>
 
           <Text style={{ color: COLORS.text, lineHeight: 22, marginBottom: 12 }}>
-            {topicRow?.topic || 'No weekly safety topic entered for this work week.'}
+            {topicRow?.topic || t('noWeeklyTopicEntered')}
           </Text>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <Pressable
-              onPress={() => openPreview(topicRow?.pdf_url || null, 'Weekly Meeting PDF')}
+              onPress={() => openPreview(topicRow?.pdf_url || null, t('weeklyMeetingPdfTitle'))}
               disabled={!topicRow?.pdf_url}
               style={{
                 flex: 1,
@@ -329,7 +340,7 @@ export default function ManagerSafetyMeetingScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                Preview PDF
+                {t('previewPdfBtn')}
               </Text>
             </Pressable>
 
@@ -350,7 +361,7 @@ export default function ManagerSafetyMeetingScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                Download PDF
+                {t('downloadPdfBtn')}
               </Text>
             </Pressable>
           </View>
@@ -359,7 +370,7 @@ export default function ManagerSafetyMeetingScreen() {
         {rows.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border }}>
             <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-              No weekly meeting sign-ins found for this work week.
+              {t('noMeetingSignInsForWeek')}
             </Text>
           </View>
         ) : (
@@ -376,15 +387,15 @@ export default function ManagerSafetyMeetingScreen() {
               }}
             >
               <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', marginBottom: 6 }}>
-                {row.signed_name || 'Unknown Worker'}
+                {row.signed_name || t('unknownWorker')}
               </Text>
 
               <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-                Signed At: {formatSignedAt(row.signed_at)}
+                {t('signedAtLabel', { value: formatSignedAt(row.signed_at) })}
               </Text>
 
               <Text style={{ color: COLORS.subtext }}>
-                Week Start: {row.week_start}
+                {t('weekStartLabel', { value: row.week_start })}
               </Text>
             </View>
           ))
@@ -410,7 +421,7 @@ export default function ManagerSafetyMeetingScreen() {
             </Text>
 
             <Pressable onPress={() => setPreviewUrl(null)}>
-              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Close</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('close')}</Text>
             </Pressable>
           </View>
 

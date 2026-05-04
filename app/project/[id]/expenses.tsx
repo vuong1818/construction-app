@@ -18,6 +18,8 @@ import {
 } from 'react-native'
 import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import DatePickerField from '../../../components/DatePickerField'
+import PickerWrap from '../../../components/PickerWrap'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
@@ -60,6 +62,9 @@ type Expense = {
   payment_method: string | null
   is_paid: boolean
   paid_date: string | null
+  // Set when this expense is a payment against a subcontract (web app's
+  // Subcontracts tab tags it). Mobile doesn't write this, only reads.
+  subcontract_id: number | null
 }
 
 type Project = { id: number; name: string }
@@ -122,7 +127,7 @@ export default function ProjectExpensesScreen() {
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_expenses')
-          .select('id, project_id, expense_type, amount, expense_date, vendor, notes, receipt_photo_url, receipt_photo_path, created_by, created_at, payment_method, is_paid, paid_date')
+          .select('id, project_id, expense_type, amount, expense_date, vendor, notes, receipt_photo_url, receipt_photo_path, created_by, created_at, payment_method, is_paid, paid_date, subcontract_id')
           .eq('project_id', projectId)
           .order('expense_date', { ascending: false }),
         supabase.from('expense_types').select('id, value, label, sort_order, deleted_at').eq('scope', 'project').order('sort_order'),
@@ -262,6 +267,18 @@ export default function ProjectExpensesScreen() {
         const uploaded = await uploadReceipt(pendingReceipt)
         receiptUrl  = uploaded.url
         receiptPath = uploaded.path
+      }
+
+      // If the typed vendor isn't in the active list, add it so it
+      // shows up in the dropdown for next time. Best-effort — failure
+      // here doesn't block saving the expense itself.
+      const typedVendor = form.vendor.trim()
+      if (typedVendor && !activeVendors.find(v => v.name.toLowerCase() === typedVendor.toLowerCase())) {
+        try {
+          await supabase.from('vendors').insert({ name: typedVendor })
+        } catch {
+          /* ignore — RLS or duplicate is fine */
+        }
       }
 
       if (editing) {
@@ -440,33 +457,37 @@ export default function ProjectExpensesScreen() {
         onRequestClose={closeForm}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
           style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' }}
         >
           <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '92%' }}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 14 }}>
-                {editing ? t('editExpense') : t('newExpense')}
-              </Text>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 60 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>
+                  {editing ? t('editExpense') : t('newExpense')}
+                </Text>
+                <Pressable onPress={closeForm} hitSlop={10} style={{ padding: 4 }}>
+                  <Ionicons name="close" size={24} color={COLORS.subtext} />
+                </Pressable>
+              </View>
 
               {/* Type */}
               <Text style={styles.lbl}>{t('type')}</Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={form.expense_type}
-                  onValueChange={(v) => setForm(f => ({ ...f, expense_type: String(v) }))}
-                >
-                  {/* If editing an expense whose type was soft-deleted, surface
-                      the slug as a stub item so the picker can show its current
-                      value (otherwise the Picker would silently skip it). */}
-                  {form.expense_type && !activeTypes.find(et => et.value === form.expense_type) && (
-                    <Picker.Item key={`__stale_${form.expense_type}`} label={`${t('unknown')} (${form.expense_type})`} value={form.expense_type} />
-                  )}
-                  {activeTypes.map(et => (
-                    <Picker.Item key={et.value} label={et.label} value={et.value} />
-                  ))}
-                </Picker>
-              </View>
+              <PickerWrap
+                selectedValue={form.expense_type}
+                onValueChange={(v) => setForm(f => ({ ...f, expense_type: String(v ?? '') }))}
+              >
+                {/* If editing an expense whose type was soft-deleted, surface
+                    the slug as a stub item so the picker can show its current
+                    value (otherwise the Picker would silently skip it). */}
+                {form.expense_type && !activeTypes.find(et => et.value === form.expense_type) && (
+                  <Picker.Item key={`__stale_${form.expense_type}`} label={`${t('unknown')} (${form.expense_type})`} value={form.expense_type} />
+                )}
+                {activeTypes.map(et => (
+                  <Picker.Item key={et.value} label={et.label} value={et.value} />
+                ))}
+              </PickerWrap>
 
               {/* Amount */}
               <Text style={styles.lbl}>{t('amount')}</Text>
@@ -479,12 +500,10 @@ export default function ProjectExpensesScreen() {
               />
 
               {/* Date */}
-              <Text style={styles.lbl}>{t('dateLabel')}</Text>
-              <TextInput
+              <Text style={styles.lbl}>{t('date')}</Text>
+              <DatePickerField
                 value={form.expense_date}
-                onChangeText={(v) => setForm(f => ({ ...f, expense_date: v }))}
-                placeholder="2026-04-30"
-                style={styles.inp}
+                onChange={(iso) => setForm(f => ({ ...f, expense_date: iso }))}
               />
 
               {/* Vendor */}

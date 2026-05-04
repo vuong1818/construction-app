@@ -8,14 +8,16 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   View
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { WebView } from 'react-native-webview'
+import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 const COLORS = {
@@ -111,7 +113,11 @@ function getPreviewUrl(pdfUrl: string) {
   return pdfUrl
 }
 
-async function downloadAndSharePdf(pdfUrl: string, fileName: string) {
+async function downloadAndSharePdf(
+  pdfUrl: string,
+  fileName: string,
+  labels: { downloadComplete: string; savedTo: (path: string) => string },
+) {
   const target = `${FileSystem.cacheDirectory}${fileName}`
   const result = await FileSystem.downloadAsync(pdfUrl, target)
 
@@ -121,7 +127,7 @@ async function downloadAndSharePdf(pdfUrl: string, fileName: string) {
     return
   }
 
-  Alert.alert('Download Complete', `Saved to: ${result.uri}`)
+  Alert.alert(labels.downloadComplete, labels.savedTo(result.uri))
 }
 
 async function uploadPdfToSafetyDocuments(uri: string, storagePath: string) {
@@ -160,6 +166,7 @@ async function uploadPdfToSafetyDocuments(uri: string, storagePath: string) {
 }
 
 export default function ManagerSafetyManualScreen() {
+  const { t } = useLanguage()
   const weekOptions = useMemo(() => buildWeekOptions(16), [])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
   const [userRole, setUserRole] = useState('')
@@ -169,7 +176,7 @@ export default function ManagerSafetyManualScreen() {
   const [rows, setRows] = useState<ManualAckRow[]>([])
   const [manualDoc, setManualDoc] = useState<SafetyDocument | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewTitle, setPreviewTitle] = useState('PDF Preview')
+  const [previewTitle, setPreviewTitle] = useState(t('pdfPreviewTitle'))
 
   const selectedWeek =
     weekOptions.find((option) => option.key === selectedWeekKey) || weekOptions[0]
@@ -190,7 +197,7 @@ export default function ManagerSafetyManualScreen() {
       } = await supabase.auth.getSession()
 
       if (!session?.user) {
-        setErrorMessage('You must be signed in.')
+        setErrorMessage(t('signInRequired'))
         return
       }
 
@@ -243,7 +250,7 @@ export default function ManagerSafetyManualScreen() {
       setManualDoc(docResult.data || null)
       setRows(rowsResult.data || [])
     } catch (error: any) {
-      setErrorMessage(error?.message || 'Failed to load safety manual acknowledgements.')
+      setErrorMessage(error?.message || t('failedToLoadSafetyManualAcks'))
     } finally {
       setLoading(false)
     }
@@ -258,9 +265,12 @@ export default function ManagerSafetyManualScreen() {
   async function handleDownload(url: string | null, fileName: string) {
     if (!url) return
     try {
-      await downloadAndSharePdf(url, fileName)
+      await downloadAndSharePdf(url, fileName, {
+        downloadComplete: t('downloadComplete'),
+        savedTo: (path: string) => t('downloadCompleteSavedTo', { path }),
+      })
     } catch (error: any) {
-      Alert.alert('Download Error', error?.message || 'Could not download PDF.')
+      Alert.alert(t('downloadError'), error?.message || t('couldNotDownloadPdf'))
     }
   }
 
@@ -278,7 +288,7 @@ export default function ManagerSafetyManualScreen() {
 
       const asset = result.assets[0]
       if (!asset.uri) {
-        Alert.alert('Upload Error', 'No file selected.')
+        Alert.alert(t('uploadError'), t('noFileSelected'))
         return
       }
 
@@ -306,14 +316,14 @@ export default function ManagerSafetyManualScreen() {
         })
 
       if (error) {
-        Alert.alert('Database Error', error.message)
+        Alert.alert(t('databaseError'), error.message)
         return
       }
 
-      Alert.alert('Success', 'Active safety manual updated.')
+      Alert.alert(t('success'), t('activeSafetyManualUpdated'))
       await loadScreen(selectedWeek.start)
     } catch (error: any) {
-      Alert.alert('Upload Error', error?.message || 'Could not upload safety manual.')
+      Alert.alert(t('uploadError'), error?.message || t('couldNotUploadSafetyManual'))
     } finally {
       setUploading(false)
     }
@@ -326,7 +336,7 @@ export default function ManagerSafetyManualScreen() {
       >
         <ActivityIndicator size="large" color={COLORS.teal} />
         <Text style={{ marginTop: 12, color: COLORS.text }}>
-          Loading safety manual acknowledgements...
+          {t('loadingSafetyManualAcks')}
         </Text>
       </SafeAreaView>
     )
@@ -338,7 +348,7 @@ export default function ManagerSafetyManualScreen() {
         style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 24 }}
       >
         <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>
-          Error
+          {t('error')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
           {errorMessage}
@@ -353,10 +363,10 @@ export default function ManagerSafetyManualScreen() {
         style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 24 }}
       >
         <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>
-          Manager Only
+          {t('managerOnly')}
         </Text>
         <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-          You do not have permission to view safety manual acknowledgements.
+          {t('noPermissionSafetyManualAcks')}
         </Text>
       </SafeAreaView>
     )
@@ -369,11 +379,11 @@ export default function ManagerSafetyManualScreen() {
           style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}
         >
           <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800', marginBottom: 6 }}>
-            Safety Manual Acknowledgements
+            {t('safetyManualAcksTitle')}
           </Text>
 
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            Manage the active company safety manual and review weekly acknowledgements.
+            {t('safetyManualAcksIntro')}
           </Text>
         </View>
 
@@ -388,17 +398,17 @@ export default function ManagerSafetyManualScreen() {
           }}
         >
           <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>
-            Active Safety Manual
+            {t('activeSafetyManual')}
           </Text>
 
           <Text style={{ color: COLORS.text, lineHeight: 22, marginBottom: 12 }}>
-            {manualDoc?.title || 'No active company safety manual configured.'}
+            {manualDoc?.title || t('noActiveCompanySafetyManual')}
           </Text>
 
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
-                onPress={() => openPreview(manualDoc?.file_url || null, manualDoc?.title || 'Safety Manual')}
+                onPress={() => openPreview(manualDoc?.file_url || null, manualDoc?.title || t('safetyManual'))}
                 disabled={!manualDoc?.file_url}
                 style={{
                   flex: 1,
@@ -409,7 +419,7 @@ export default function ManagerSafetyManualScreen() {
                 }}
               >
                 <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                  Preview Manual
+                  {t('previewManual')}
                 </Text>
               </Pressable>
 
@@ -430,7 +440,7 @@ export default function ManagerSafetyManualScreen() {
                 }}
               >
                 <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                  Download Manual
+                  {t('downloadManual')}
                 </Text>
               </Pressable>
             </View>
@@ -446,14 +456,14 @@ export default function ManagerSafetyManualScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                {uploading ? 'Uploading...' : manualDoc ? 'Replace Active Manual' : 'Upload Active Manual'}
+                {uploading ? t('uploadingDots') : manualDoc ? t('replaceActiveManual') : t('uploadActiveManual')}
               </Text>
             </Pressable>
           </View>
         </View>
 
         <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', marginBottom: 10 }}>
-          Work Week
+          {t('workWeek')}
         </Text>
 
         <View
@@ -469,6 +479,7 @@ export default function ManagerSafetyManualScreen() {
           <Picker
             selectedValue={selectedWeekKey}
             onValueChange={(value) => setSelectedWeekKey(String(value))}
+            itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
             style={{ color: COLORS.text, backgroundColor: COLORS.card }}
           >
             {weekOptions.map((option) => (
@@ -493,7 +504,7 @@ export default function ManagerSafetyManualScreen() {
             }}
           >
             <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-              No safety manual acknowledgements found for this work week.
+              {t('noManualAcksForWeek')}
             </Text>
           </View>
         ) : (
@@ -510,20 +521,20 @@ export default function ManagerSafetyManualScreen() {
               }}
             >
               <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', marginBottom: 6 }}>
-                {row.signed_name || 'Unknown Worker'}
+                {row.signed_name || t('unknownWorker')}
               </Text>
 
               <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-                Signed At: {formatSignedAt(row.signed_at)}
+                {t('signedAtLabel', { value: formatSignedAt(row.signed_at) })}
               </Text>
 
               <Text style={{ color: COLORS.subtext, marginBottom: 12 }}>
-                Week Start: {row.week_start}
+                {t('weekStartLabel', { value: row.week_start })}
               </Text>
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Pressable
-                  onPress={() => openPreview(row.pdf_url, `${row.signed_name || 'Worker'} Manual PDF`)}
+                  onPress={() => openPreview(row.pdf_url, `${row.signed_name || t('worker')} ${t('safetyManual')} PDF`)}
                   disabled={!row.pdf_url}
                   style={{
                     flex: 1,
@@ -534,7 +545,7 @@ export default function ManagerSafetyManualScreen() {
                   }}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                    Preview PDF
+                    {t('previewPdfBtn')}
                   </Text>
                 </Pressable>
 
@@ -557,7 +568,7 @@ export default function ManagerSafetyManualScreen() {
                   }}
                 >
                   <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-                    Download PDF
+                    {t('downloadPdfBtn')}
                   </Text>
                 </Pressable>
               </View>
@@ -585,7 +596,7 @@ export default function ManagerSafetyManualScreen() {
             </Text>
 
             <Pressable onPress={() => setPreviewUrl(null)}>
-              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Close</Text>
+              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('close')}</Text>
             </Pressable>
           </View>
 

@@ -5,13 +5,14 @@ import {
   Modal,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 
 const COLORS = {
   background: '#D6E8FF',
@@ -113,12 +114,13 @@ function SelectRow({ options, value, onChange }: { options: string[]; value: str
 }
 
 function CalcButton({ onPress, label }: { onPress: () => void; label?: string }) {
+  const { t } = useLanguage()
   return (
     <Pressable
       onPress={onPress}
       style={{ backgroundColor: COLORS.navy, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 4, marginBottom: 8 }}
     >
-      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || 'Calculate'}</Text>
+      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
     </Pressable>
   )
 }
@@ -198,11 +200,14 @@ const PEX_SIZES = [
 ]
 
 function CalcPipeSizing({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [gpm, setGpm] = useState('')
   const [material, setMaterial] = useState('Copper')
   const [maxVel, setMaxVel] = useState('8')
   const [result, setResult] = useState<{ size: string; vel: number; id: number } | null>(null)
   const [error, setError] = useState('')
+
+  const COPPER_LABEL = t('stpMatCopper')
 
   function calc() {
     setError('')
@@ -210,10 +215,10 @@ function CalcPipeSizing({ onClose }: { onClose: () => void }) {
     const q = parseFloat(gpm)
     const vMax = parseFloat(maxVel)
     if (isNaN(q) || q <= 0 || isNaN(vMax) || vMax <= 0) {
-      setError('Enter valid GPM and max velocity.')
+      setError(t('stpEnterValidGpmVel'))
       return
     }
-    const sizes = material === 'Copper' ? COPPER_SIZES : material === 'CPVC' ? CPVC_SIZES : PEX_SIZES
+    const sizes = material === COPPER_LABEL ? COPPER_SIZES : material === 'CPVC' ? CPVC_SIZES : PEX_SIZES
     // velocity (fps) = Q(gpm) × 0.4085 / id²
     for (const s of sizes) {
       const vel = q * 0.4085 / (s.id * s.id)
@@ -222,24 +227,24 @@ function CalcPipeSizing({ onClose }: { onClose: () => void }) {
         return
       }
     }
-    setError('Flow exceeds largest available pipe size. Use multiple branches or larger pipe schedule.')
+    setError(t('stpFlowExceedsMax'))
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Water Pipe Sizing">
-      <InfoBox text="Based on velocity method. Max velocity: 8 fps supply, 4 fps hot, 10 fps drain (general). Enter flow rate in GPM." />
-      <FieldLabel label="Flow Rate (GPM)" />
-      <Field value={gpm} onChange={setGpm} placeholder="e.g. 5" />
-      <FieldLabel label="Pipe Material" />
-      <SelectRow options={['Copper', 'CPVC', 'PEX']} value={material} onChange={setMaterial} />
-      <FieldLabel label="Max Velocity (fps)" />
+    <CalcModal visible onClose={onClose} title={t('stpPipeSizingTitle')}>
+      <InfoBox text={t('stpPipeInfo')} />
+      <FieldLabel label={t('stpFlowRateGpm')} />
+      <Field value={gpm} onChange={setGpm} placeholder={t('stpFlowRatePlaceholder')} />
+      <FieldLabel label={t('stpPipeMaterial')} />
+      <SelectRow options={[COPPER_LABEL, 'CPVC', 'PEX']} value={material} onChange={setMaterial} />
+      <FieldLabel label={t('stpMaxVelocityFps')} />
       <SelectRow options={['4', '6', '8', '10']} value={maxVel} onChange={setMaxVel} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Recommended Pipe Size" value={result.size} sub={`${material} — ID: ${result.id}" — Velocity: ${result.vel.toFixed(1)} fps`} color="blue" />
-          <InfoBox text="Next size up recommended if velocity is close to max, or if pipe run exceeds 100 ft. Always verify with local code and pressure available." />
+          <ResultCard label={t('stpRecommendedPipeSize')} value={result.size} sub={t('stpPipeSizeSub', { material, id: result.id, vel: result.vel.toFixed(1) })} color="blue" />
+          <InfoBox text={t('stpPipeSizeFooter')} />
         </>
       )}
     </CalcModal>
@@ -269,30 +274,31 @@ function interpolateHunters(dfu: number): number {
 }
 
 // Common fixture DFU values (IPC Table 709.1)
-const FIXTURE_DFU: { name: string; dfu: number }[] = [
-  { name: 'Lavatory', dfu: 1 },
-  { name: 'Kitchen Sink', dfu: 2 },
-  { name: 'Bathtub', dfu: 2 },
-  { name: 'Shower', dfu: 2 },
-  { name: 'Toilet (tank)', dfu: 3 },
-  { name: 'Toilet (flushvalve)', dfu: 6 },
-  { name: 'Dishwasher', dfu: 2 },
-  { name: 'Clothes Washer', dfu: 3 },
-  { name: 'Floor Drain (2")', dfu: 1 },
-  { name: 'Floor Drain (3")', dfu: 2 },
-  { name: 'Service Sink', dfu: 3 },
-  { name: 'Urinal (flushvalve)', dfu: 5 },
-  { name: 'Drinking Fountain', dfu: 1 },
+const FIXTURE_DFU: { key: string; nameKey: 'stpFixLavatory' | 'stpFixKitchenSink' | 'stpFixBathtub' | 'stpFixShower' | 'stpFixToiletTank' | 'stpFixToiletFlush' | 'stpFixDishwasher' | 'stpFixClothesWasher' | 'stpFixFloorDrain2' | 'stpFixFloorDrain3' | 'stpFixServiceSink' | 'stpFixUrinal' | 'stpFixDrinkingFountain'; dfu: number }[] = [
+  { key: 'lavatory', nameKey: 'stpFixLavatory', dfu: 1 },
+  { key: 'kitchenSink', nameKey: 'stpFixKitchenSink', dfu: 2 },
+  { key: 'bathtub', nameKey: 'stpFixBathtub', dfu: 2 },
+  { key: 'shower', nameKey: 'stpFixShower', dfu: 2 },
+  { key: 'toiletTank', nameKey: 'stpFixToiletTank', dfu: 3 },
+  { key: 'toiletFlush', nameKey: 'stpFixToiletFlush', dfu: 6 },
+  { key: 'dishwasher', nameKey: 'stpFixDishwasher', dfu: 2 },
+  { key: 'clothesWasher', nameKey: 'stpFixClothesWasher', dfu: 3 },
+  { key: 'floorDrain2', nameKey: 'stpFixFloorDrain2', dfu: 1 },
+  { key: 'floorDrain3', nameKey: 'stpFixFloorDrain3', dfu: 2 },
+  { key: 'serviceSink', nameKey: 'stpFixServiceSink', dfu: 3 },
+  { key: 'urinal', nameKey: 'stpFixUrinal', dfu: 5 },
+  { key: 'drinkingFountain', nameKey: 'stpFixDrinkingFountain', dfu: 1 },
 ]
 
 function CalcFixtureUnits({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [counts, setCounts] = useState<Record<string, string>>({})
   const [result, setResult] = useState<{ dfu: number; gpm: number } | null>(null)
 
   function calc() {
     let totalDFU = 0
     FIXTURE_DFU.forEach((f) => {
-      const n = parseInt(counts[f.name] || '0') || 0
+      const n = parseInt(counts[f.key] || '0') || 0
       totalDFU += n * f.dfu
     })
     const gpm = interpolateHunters(totalDFU)
@@ -300,17 +306,17 @@ function CalcFixtureUnits({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Fixture Units → GPM">
-      <InfoBox text="Enter number of each fixture. Calculates total Drainage Fixture Units (DFU) and equivalent peak flow rate via Hunter's Curve (IPC Table 709.1)." />
+    <CalcModal visible onClose={onClose} title={t('stpFixUnitsTitle')}>
+      <InfoBox text={t('stpFixUnitsInfo')} />
       {FIXTURE_DFU.map((f) => (
-        <View key={f.name} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+        <View key={f.key} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.text, fontWeight: '600', fontSize: 14 }}>{f.name}</Text>
-            <Text style={{ color: COLORS.subtext, fontSize: 11 }}>{f.dfu} DFU each</Text>
+            <Text style={{ color: COLORS.text, fontWeight: '600', fontSize: 14 }}>{t(f.nameKey)}</Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 11 }}>{t('stpDfuEach', { n: f.dfu })}</Text>
           </View>
           <TextInput
-            value={counts[f.name] || ''}
-            onChangeText={(v) => setCounts((prev) => ({ ...prev, [f.name]: v }))}
+            value={counts[f.key] || ''}
+            onChangeText={(v) => setCounts((prev) => ({ ...prev, [f.key]: v }))}
             placeholder="0"
             placeholderTextColor={COLORS.subtext}
             keyboardType="number-pad"
@@ -333,9 +339,9 @@ function CalcFixtureUnits({ onClose }: { onClose: () => void }) {
       <CalcButton onPress={calc} />
       {result && (
         <>
-          <ResultCard label="Total Drainage Fixture Units" value={`${result.dfu} DFU`} color="blue" />
-          <ResultCard label="Equivalent Peak Flow (Hunter's Curve)" value={`${result.gpm.toFixed(1)} GPM`} color="green" />
-          <InfoBox text="Use this GPM value to size your main water service line or meter." />
+          <ResultCard label={t('stpTotalDfu')} value={`${result.dfu} DFU`} color="blue" />
+          <ResultCard label={t('stpEquivPeakFlow')} value={`${result.gpm.toFixed(1)} GPM`} color="green" />
+          <InfoBox text={t('stpFixUnitsFooter')} />
         </>
       )}
     </CalcModal>
@@ -358,6 +364,7 @@ const DWV_TABLE: { size: string; slope_eighth: number; slope_quarter: number }[]
 ]
 
 function CalcDWV({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [dfu, setDfu] = useState('')
   const [slope, setSlope] = useState('1/4" per ft')
   const [result, setResult] = useState<{ size: string; capacity: number } | null>(null)
@@ -367,7 +374,7 @@ function CalcDWV({ onClose }: { onClose: () => void }) {
     setError('')
     setResult(null)
     const d = parseFloat(dfu)
-    if (isNaN(d) || d < 0) { setError('Enter valid DFU value.'); return }
+    if (isNaN(d) || d < 0) { setError(t('stpEnterValidDfu')); return }
     const useEighth = slope === '1/8" per ft'
     for (const row of DWV_TABLE) {
       const cap = useEighth ? row.slope_eighth : row.slope_quarter
@@ -376,27 +383,27 @@ function CalcDWV({ onClose }: { onClose: () => void }) {
         return
       }
     }
-    setError('DFU exceeds table. Use 12" or larger — contact engineer.')
+    setError(t('stpDfuExceeds'))
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="DWV Pipe Sizing">
-      <InfoBox text="IPC Table 702.1 — horizontal drainage pipe sizing. Enter total DFU load for the section. Use the Fixture Units calculator to get DFU." />
-      <FieldLabel label="Total DFU on This Pipe Section" />
-      <Field value={dfu} onChange={setDfu} placeholder="e.g. 18" />
-      <FieldLabel label="Pipe Slope" />
+    <CalcModal visible onClose={onClose} title={t('stpDwvTitle')}>
+      <InfoBox text={t('stpDwvInfo')} />
+      <FieldLabel label={t('stpTotalDfuOnSection')} />
+      <Field value={dfu} onChange={setDfu} placeholder={t('stpDfuPlaceholder')} />
+      <FieldLabel label={t('stpPipeSlope')} />
       <SelectRow options={['1/8" per ft', '1/4" per ft']} value={slope} onChange={setSlope} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
           <ResultCard
-            label="Minimum Pipe Size (IPC 702.1)"
+            label={t('stpMinPipeSize')}
             value={result.size}
-            sub={`Max capacity: ${result.capacity} DFU at ${slope}`}
+            sub={t('stpMaxCapacityAt', { cap: result.capacity, slope })}
             color="blue"
           />
-          <InfoBox text="Stacks and building drains may have different sizing — see IPC Table 710.1. Verify with local amendments." />
+          <InfoBox text={t('stpDwvFooter')} />
         </>
       )}
     </CalcModal>
@@ -424,6 +431,7 @@ const GAS_TABLE: { len: number; cap: Record<string, number> }[] = [
 const GAS_PIPE_SIZES = ['1/2"', '3/4"', '1"', '1-1/4"', '1-1/2"', '2"']
 
 function CalcGasPipe({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [btuh, setBtuh] = useState('')
   const [length, setLength] = useState('')
   const [result, setResult] = useState<string | null>(null)
@@ -434,8 +442,8 @@ function CalcGasPipe({ onClose }: { onClose: () => void }) {
     setResult(null)
     const b = parseFloat(btuh)
     const L = parseFloat(length)
-    if (isNaN(b) || b <= 0) { setError('Enter valid BTU/hr load.'); return }
-    if (isNaN(L) || L <= 0) { setError('Enter valid pipe length.'); return }
+    if (isNaN(b) || b <= 0) { setError(t('stpEnterValidBtuh')); return }
+    if (isNaN(L) || L <= 0) { setError(t('stpEnterValidLength')); return }
 
     // Find nearest table length (round up)
     let row = GAS_TABLE[GAS_TABLE.length - 1]
@@ -449,22 +457,22 @@ function CalcGasPipe({ onClose }: { onClose: () => void }) {
         return
       }
     }
-    setError('Load exceeds 2" pipe capacity at this length. Use multiple runs or higher pressure system.')
+    setError(t('stpGasExceeds2'))
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Gas Pipe Sizing">
-      <InfoBox text="IFGC Table 402.4(1) — Natural gas, Schedule 40 black steel pipe, low pressure (under 0.5 psi). Uses longest-run method. For LP gas, divide BTU/hr by 2.50 before entering." />
-      <FieldLabel label="Total BTU/hr Load on This Run" />
-      <Field value={btuh} onChange={setBtuh} placeholder="e.g. 85000" />
-      <FieldLabel label="Pipe Length — Longest Run (ft)" />
-      <Field value={length} onChange={setLength} placeholder="e.g. 75" />
+    <CalcModal visible onClose={onClose} title={t('stpGasTitle')}>
+      <InfoBox text={t('stpGasInfo')} />
+      <FieldLabel label={t('stpTotalBtuhLoad')} />
+      <Field value={btuh} onChange={setBtuh} placeholder={t('stpBtuhPlaceholder')} />
+      <FieldLabel label={t('stpPipeLengthLongest')} />
+      <Field value={length} onChange={setLength} placeholder={t('stpLengthPlaceholder')} />
       <CalcButton onPress={calc} />
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Minimum Pipe Size" value={result} sub="Schedule 40 black steel — natural gas, low pressure" color="blue" />
-          <InfoBox text="Common appliance BTU/hr ratings: Furnace 80–120k, Water Heater 30–50k, Range 65k, Dryer 35k, Fireplace 30–60k. Always use your longest run for the whole system." />
+          <ResultCard label={t('stpMinPipeSizeShort')} value={result} sub={t('stpGasResultSub')} color="blue" />
+          <InfoBox text={t('stpGasFooter')} />
         </>
       )}
     </CalcModal>
@@ -476,13 +484,13 @@ function CalcGasPipe({ onClose }: { onClose: () => void }) {
 // where L=length(ft), Q=flow(gpm), C=roughness coeff, d=pipe ID(in)
 // Result in ft of head. Multiply by 0.4335 for psi.
 
-const HW_MATERIALS: { label: string; C: number }[] = [
-  { label: 'Copper / Brass', C: 140 },
-  { label: 'PVC / CPVC', C: 150 },
-  { label: 'PEX', C: 130 },
-  { label: 'Galvanized Steel', C: 120 },
-  { label: 'Cast Iron (new)', C: 100 },
-  { label: 'Cast Iron (old)', C: 80 },
+const HW_MATERIALS: { labelKey: 'stpMatCopperBrass' | 'stpMatPvcCpvc' | 'stpMatPex' | 'stpMatGalvSteel' | 'stpMatCastIronNew' | 'stpMatCastIronOld'; C: number }[] = [
+  { labelKey: 'stpMatCopperBrass', C: 140 },
+  { labelKey: 'stpMatPvcCpvc', C: 150 },
+  { labelKey: 'stpMatPex', C: 130 },
+  { labelKey: 'stpMatGalvSteel', C: 120 },
+  { labelKey: 'stpMatCastIronNew', C: 100 },
+  { labelKey: 'stpMatCastIronOld', C: 80 },
 ]
 
 const PRESS_PIPE_SIZES: { label: string; id: number }[] = [
@@ -498,6 +506,7 @@ const PRESS_PIPE_SIZES: { label: string; id: number }[] = [
 ]
 
 function CalcPressureLoss({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [gpm, setGpm] = useState('')
   const [length, setLength] = useState('')
   const [pipeSize, setPipeSize] = useState('1"')
@@ -510,11 +519,11 @@ function CalcPressureLoss({ onClose }: { onClose: () => void }) {
     setResult(null)
     const Q = parseFloat(gpm)
     const L = parseFloat(length)
-    if (isNaN(Q) || Q <= 0) { setError('Enter valid flow rate.'); return }
-    if (isNaN(L) || L <= 0) { setError('Enter valid pipe length.'); return }
+    if (isNaN(Q) || Q <= 0) { setError(t('stpEnterValidFlow')); return }
+    if (isNaN(L) || L <= 0) { setError(t('stpEnterValidLength')); return }
     const mat = HW_MATERIALS[matIdx]
     const pipeData = PRESS_PIPE_SIZES.find((p) => p.label === pipeSize)
-    if (!pipeData) { setError('Invalid pipe size.'); return }
+    if (!pipeData) { setError(t('stpInvalidPipeSize')); return }
     const C = mat.C
     const d = pipeData.id
     // Hazen-Williams
@@ -525,20 +534,20 @@ function CalcPressureLoss({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Pressure Loss (H-W)">
-      <InfoBox text="Hazen-Williams formula for water pressure loss in straight pipe runs. Add 10-15% for fittings and valves (minor losses)." />
-      <FieldLabel label="Flow Rate (GPM)" />
-      <Field value={gpm} onChange={setGpm} placeholder="e.g. 10" />
-      <FieldLabel label="Pipe Length (ft)" />
-      <Field value={length} onChange={setLength} placeholder="e.g. 150" />
-      <FieldLabel label="Pipe Size (Nominal)" />
+    <CalcModal visible onClose={onClose} title={t('stpPressLossTitle')}>
+      <InfoBox text={t('stpPressLossInfo')} />
+      <FieldLabel label={t('stpFlowRateGpm')} />
+      <Field value={gpm} onChange={setGpm} placeholder={t('stpFlowRatePlaceholder10')} />
+      <FieldLabel label={t('stpPipeLengthFt')} />
+      <Field value={length} onChange={setLength} placeholder={t('stpPipeLengthPlaceholder')} />
+      <FieldLabel label={t('stpPipeSizeNominal')} />
       <SelectRow options={PRESS_PIPE_SIZES.map((p) => p.label)} value={pipeSize} onChange={setPipeSize} />
-      <FieldLabel label="Pipe Material (C factor)" />
+      <FieldLabel label={t('stpPipeMaterialC')} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {HW_MATERIALS.map((m, i) => (
             <Pressable
-              key={m.label}
+              key={m.labelKey}
               onPress={() => setMatIdx(i)}
               style={{
                 paddingHorizontal: 12,
@@ -550,7 +559,7 @@ function CalcPressureLoss({ onClose }: { onClose: () => void }) {
               }}
             >
               <Text style={{ color: matIdx === i ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>
-                {m.label} (C={m.C})
+                {t(m.labelKey)} (C={m.C})
               </Text>
             </Pressable>
           ))}
@@ -560,9 +569,9 @@ function CalcPressureLoss({ onClose }: { onClose: () => void }) {
       {error ? <Text style={{ color: COLORS.red, marginBottom: 8 }}>{error}</Text> : null}
       {result && (
         <>
-          <ResultCard label="Pressure Loss" value={`${result.psi.toFixed(2)} psi`} sub={`${result.headLoss.toFixed(1)} ft of head`} color="blue" />
-          <ResultCard label="Velocity" value={`${result.vel.toFixed(1)} fps`} sub={result.vel > 8 ? 'WARNING: exceeds 8 fps — upsize pipe' : 'Within acceptable range'} color={result.vel > 8 ? 'yellow' : 'green'} />
-          <InfoBox text="Available pressure at fixture = Supply pressure - static head - friction loss. Typical supply: 40-80 psi. Min at fixture: 20 psi (flush valve: 25 psi)." />
+          <ResultCard label={t('stpPressureLoss')} value={`${result.psi.toFixed(2)} psi`} sub={t('stpHeadLossSub', { ft: result.headLoss.toFixed(1) })} color="blue" />
+          <ResultCard label={t('stpVelocity')} value={`${result.vel.toFixed(1)} fps`} sub={result.vel > 8 ? t('stpVelOver') : t('stpVelOk')} color={result.vel > 8 ? 'yellow' : 'green'} />
+          <InfoBox text={t('stpPressLossFooter')} />
         </>
       )}
     </CalcModal>
@@ -570,61 +579,28 @@ function CalcPressureLoss({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Tool List ────────────────────────────────────────────────────────────────
-const TOOLS = [
-  {
-    id: 'pipesizing',
-    icon: 'pipe-valve',
-    title: 'Water Pipe Sizing',
-    desc: 'Size supply pipe by velocity method (copper, CPVC, PEX)',
-    color: '#1565C0',
-    bg: '#E3F2FD',
-  },
-  {
-    id: 'fixunits',
-    icon: 'countertop',
-    title: 'Fixture Units → GPM',
-    desc: 'Count fixtures, get total DFU and peak flow via Hunter\'s Curve',
-    color: '#2E7D32',
-    bg: '#E8F5E9',
-  },
-  {
-    id: 'dwv',
-    icon: 'arrow-down-circle',
-    title: 'DWV Pipe Sizing',
-    desc: 'Horizontal drain sizing per IPC Table 702.1',
-    color: '#6A1B9A',
-    bg: '#F3E5F5',
-  },
-  {
-    id: 'gaspipe',
-    icon: 'fire',
-    title: 'Gas Pipe Sizing',
-    desc: 'Natural gas pipe sizing — IFGC longest-run method',
-    color: '#C62828',
-    bg: '#FFEBEE',
-  },
-  {
-    id: 'pressloss',
-    icon: 'gauge',
-    title: 'Pressure Loss',
-    desc: 'Hazen-Williams friction loss for water supply runs',
-    color: '#EF6C00',
-    bg: '#FFF3E0',
-  },
-]
 
 export default function PlumbingScreen() {
+  const { t } = useLanguage()
   const [open, setOpen] = useState<string | null>(null)
+
+  const TOOLS = [
+    { id: 'pipesizing', icon: 'pipe-valve',         title: t('stpPipeSizingTitle'), desc: t('stpPipeSizingDesc'), color: '#1565C0', bg: '#E3F2FD' },
+    { id: 'fixunits',   icon: 'countertop',         title: t('stpFixUnitsTitle'),   desc: t('stpFixUnitsDesc'),   color: '#2E7D32', bg: '#E8F5E9' },
+    { id: 'dwv',        icon: 'arrow-down-circle',  title: t('stpDwvTitle'),        desc: t('stpDwvDesc'),        color: '#6A1B9A', bg: '#F3E5F5' },
+    { id: 'gaspipe',    icon: 'fire',               title: t('stpGasTitle'),        desc: t('stpGasDesc'),        color: '#C62828', bg: '#FFEBEE' },
+    { id: 'pressloss',  icon: 'gauge',              title: t('stpPressLossTitle'),  desc: t('stpPressLossDesc'),  color: '#EF6C00', bg: '#FFF3E0' },
+  ]
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 24 }}>
           <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '900', marginBottom: 4 }}>
-            Plumbing Tools
+            {t('stpTitle')}
           </Text>
           <Text style={{ color: COLORS.subtext, fontSize: 14 }}>
-            IPC / IFGC field calculators
+            {t('stpSubtitle')}
           </Text>
         </View>
 

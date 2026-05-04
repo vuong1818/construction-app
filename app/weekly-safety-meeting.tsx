@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -233,6 +234,7 @@ type WeeklyTopic = {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function WeeklySafetyMeetingScreen() {
+  const { t } = useLanguage();
   const [loading, setLoading]               = useState(true);
   const [saving, setSaving]                 = useState(false);
   const [topicRow, setTopicRow]             = useState<WeeklyTopic | null>(null);
@@ -272,7 +274,7 @@ export default function WeeklySafetyMeetingScreen() {
       // Use getSession() — reads local storage, won't fail with AuthSessionMissingError
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      if (!user) throw new Error('Session expired. Please log in again.');
+      if (!user) throw new Error(t('sessionExpired') + '. ' + t('pleaseLogInAgain'));
 
       // Pre-fill worker name from profile
       const { data: profileData } = await supabase
@@ -327,7 +329,7 @@ export default function WeeklySafetyMeetingScreen() {
       }
     } catch (error) {
       console.error('Error loading weekly meeting:', error);
-      Alert.alert('Error', 'Could not load weekly safety meeting.');
+      Alert.alert(t('error'), t('couldNotLoadMeeting'));
     } finally {
       setLoading(false);
     }
@@ -338,7 +340,7 @@ export default function WeeklySafetyMeetingScreen() {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'empty') {
-        Alert.alert('No Signature', 'Please draw your signature before tapping Done.');
+        Alert.alert(t('noSignatureTitle'), t('noSignatureDrawFirst'));
         return;
       }
       if (msg.type === 'signature') {
@@ -364,11 +366,11 @@ export default function WeeklySafetyMeetingScreen() {
 
   async function handleConfirm() {
     if (!signatureDataUrl) {
-      Alert.alert('Missing Signature', 'Please draw your signature.');
+      Alert.alert(t('missingSignature'), t('pleaseDrawSignature'));
       return;
     }
     if (!topicRow?.id) {
-      Alert.alert('Error', 'No weekly safety topic found.');
+      Alert.alert(t('error'), t('noWeeklyTopicFound'));
       return;
     }
 
@@ -377,10 +379,10 @@ export default function WeeklySafetyMeetingScreen() {
 
       const { data: { session: sess } } = await supabase.auth.getSession();
       const user = sess?.user;
-      if (!user) throw new Error('Session expired. Please log in again.');
+      if (!user) throw new Error(t('sessionExpired') + '. ' + t('pleaseLogInAgain'));
 
       const weekStart = topicRow.week_start;
-      const topic = topicRow.topic || 'Weekly Safety Meeting';
+      const topic = topicRow.topic || t('weeklySafetyMeeting');
       const now = new Date();
       const signedAt = now.toLocaleDateString('en-US', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -432,12 +434,12 @@ export default function WeeklySafetyMeetingScreen() {
         }).catch(() => { /* silent — email failure never blocks the worker */ });
       }
 
-      Alert.alert('Signed', 'Weekly Safety Meeting acknowledgement complete.', [
+      Alert.alert(t('signed'), t('weeklyMeetingAckComplete'), [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {
       console.error('Sign error:', err);
-      Alert.alert('Error', err?.message || 'Could not save signature.');
+      Alert.alert(t('error'), err?.message || t('couldNotSaveSignature'));
     } finally {
       setSaving(false);
     }
@@ -448,7 +450,7 @@ export default function WeeklySafetyMeetingScreen() {
     return (
       <View style={s.centered}>
         <ActivityIndicator size="large" />
-        <Text style={s.loadingText}>Loading weekly safety meeting...</Text>
+        <Text style={s.loadingText}>{t('loadingWeeklyMeeting')}</Text>
       </View>
     );
   }
@@ -456,12 +458,12 @@ export default function WeeklySafetyMeetingScreen() {
   if (!topicRow) {
     return (
       <View style={s.centered}>
-        <Text style={s.errorTitle}>No Weekly Topic Posted</Text>
+        <Text style={s.errorTitle}>{t('noWeeklyTopicPosted')}</Text>
         <Text style={s.errorText}>
-          A manager has not posted this week's safety topic yet. Check back later.
+          {t('noWeeklyTopicMessage')}
         </Text>
         <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
-          <Text style={s.closeButtonText}>Close</Text>
+          <Text style={s.closeButtonText}>{t('close')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -472,14 +474,14 @@ export default function WeeklySafetyMeetingScreen() {
       <ScrollView contentContainerStyle={s.scroll}>
         {/* Topic card */}
         <View style={s.topicCard}>
-          <Text style={s.topicLabel}>This Week's Topic</Text>
-          <Text style={s.topicText}>{topicRow.topic || 'Weekly Safety Topic'}</Text>
+          <Text style={s.topicLabel}>{t('thisWeeksTopic')}</Text>
+          <Text style={s.topicText}>{topicRow.topic || t('weeklySafetyTopic')}</Text>
         </View>
 
         {/* Status badge */}
         <View style={[s.badge, alreadySigned ? s.badgeGreen : s.badgeRed]}>
           <Text style={s.badgeText}>
-            {alreadySigned ? '✓ Acknowledged This Week' : '⚠ Signature Required'}
+            {alreadySigned ? t('acknowledgedThisWeek') : t('signatureRequiredShort')}
           </Text>
         </View>
 
@@ -491,8 +493,8 @@ export default function WeeklySafetyMeetingScreen() {
           >
             <Text style={s.openPdfIcon}>📄</Text>
             <View style={{ flex: 1 }}>
-              <Text style={s.openPdfText}>Open Reference Document</Text>
-              <Text style={s.openPdfSub}>Opens in your browser</Text>
+              <Text style={s.openPdfText}>{t('openReferenceDocument')}</Text>
+              <Text style={s.openPdfSub}>{t('opensInBrowser')}</Text>
             </View>
             <Text style={s.openPdfArrow}>›</Text>
           </TouchableOpacity>
@@ -505,8 +507,8 @@ export default function WeeklySafetyMeetingScreen() {
           >
             <Text style={s.openPdfIcon}>▶️</Text>
             <View style={{ flex: 1 }}>
-              <Text style={[s.openPdfText, { color: '#19B6D2' }]}>Watch Training Video</Text>
-              <Text style={s.openPdfSub}>Opens in your browser</Text>
+              <Text style={[s.openPdfText, { color: '#19B6D2' }]}>{t('watchTrainingVideo')}</Text>
+              <Text style={s.openPdfSub}>{t('opensInBrowser')}</Text>
             </View>
             <Text style={s.openPdfArrow}>›</Text>
           </TouchableOpacity>
@@ -514,14 +516,14 @@ export default function WeeklySafetyMeetingScreen() {
 
         {!topicRow.pdf_url && !topicRow.video_url && (
           <View style={s.noPdfBox}>
-            <Text style={s.noPdfText}>No reference document or video attached for this topic.</Text>
+            <Text style={s.noPdfText}>{t('noReferenceAttached')}</Text>
           </View>
         )}
 
         {!alreadySigned && (
           <View style={s.instructionBox}>
             <Text style={s.instructionText}>
-              Review the topic above, then tap "Sign Weekly Meeting" below to acknowledge attendance.
+              {t('meetingInstruction')}
             </Text>
           </View>
         )}
@@ -530,11 +532,11 @@ export default function WeeklySafetyMeetingScreen() {
       <View style={s.bottomBar}>
         {!alreadySigned && (
           <TouchableOpacity style={s.signButton} onPress={openSignModal}>
-            <Text style={s.signButtonText}>Sign Weekly Meeting</Text>
+            <Text style={s.signButtonText}>{t('signWeeklyMeetingPlain')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
-          <Text style={s.closeButtonText}>Close</Text>
+          <Text style={s.closeButtonText}>{t('close')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -549,7 +551,7 @@ export default function WeeklySafetyMeetingScreen() {
 
           {/* Header */}
           <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Sign Weekly Safety Meeting</Text>
+            <Text style={s.modalTitle}>{t('signWeeklySafetyMeeting')}</Text>
             <TouchableOpacity
               onPress={closeSignModal}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -560,20 +562,20 @@ export default function WeeklySafetyMeetingScreen() {
 
           {/* Worker name — read-only from profile */}
           <View style={s.nameSection}>
-            <Text style={s.fieldLabel}>Signing As</Text>
+            <Text style={s.fieldLabel}>{t('signingAs')}</Text>
             <View style={s.nameDisplay}>
-              <Text style={s.nameDisplayText}>{workerName || 'Unknown Worker'}</Text>
+              <Text style={s.nameDisplayText}>{workerName || t('unknownWorker')}</Text>
             </View>
             <Text style={s.nameSub}>
-              Name is pulled from your profile. Contact your manager to update it.
+              {t('nameFromProfileNotice')}
             </Text>
           </View>
 
           {sigStep === 'pad' ? (
             <>
               <View style={s.padLabelRow}>
-                <Text style={s.fieldLabel}>Signature</Text>
-                <Text style={s.padHint}>Draw your signature in the box below</Text>
+                <Text style={s.fieldLabel}>{t('signatureLabel')}</Text>
+                <Text style={s.padHint}>{t('drawSignaturePrompt')}</Text>
               </View>
 
               <View style={s.canvasWrap}>
@@ -593,7 +595,7 @@ export default function WeeklySafetyMeetingScreen() {
           ) : (
             <>
               <View style={s.previewSection}>
-                <Text style={s.fieldLabel}>Signature Preview</Text>
+                <Text style={s.fieldLabel}>{t('signaturePreview')}</Text>
                 <View style={s.previewBox}>
                   {signatureDataUrl ? (
                     <Image
@@ -606,7 +608,7 @@ export default function WeeklySafetyMeetingScreen() {
                   onPress={() => { setSigStep('pad'); setSignatureDataUrl(null); }}
                   style={s.redrawButton}
                 >
-                  <Text style={s.redrawText}>Redraw Signature</Text>
+                  <Text style={s.redrawText}>{t('redrawSignature')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -619,7 +621,7 @@ export default function WeeklySafetyMeetingScreen() {
                   {saving ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={s.confirmButtonText}>Submit & Generate PDF</Text>
+                    <Text style={s.confirmButtonText}>{t('submitGeneratePdf')}</Text>
                   )}
                 </TouchableOpacity>
               </View>

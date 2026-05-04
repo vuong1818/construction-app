@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ type SafetyDoc = {
   title: string | null
   category: string | null
   pdf_url: string | null
+  language: 'en' | 'es' | null
 }
 
 type WeeklyTopic = {
@@ -111,7 +113,19 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
 
 function AckCard({
   name, signedAt, pdfUrl, onView, onDelete,
-}: { name: string | null; signedAt: string | null; pdfUrl: string | null; onView: () => void; onDelete: () => void }) {
+  unknownWorkerLabel, signedPrefix, signedBadge, viewSignedPdfLabel, pdfNotAvailableLabel,
+}: {
+  name: string | null
+  signedAt: string | null
+  pdfUrl: string | null
+  onView: () => void
+  onDelete: () => void
+  unknownWorkerLabel: string
+  signedPrefix: string
+  signedBadge: string
+  viewSignedPdfLabel: string
+  pdfNotAvailableLabel: string
+}) {
   return (
     <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 }}>
@@ -119,21 +133,21 @@ function AckCard({
           <Text style={{ color: C.white, fontWeight: '900', fontSize: 17 }}>{initial(name)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{name || 'Unknown Worker'}</Text>
-          <Text style={{ color: C.sub, fontSize: 12 }}>Signed {fmtDate(signedAt)}</Text>
+          <Text style={{ color: C.text, fontWeight: '800', fontSize: 15 }}>{name || unknownWorkerLabel}</Text>
+          <Text style={{ color: C.sub, fontSize: 12 }}>{signedPrefix} {fmtDate(signedAt)}</Text>
         </View>
         <View style={{ backgroundColor: C.greenSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-          <Text style={{ color: C.green, fontWeight: '800', fontSize: 12 }}>✓ Signed</Text>
+          <Text style={{ color: C.green, fontWeight: '800', fontSize: 12 }}>✓ {signedBadge}</Text>
         </View>
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {pdfUrl ? (
           <Pressable onPress={onView} style={{ flex: 1, backgroundColor: C.navy, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}>
-            <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>📄  View Signed PDF</Text>
+            <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>{viewSignedPdfLabel}</Text>
           </Pressable>
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: C.sub, fontSize: 12 }}>PDF not available</Text>
+            <Text style={{ color: C.sub, fontSize: 12 }}>{pdfNotAvailableLabel}</Text>
           </View>
         )}
         <Pressable
@@ -156,8 +170,8 @@ function CountBadge({ count, total }: { count: number; total: number }) {
 }
 
 function DocChip({
-  doc, selected, onPress,
-}: { doc: SafetyDoc; selected: boolean; onPress: () => void }) {
+  doc, selected, onPress, untitledLabel, documentLabel,
+}: { doc: SafetyDoc; selected: boolean; onPress: () => void; untitledLabel: string; documentLabel: string }) {
   return (
     <Pressable
       onPress={onPress}
@@ -169,31 +183,41 @@ function DocChip({
       }}
     >
       <Text style={{ color: selected ? C.white : C.navy, fontWeight: '800', fontSize: 13, marginBottom: 4 }} numberOfLines={2}>
-        {doc.title || 'Untitled'}
+        {doc.title || untitledLabel}
       </Text>
       <Text style={{ color: selected ? '#A8C8E8' : C.sub, fontSize: 11 }} numberOfLines={1}>
-        {doc.category || 'Document'}
+        {doc.category || documentLabel}
       </Text>
     </Pressable>
   )
 }
 
 // ─── Open URL in browser ──────────────────────────────────────────────────────
-async function openPdf(url: string) {
+async function openPdf(
+  url: string,
+  labels: { cannotOpen: string; cannotOpenMsg: string; error: string; couldNotOpen: string },
+) {
   try {
     const supported = await Linking.canOpenURL(url)
     if (supported) {
       await Linking.openURL(url)
     } else {
-      Alert.alert('Cannot Open', 'No browser available to open this link. Visit nguyenmep.com/portal/safety on a desktop browser to view signed documents.')
+      Alert.alert(labels.cannotOpen, labels.cannotOpenMsg)
     }
   } catch {
-    Alert.alert('Error', 'Could not open link.')
+    Alert.alert(labels.error, labels.couldNotOpen)
   }
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerSafetyScreen() {
+  const { t } = useLanguage()
+  const openLabels = {
+    cannotOpen: t('cannotOpen'),
+    cannotOpenMsg: t('cannotOpenLink'),
+    error: t('error'),
+    couldNotOpen: t('couldNotOpenLink'),
+  }
   const weekStart = getWeekStart()
 
   // Loading
@@ -224,6 +248,7 @@ export default function ManagerSafetyScreen() {
   const [selectedVideo, setSelectedVideo] = useState<SafetyDoc | null>(null)
   const [safetyDocs, setSafetyDocs]       = useState<SafetyDoc[]>([])
   const [safetyVideos, setSafetyVideos]   = useState<SafetyDoc[]>([])
+  const [docLang, setDocLang]             = useState<'en' | 'es'>('en')
 
   useEffect(() => { loadAll() }, [])
 
@@ -287,11 +312,12 @@ export default function ManagerSafetyScreen() {
   async function loadSafetyResources() {
     const { data } = await supabase
       .from('safety_documents')
-      .select('id, title, category, pdf_url')
+      .select('id, title, category, pdf_url, language')
       .eq('is_active', true)
       .neq('document_type', 'company_safety_manual')
       .not('pdf_url', 'is', null)
       .order('sort_order', { ascending: true })
+      .order('title', { ascending: true })
 
     const all = (data as SafetyDoc[]) || []
     const catLower = (d: SafetyDoc) => (d.category || '').toLowerCase()
@@ -306,10 +332,10 @@ export default function ManagerSafetyScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true })
       if (result.canceled) return
       const file = result.assets?.[0]
-      if (!file?.uri) throw new Error('No file selected.')
+      if (!file?.uri) throw new Error(t('noFileSelected'))
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (!user) throw new Error(t('notAuthenticatedShort'))
 
       const safeName = (file.name || 'safety-manual.pdf').replace(/\s+/g, '-')
       const filePath = `manuals/${Date.now()}-${safeName}`
@@ -332,10 +358,10 @@ export default function ManagerSafetyScreen() {
       })
       if (insErr) throw insErr
 
-      Alert.alert('Uploaded', 'Safety manual uploaded.')
+      Alert.alert(t('uploadedTitle'), t('safetyManualUploaded'))
       await loadManual()
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not upload.')
+      Alert.alert(t('error'), err?.message || t('couldNotUpload'))
     } finally {
       setUploading(false)
     }
@@ -343,10 +369,10 @@ export default function ManagerSafetyScreen() {
 
   async function deleteManual() {
     if (!manual) return
-    Alert.alert('Delete Manual', 'Are you sure you want to delete the current safety manual?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('deleteManualTitle'), t('deleteManualConfirm'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive',
+        text: t('delete'), style: 'destructive',
         onPress: async () => {
           try {
             setDeleting(true)
@@ -357,7 +383,7 @@ export default function ManagerSafetyScreen() {
             await supabase.from('safety_documents').delete().eq('id', manual.id)
             setManual(null)
           } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Could not delete.')
+            Alert.alert(t('error'), err?.message || t('couldNotDelete'))
           } finally {
             setDeleting(false)
           }
@@ -370,17 +396,19 @@ export default function ManagerSafetyScreen() {
   function openEditor() {
     setTopicText(topic?.topic || '')
     // Pre-select existing attached doc/video so manager sees what's currently attached
-    setSelectedDoc(topic?.pdf_url ? (safetyDocs.find(d => d.pdf_url === topic.pdf_url) || null) : null)
+    const preDoc = topic?.pdf_url ? (safetyDocs.find(d => d.pdf_url === topic.pdf_url) || null) : null
+    setSelectedDoc(preDoc)
     setSelectedVideo(topic?.video_url ? (safetyVideos.find(d => d.pdf_url === topic.video_url) || null) : null)
+    setDocLang(preDoc?.language === 'es' ? 'es' : 'en')
     setEditing(true)
   }
 
   async function saveTopic() {
-    if (!topicText.trim()) { Alert.alert('Required', 'Enter a topic description.'); return }
+    if (!topicText.trim()) { Alert.alert(t('requiredTitle'), t('enterTopicDescription')); return }
     try {
       setSavingTopic(true)
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (!user) throw new Error(t('notAuthenticatedShort'))
 
       const payload: any = {
         week_start: weekStart,
@@ -398,29 +426,29 @@ export default function ManagerSafetyScreen() {
 
       await loadTopic()
       setEditing(false)
-      Alert.alert('Saved', 'Weekly topic saved.')
+      Alert.alert(t('saved'), t('weeklyTopicSaved'))
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not save topic.')
+      Alert.alert(t('error'), err?.message || t('couldNotSaveTopic'))
     } finally {
       setSavingTopic(false)
     }
   }
 
   function viewPdf(url: string, _title: string) {
-    openPdf(url)
+    openPdf(url, openLabels)
   }
 
   async function deleteManualAck(ack: ManualAck) {
     Alert.alert(
-      'Delete Acknowledgement',
-      `Remove ${ack.signed_name || 'this worker'}'s safety manual signature? They will need to re-sign this week.`,
+      t('deleteAcknowledgement'),
+      t('deleteAckConfirm', { name: ack.signed_name || t('thisWorker') }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('safety_manual_acknowledgements').delete().eq('id', ack.id)
-            if (error) { Alert.alert('Error', error.message); return }
+            if (error) { Alert.alert(t('error'), error.message); return }
             setManualAcks(prev => prev.filter(a => a.id !== ack.id))
           },
         },
@@ -430,15 +458,15 @@ export default function ManagerSafetyScreen() {
 
   async function deleteMeetingAck(ack: MeetingAck) {
     Alert.alert(
-      'Delete Sign-In',
-      `Remove ${ack.signed_name || 'this worker'}'s meeting sign-in? They will need to re-sign this week.`,
+      t('deleteSignIn'),
+      t('deleteSignInConfirm', { name: ack.signed_name || t('thisWorker') }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete', style: 'destructive',
+          text: t('delete'), style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('weekly_meeting_acknowledgements').delete().eq('id', ack.id)
-            if (error) { Alert.alert('Error', error.message); return }
+            if (error) { Alert.alert(t('error'), error.message); return }
             setMeetingAcks(prev => prev.filter(a => a.id !== ack.id))
           },
         },
@@ -451,7 +479,7 @@ export default function ManagerSafetyScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={C.navy} />
-        <Text style={{ marginTop: 12, color: C.sub, fontSize: 14 }}>Loading safety data</Text>
+        <Text style={{ marginTop: 12, color: C.sub, fontSize: 14 }}>{t('loadingSafetyData')}</Text>
       </SafeAreaView>
     )
   }
@@ -462,55 +490,57 @@ export default function ManagerSafetyScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.navy} />}
       >
-        <Text style={{ color: C.navy, fontSize: 26, fontWeight: '900', marginBottom: 4 }}>Safety Compliance</Text>
+        <Text style={{ color: C.navy, fontSize: 26, fontWeight: '900', marginBottom: 4 }}>{t('safetyComplianceTitle')}</Text>
         <Text style={{ color: C.sub, fontSize: 13, marginBottom: 24 }}>
-          Week of {weekStart} - {workerCount} active worker{workerCount !== 1 ? 's' : ''}
+          {workerCount === 1
+            ? t('weekOfWorkers', { weekStart, count: workerCount })
+            : t('weekOfWorkersPlural', { weekStart, count: workerCount })}
         </Text>
 
         {/* SECTION 1 - SAFETY MANUAL */}
         <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <SectionHeader title="Safety Manual" subtitle="Current company safety manual" />
+            <SectionHeader title={t('safetyManualSection')} subtitle={t('currentCompanySafetyManual')} />
             <CountBadge count={manualAcks.length} total={workerCount} />
           </View>
 
           {manual ? (
             <View style={{ backgroundColor: C.greenSoft, borderRadius: 14, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.green, fontWeight: '800', fontSize: 14 }}>Manual Active</Text>
-                <Text style={{ color: C.text, fontSize: 13, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{manual.title || 'Safety Manual'}</Text>
+                <Text style={{ color: C.green, fontWeight: '800', fontSize: 14 }}>{t('manualActive')}</Text>
+                <Text style={{ color: C.text, fontSize: 13, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{manual.title || t('safetyManual')}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {manual.pdf_url ? (
-                  <Pressable onPress={() => viewPdf(manual.pdf_url!, manual.title || 'Manual')}
+                  <Pressable onPress={() => viewPdf(manual.pdf_url!, manual.title || t('safetyManual'))}
                     style={{ backgroundColor: C.navy, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>View</Text>
+                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
                   </Pressable>
                 ) : null}
                 <Pressable onPress={deleteManual} disabled={deleting}
                   style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{deleting ? '...' : 'Delete'}</Text>
+                  <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{deleting ? '...' : t('delete')}</Text>
                 </Pressable>
               </View>
             </View>
           ) : (
             <View style={{ backgroundColor: C.yellowSoft, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-              <Text style={{ color: C.yellow, fontWeight: '800', fontSize: 14 }}>No Manual Uploaded</Text>
-              <Text style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>Upload a PDF so workers can read and sign it.</Text>
+              <Text style={{ color: C.yellow, fontWeight: '800', fontSize: 14 }}>{t('noManualUploaded')}</Text>
+              <Text style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>{t('uploadPdfWorkersSign')}</Text>
             </View>
           )}
 
           <Pressable onPress={pickAndUploadManual} disabled={uploading}
             style={{ backgroundColor: C.navy, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 18 }}>
             <Text style={{ color: C.white, fontWeight: '900', fontSize: 15 }}>
-              {uploading ? 'Uploading...' : manual ? 'Replace Manual' : 'Upload Manual'}
+              {uploading ? t('uploadingDots') : manual ? t('replaceManual') : t('uploadManual')}
             </Text>
           </Pressable>
 
           {manualAcks.length > 0 ? (
             <>
               <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 10 }}>
-                Signed This Week ({manualAcks.length})
+                {t('signedThisWeekCount', { count: manualAcks.length })}
               </Text>
               {manualAcks.map(ack => (
                 <AckCard
@@ -520,12 +550,17 @@ export default function ManagerSafetyScreen() {
                   pdfUrl="yes"
                   onView={() => { setViewingAck(ack); setViewingAckType('manual') }}
                   onDelete={() => deleteManualAck(ack)}
+                  unknownWorkerLabel={t('unknownWorker')}
+                  signedPrefix={t('signed')}
+                  signedBadge={t('signed')}
+                  viewSignedPdfLabel={t('viewSignedPdf')}
+                  pdfNotAvailableLabel={t('pdfNotAvailable')}
                 />
               ))}
             </>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-              <Text style={{ color: C.sub, fontSize: 14 }}>No signatures yet this week</Text>
+              <Text style={{ color: C.sub, fontSize: 14 }}>{t('noSignaturesThisWeek')}</Text>
             </View>
           )}
         </View>
@@ -533,47 +568,47 @@ export default function ManagerSafetyScreen() {
         {/* SECTION 2 - WEEKLY MEETING */}
         <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <SectionHeader title="Weekly Meeting" subtitle={`Safety topic - ${weekStart}`} />
+            <SectionHeader title={t('weeklyMeetingSection')} subtitle={t('safetyTopicWeekOf', { weekStart })} />
             <CountBadge count={meetingAcks.length} total={workerCount} />
           </View>
 
           {topic ? (
             <View style={{ backgroundColor: C.tealSoft, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-              <Text style={{ color: C.teal, fontWeight: '800', fontSize: 12, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>This Week Topic</Text>
+              <Text style={{ color: C.teal, fontWeight: '800', fontSize: 12, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('thisWeekTopicLabel')}</Text>
               <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', marginBottom: 8 }}>{topic.topic}</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {topic.pdf_url ? (
-                  <Pressable onPress={() => viewPdf(topic.pdf_url!, 'Safety Topic')}
+                  <Pressable onPress={() => viewPdf(topic.pdf_url!, t('weeklySafetyTopic'))}
                     style={{ flex: 1, backgroundColor: C.teal, borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>📄 Reference PDF</Text>
+                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>📄 {t('referencePdf')}</Text>
                   </Pressable>
                 ) : null}
                 {topic.video_url ? (
-                  <Pressable onPress={() => viewPdf(topic.video_url!, 'Training Video')}
+                  <Pressable onPress={() => viewPdf(topic.video_url!, t('trainingVideoBtn'))}
                     style={{ flex: 1, backgroundColor: C.navy, borderRadius: 10, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>▶ Training Video</Text>
+                    <Text style={{ color: C.white, fontWeight: '800', fontSize: 13 }}>▶ {t('trainingVideoBtn')}</Text>
                   </Pressable>
                 ) : null}
               </View>
             </View>
           ) : (
             <View style={{ backgroundColor: C.yellowSoft, borderRadius: 14, padding: 14, marginBottom: 14 }}>
-              <Text style={{ color: C.yellow, fontWeight: '800', fontSize: 14 }}>No Topic Set</Text>
-              <Text style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>Set a topic so workers can read and sign in.</Text>
+              <Text style={{ color: C.yellow, fontWeight: '800', fontSize: 14 }}>{t('noTopicSet')}</Text>
+              <Text style={{ color: C.sub, fontSize: 12, marginTop: 4 }}>{t('setTopicSoWorkersCanSign')}</Text>
             </View>
           )}
 
           <Pressable onPress={openEditor}
             style={{ backgroundColor: C.teal, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 18 }}>
             <Text style={{ color: C.white, fontWeight: '900', fontSize: 15 }}>
-              {topic ? 'Edit Topic' : "Set This Week's Topic"}
+              {topic ? t('editTopic') : t('setThisWeeksTopic')}
             </Text>
           </Pressable>
 
           {meetingAcks.length > 0 ? (
             <>
               <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 10 }}>
-                Signed In This Week ({meetingAcks.length})
+                {t('signedInThisWeekCount', { count: meetingAcks.length })}
               </Text>
               {meetingAcks.map(ack => (
                 <AckCard
@@ -583,12 +618,17 @@ export default function ManagerSafetyScreen() {
                   pdfUrl="yes"
                   onView={() => { setViewingAck(ack); setViewingAckType('meeting') }}
                   onDelete={() => deleteMeetingAck(ack)}
+                  unknownWorkerLabel={t('unknownWorker')}
+                  signedPrefix={t('signed')}
+                  signedBadge={t('signed')}
+                  viewSignedPdfLabel={t('viewSignedPdf')}
+                  pdfNotAvailableLabel={t('pdfNotAvailable')}
                 />
               ))}
             </>
           ) : (
             <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-              <Text style={{ color: C.sub, fontSize: 14 }}>No sign-ins yet this week</Text>
+              <Text style={{ color: C.sub, fontSize: 14 }}>{t('noSignInsThisWeek')}</Text>
             </View>
           )}
         </View>
@@ -596,25 +636,27 @@ export default function ManagerSafetyScreen() {
         {/* SECTION 3 - SAFETY RESOURCES */}
         {(safetyDocs.length > 0 || safetyVideos.length > 0) && (
           <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-            <SectionHeader title="Safety Resources" subtitle="Documents and training videos" />
+            <SectionHeader title={t('safetyResourcesTitle')} subtitle={t('documentsAndTrainingVideos')} />
             {safetyDocs.length > 0 && (
               <>
-                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>Documents</Text>
+                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>{t('documentsHeading')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   {safetyDocs.map(doc => (
                     <DocChip key={doc.id} doc={doc} selected={selectedDoc?.id === doc.id}
-                      onPress={() => { if (doc.pdf_url) viewPdf(doc.pdf_url, doc.title || 'Document') }} />
+                      onPress={() => { if (doc.pdf_url) viewPdf(doc.pdf_url, doc.title || t('documentLabel')) }}
+                      untitledLabel={t('untitledLabel')} documentLabel={t('documentLabel')} />
                   ))}
                 </ScrollView>
               </>
             )}
             {safetyVideos.length > 0 && (
               <>
-                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>Training Videos</Text>
+                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>{t('trainingVideosHeading')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {safetyVideos.map(doc => (
                     <DocChip key={doc.id} doc={doc} selected={selectedDoc?.id === doc.id}
-                      onPress={() => { if (doc.pdf_url) viewPdf(doc.pdf_url, doc.title || 'Video') }} />
+                      onPress={() => { if (doc.pdf_url) viewPdf(doc.pdf_url, doc.title || t('oshaVideoDefault')) }}
+                      untitledLabel={t('untitledLabel')} documentLabel={t('documentLabel')} />
                   ))}
                 </ScrollView>
               </>
@@ -634,17 +676,17 @@ export default function ManagerSafetyScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderColor: C.border }}>
             <Pressable onPress={() => setViewingAck(null)}>
-              <Text style={{ color: C.red, fontWeight: '700', fontSize: 16 }}>Close</Text>
+              <Text style={{ color: C.red, fontWeight: '700', fontSize: 16 }}>{t('close')}</Text>
             </Pressable>
             <Text style={{ color: C.navy, fontWeight: '900', fontSize: 17 }}>
-              {viewingAckType === 'meeting' ? 'Meeting Sign-In' : 'Manual Acknowledgement'}
+              {viewingAckType === 'meeting' ? t('meetingSignIn') : t('manualAcknowledgement')}
             </Text>
             <Pressable onPress={() => {
               if (!viewingAck) return
               const url = `https://nguyenmep.com/portal/view-ack?id=${viewingAck.id}&type=${viewingAckType}`
-              openPdf(url)
+              openPdf(url, openLabels)
             }}>
-              <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 Print</Text>
+              <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 {t('printAction')}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -652,23 +694,23 @@ export default function ManagerSafetyScreen() {
               <View style={{ backgroundColor: C.card, borderRadius: 18, padding: 22, borderWidth: 1, borderColor: C.border }}>
                 <Text style={{ color: C.navy, fontSize: 20, fontWeight: '900', marginBottom: 2 }}>Nguyen MEP, LLC</Text>
                 <Text style={{ color: C.teal, fontSize: 13, fontWeight: '700', marginBottom: 20 }}>
-                  {viewingAckType === 'meeting' ? 'Weekly Safety Meeting Sign-In' : 'Safety Manual Acknowledgement'}
+                  {viewingAckType === 'meeting' ? t('weeklySafetyMeetingSignIn') : t('safetyManualAckTitle')}
                 </Text>
 
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Worker Name</Text>
+                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('workerNameLabel')}</Text>
                   <Text style={{ color: C.text, fontSize: 17, fontWeight: '700', borderBottomWidth: 1, borderColor: C.border, paddingBottom: 6 }}>{viewingAck.signed_name || '—'}</Text>
                 </View>
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Date & Time Signed</Text>
+                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('dateTimeSigned')}</Text>
                   <Text style={{ color: C.text, fontSize: 17, fontWeight: '700', borderBottomWidth: 1, borderColor: C.border, paddingBottom: 6 }}>{fmtDate(viewingAck.signed_at)}</Text>
                 </View>
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Week Of</Text>
+                  <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('weekOfLabel')}</Text>
                   <Text style={{ color: C.text, fontSize: 17, fontWeight: '700', borderBottomWidth: 1, borderColor: C.border, paddingBottom: 6 }}>{viewingAck.week_start || '—'}</Text>
                 </View>
 
-                <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Signature</Text>
+                <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>{t('signatureLabel')}</Text>
                 {viewingAck.signature_text ? (
                   <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FAFAFA', padding: 8 }}>
                     <Image
@@ -678,11 +720,11 @@ export default function ManagerSafetyScreen() {
                     />
                   </View>
                 ) : (
-                  <Text style={{ color: C.sub, fontStyle: 'italic', fontSize: 14 }}>No signature image on file</Text>
+                  <Text style={{ color: C.sub, fontStyle: 'italic', fontSize: 14 }}>{t('noSignatureImage')}</Text>
                 )}
 
                 <Text style={{ color: C.sub, fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-                  Nguyen MEP Safety Compliance · nguyenmep.com
+                  {t('safetyComplianceFooter')}
                 </Text>
               </View>
             )}
@@ -695,23 +737,23 @@ export default function ManagerSafetyScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderColor: C.border }}>
             <Pressable onPress={() => setEditing(false)}>
-              <Text style={{ color: C.red, fontWeight: '700', fontSize: 16 }}>Cancel</Text>
+              <Text style={{ color: C.red, fontWeight: '700', fontSize: 16 }}>{t('cancel')}</Text>
             </Pressable>
-            <Text style={{ color: C.navy, fontWeight: '900', fontSize: 18 }}>Weekly Topic</Text>
+            <Text style={{ color: C.navy, fontWeight: '900', fontSize: 18 }}>{t('weeklyTopicTitle')}</Text>
             <Pressable onPress={saveTopic} disabled={savingTopic}>
               <Text style={{ color: savingTopic ? C.sub : C.teal, fontWeight: '900', fontSize: 16 }}>
-                {savingTopic ? 'Saving...' : 'Save'}
+                {savingTopic ? t('saving') : t('save')}
               </Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 18 }}>
-            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 8 }}>Topic Description</Text>
+            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 8 }}>{t('topicDescriptionLabel')}</Text>
             <TextInput
               value={topicText}
               onChangeText={setTopicText}
               multiline
               numberOfLines={4}
-              placeholder="e.g. Fall protection and harness inspection"
+              placeholder={t('topicPlaceholder')}
               placeholderTextColor={C.sub}
               style={{
                 backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border,
@@ -721,19 +763,45 @@ export default function ManagerSafetyScreen() {
             />
             {safetyDocs.length > 0 && (
               <>
-                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>📄 Attach Reference Document (optional)</Text>
-                <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>Workers will see a link to this PDF when they sign in.</Text>
+                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 4 }}>{t('attachReferenceDoc')}</Text>
+                <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>{t('attachReferenceDocHint')}</Text>
+
+                {/* Language tabs */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {(['en', 'es'] as const).map(lng => {
+                    const count = safetyDocs.filter(d => (d.language || 'en') === lng).length
+                    const active = docLang === lng
+                    return (
+                      <Pressable key={lng} onPress={() => setDocLang(lng)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                          borderColor: active ? C.navy : C.border,
+                          backgroundColor: active ? C.navy : C.card,
+                        }}>
+                        <Text style={{ color: active ? C.white : C.navy, fontWeight: '800', fontSize: 13 }}>
+                          {lng === 'en' ? t('english') : t('spanish')} ({count})
+                        </Text>
+                      </Pressable>
+                    )
+                  })}
+                </View>
+
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                  {safetyDocs.map(doc => (
-                    <DocChip key={doc.id} doc={doc} selected={selectedDoc?.id === doc.id}
-                      onPress={() => setSelectedDoc(prev => prev?.id === doc.id ? null : doc)} />
-                  ))}
+                  {safetyDocs
+                    .filter(d => (d.language || 'en') === docLang)
+                    .map(doc => (
+                      <DocChip key={doc.id} doc={doc} selected={selectedDoc?.id === doc.id}
+                        onPress={() => setSelectedDoc(prev => prev?.id === doc.id ? null : doc)}
+                        untitledLabel={t('untitledLabel')} documentLabel={t('documentLabel')} />
+                    ))}
                 </ScrollView>
                 {selectedDoc && (
                   <View style={{ backgroundColor: C.tealSoft, borderRadius: 14, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Text style={{ flex: 1, color: C.teal, fontWeight: '700', fontSize: 14 }}>📄 {selectedDoc.title}</Text>
+                    <Text style={{ flex: 1, color: C.teal, fontWeight: '700', fontSize: 14 }}>
+                      📄 {selectedDoc.title} {selectedDoc.language === 'es' ? `(${t('spanish')})` : `(${t('english')})`}
+                    </Text>
                     <Pressable onPress={() => setSelectedDoc(null)}>
-                      <Text style={{ color: C.red, fontWeight: '800' }}>Remove</Text>
+                      <Text style={{ color: C.red, fontWeight: '800' }}>{t('removeAction')}</Text>
                     </Pressable>
                   </View>
                 )}
@@ -741,19 +809,20 @@ export default function ManagerSafetyScreen() {
             )}
             {safetyVideos.length > 0 && (
               <>
-                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 4, marginTop: 4 }}>▶ Attach Training Video (optional)</Text>
-                <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>Workers will see a link to this video when they sign in.</Text>
+                <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 4, marginTop: 4 }}>{t('attachTrainingVideo')}</Text>
+                <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>{t('attachTrainingVideoHint')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   {safetyVideos.map(doc => (
                     <DocChip key={doc.id} doc={doc} selected={selectedVideo?.id === doc.id}
-                      onPress={() => setSelectedVideo(prev => prev?.id === doc.id ? null : doc)} />
+                      onPress={() => setSelectedVideo(prev => prev?.id === doc.id ? null : doc)}
+                      untitledLabel={t('untitledLabel')} documentLabel={t('documentLabel')} />
                   ))}
                 </ScrollView>
                 {selectedVideo && (
                   <View style={{ backgroundColor: C.navySoft, borderRadius: 14, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Text style={{ flex: 1, color: C.navy, fontWeight: '700', fontSize: 14 }}>▶ {selectedVideo.title}</Text>
                     <Pressable onPress={() => setSelectedVideo(null)}>
-                      <Text style={{ color: C.red, fontWeight: '800' }}>Remove</Text>
+                      <Text style={{ color: C.red, fontWeight: '800' }}>{t('removeAction')}</Text>
                     </Pressable>
                   </View>
                 )}

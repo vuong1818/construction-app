@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -277,6 +278,7 @@ type ManualDoc = {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function SafetyManualScreen() {
+  const { t } = useLanguage();
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [manual, setManual]             = useState<ManualDoc | null>(null);
@@ -316,7 +318,7 @@ export default function SafetyManualScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) {
-        Alert.alert('Session Expired', 'Please log in again to continue.', [
+        Alert.alert(t('sessionExpired'), t('pleaseLogInAgain'), [
           { text: 'OK', onPress: () => router.back() },
         ]);
         setLoading(false);
@@ -389,7 +391,7 @@ export default function SafetyManualScreen() {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'empty') {
-        Alert.alert('No Signature', 'Please draw your signature before tapping Done.');
+        Alert.alert(t('noSignatureTitle'), t('noSignatureDrawFirst'));
         return;
       }
       if (msg.type === 'signature') {
@@ -415,7 +417,7 @@ export default function SafetyManualScreen() {
 
   async function handleConfirm() {
     if (!signatureDataUrl) {
-      Alert.alert('Missing Signature', 'Please draw your signature.');
+      Alert.alert(t('missingSignature'), t('pleaseDrawSignature'));
       return;
     }
 
@@ -423,7 +425,7 @@ export default function SafetyManualScreen() {
       setSaving(true);
       const { data: { session: sess } } = await supabase.auth.getSession();
       const user = sess?.user;
-      if (!user) throw new Error('Session expired. Please log in again.');
+      if (!user) throw new Error(t('sessionExpired') + '. ' + t('pleaseLogInAgain'));
 
       const weekStart   = formatDateOnly(getStartOfWeek());
       const now         = new Date();
@@ -475,12 +477,12 @@ export default function SafetyManualScreen() {
         }).catch(() => { /* silent — email failure never blocks the worker */ });
       }
 
-      Alert.alert('Signed', 'Safety Manual acknowledgement complete.', [
+      Alert.alert(t('signed'), t('safetyManualAckComplete'), [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err: any) {
       console.error('Sign error:', err);
-      Alert.alert('Error', err?.message || 'Could not save signature.');
+      Alert.alert(t('error'), err?.message || t('couldNotSaveSignature'));
     } finally {
       setSaving(false);
     }
@@ -491,7 +493,7 @@ export default function SafetyManualScreen() {
     return (
       <View style={s.centered}>
         <ActivityIndicator size="large" />
-        <Text style={s.loadingText}>Loading safety manual...</Text>
+        <Text style={s.loadingText}>{t('loadingSafetyManual')}</Text>
       </View>
     );
   }
@@ -500,30 +502,43 @@ export default function SafetyManualScreen() {
     <View style={s.container}>
       {/* Status badge */}
       <View style={[s.badge, alreadySigned ? s.badgeGreen : s.badgeRed]}>
-        <Text style={s.badgeText}>{alreadySigned ? '✓ Acknowledged This Week' : '⚠ Signature Required — Read and sign below'}</Text>
+        <Text style={s.badgeText}>{alreadySigned ? t('acknowledgedThisWeek') : t('signatureRequiredReadBelow')}</Text>
       </View>
 
-      {/* Inline document viewer — always shows embedded text, no external PDF needed */}
+      {/* Document viewer:
+          1. If the manager uploaded a PDF, show that (Google Docs viewer for inline PDF rendering).
+          2. Otherwise fall back to the embedded English+Spanish acknowledgment HTML so workers can still sign. */}
       <View style={s.docViewerWrap}>
-        <WebView
-          source={{ html: DOCUMENT_HTML }}
-          style={s.docViewer}
-          scrollEnabled
-          javaScriptEnabled={false}
-          originWhitelist={['*']}
-          showsVerticalScrollIndicator
-        />
+        {manual?.pdf_url ? (
+          <WebView
+            source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(manual.pdf_url)}` }}
+            style={s.docViewer}
+            scrollEnabled
+            originWhitelist={['*']}
+            showsVerticalScrollIndicator
+            startInLoadingState
+          />
+        ) : (
+          <WebView
+            source={{ html: DOCUMENT_HTML }}
+            style={s.docViewer}
+            scrollEnabled
+            javaScriptEnabled={false}
+            originWhitelist={['*']}
+            showsVerticalScrollIndicator
+          />
+        )}
       </View>
 
       {/* Bottom bar — fixed */}
       <View style={s.bottomBar}>
         {!alreadySigned && (
           <TouchableOpacity style={s.signButton} onPress={openSignModal}>
-            <Text style={s.signButtonText}>✍️  Sign Safety Manual</Text>
+            <Text style={s.signButtonText}>{t('signSafetyManualBtn')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
-          <Text style={s.closeButtonText}>Close</Text>
+          <Text style={s.closeButtonText}>{t('close')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -533,7 +548,7 @@ export default function SafetyManualScreen() {
 
           {/* Header */}
           <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>Sign Safety Manual</Text>
+            <Text style={s.modalTitle}>{t('signSafetyManualHeader')}</Text>
             <TouchableOpacity onPress={closeSignModal} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text style={s.modalClose}>✕</Text>
             </TouchableOpacity>
@@ -541,19 +556,19 @@ export default function SafetyManualScreen() {
 
           {/* Worker name — read-only, pulled from profile */}
           <View style={s.nameSection}>
-            <Text style={s.fieldLabel}>Signing As</Text>
+            <Text style={s.fieldLabel}>{t('signingAs')}</Text>
             <View style={s.nameDisplay}>
-              <Text style={s.nameDisplayText}>{workerName || 'Unknown Worker'}</Text>
+              <Text style={s.nameDisplayText}>{workerName || t('unknownWorker')}</Text>
             </View>
-            <Text style={s.nameSub}>Name is pulled from your profile. Contact your manager to update it.</Text>
+            <Text style={s.nameSub}>{t('nameFromProfileNotice')}</Text>
           </View>
 
           {sigStep === 'pad' ? (
             <>
               {/* Signature instructions */}
               <View style={s.padLabelRow}>
-                <Text style={s.fieldLabel}>Signature</Text>
-                <Text style={s.padHint}>Draw your signature in the box below</Text>
+                <Text style={s.fieldLabel}>{t('signatureLabel')}</Text>
+                <Text style={s.padHint}>{t('drawSignaturePrompt')}</Text>
               </View>
 
               {/* Signature WebView canvas */}
@@ -575,7 +590,7 @@ export default function SafetyManualScreen() {
             <>
               {/* Signature preview */}
               <View style={s.previewSection}>
-                <Text style={s.fieldLabel}>Signature Preview</Text>
+                <Text style={s.fieldLabel}>{t('signaturePreview')}</Text>
                 <View style={s.previewBox}>
                   {signatureDataUrl ? (
                     <Image
@@ -585,7 +600,7 @@ export default function SafetyManualScreen() {
                   ) : null}
                 </View>
                 <TouchableOpacity onPress={() => { setSigStep('pad'); setSignatureDataUrl(null); }} style={s.redrawButton}>
-                  <Text style={s.redrawText}>Redraw Signature</Text>
+                  <Text style={s.redrawText}>{t('redrawSignature')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -599,7 +614,7 @@ export default function SafetyManualScreen() {
                   {saving ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={s.confirmButtonText}>Submit & Generate PDF</Text>
+                    <Text style={s.confirmButtonText}>{t('submitGeneratePdf')}</Text>
                   )}
                 </TouchableOpacity>
               </View>

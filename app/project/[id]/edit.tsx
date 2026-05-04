@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatProjectAddress } from '../../../lib/formatAddress'
 import { geocodeAddress, metersToMiles, milesToMeters } from '../../../lib/geocoding'
+import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 
 const COLORS = {
@@ -42,16 +43,24 @@ const WORK_TYPES = [
   'Turn Key',
 ]
 
-const CONSTRUCTION_TYPES = ['commercial', 'residential', 'civil']
-const PROJECT_STATUSES = ['planning', 'active', 'completed']
+const CONSTRUCTION_TYPES: { value: string; key: TranslationKey }[] = [
+  { value: 'commercial',  key: 'ctCommercial' },
+  { value: 'residential', key: 'ctResidential' },
+  { value: 'civil',       key: 'ctCivil' },
+]
+const PROJECT_STATUSES: { value: string; key: TranslationKey }[] = [
+  { value: 'planning',  key: 'psPlanning' },
+  { value: 'active',    key: 'psActive' },
+  { value: 'completed', key: 'psCompleted' },
+]
 
-const PERMIT_FIELDS: { key: PermitKey; label: string }[] = [
-  { key: 'permit_building',    label: 'Building' },
-  { key: 'permit_electrical',  label: 'Electrical' },
-  { key: 'permit_mechanical',  label: 'Mechanical' },
-  { key: 'permit_plumbing',    label: 'Plumbing' },
-  { key: 'permit_backflow',    label: 'Backflow' },
-  { key: 'permit_civil',       label: 'Civil' },
+const PERMIT_FIELDS: { key: PermitKey; labelKey: TranslationKey }[] = [
+  { key: 'permit_building',    labelKey: 'permitBuilding' },
+  { key: 'permit_electrical',  labelKey: 'permitElectrical' },
+  { key: 'permit_mechanical',  labelKey: 'permitMechanical' },
+  { key: 'permit_plumbing',    labelKey: 'permitPlumbing' },
+  { key: 'permit_backflow',    labelKey: 'permitBackflow' },
+  { key: 'permit_civil',       labelKey: 'permitCivil' },
 ]
 
 type PermitKey =
@@ -127,6 +136,7 @@ export default function ProjectEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const projectId = Number(id)
+  const { t } = useLanguage()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -146,12 +156,12 @@ export default function ProjectEditScreen() {
 
     try {
       if (!Number.isFinite(projectId)) {
-        setErrorMessage('Invalid project.')
+        setErrorMessage(t('invalidProject'))
         return
       }
 
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { setErrorMessage('You must be signed in.'); return }
+      if (!session?.user) { setErrorMessage(t('mustBeSignedIn')); return }
 
       const { data: me } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
@@ -174,7 +184,7 @@ export default function ProjectEditScreen() {
           : '0.50'
       )
     } catch (e: any) {
-      setErrorMessage(e?.message || 'Failed to load project.')
+      setErrorMessage(e?.message || t('failedToLoadProject'))
     } finally {
       setLoading(false)
     }
@@ -200,9 +210,9 @@ export default function ProjectEditScreen() {
       setProject(prev => prev ? { ...prev, latitude: result.lat, longitude: result.lng } : prev)
       // If radius wasn't set, default the input to 0.5 mi
       if (!radiusInput || radiusInput === '') setRadiusInput('0.50')
-      Alert.alert('Location set', result.placeName)
+      Alert.alert(t('locationSet'), result.placeName)
     } catch (e: any) {
-      Alert.alert('Geocoding failed', e?.message || 'Could not find that address.')
+      Alert.alert(t('geocodingFailed'), e?.message || t('couldNotFindAddress'))
     } finally {
       setGeocoding(false)
     }
@@ -211,7 +221,7 @@ export default function ProjectEditScreen() {
   async function save() {
     if (!project) return
     if (!project.name?.trim()) {
-      Alert.alert('Missing name', 'Project name is required.')
+      Alert.alert(t('missingName'), t('projectNameRequired'))
       return
     }
 
@@ -244,11 +254,11 @@ export default function ProjectEditScreen() {
       }
       const { error } = await supabase.from('projects').update(payload).eq('id', projectId)
       if (error) throw error
-      Alert.alert('Saved', 'Project updated.', [
+      Alert.alert(t('saved'), t('projectUpdated'), [
         { text: 'OK', onPress: () => router.back() },
       ])
     } catch (e: any) {
-      Alert.alert('Save failed', e?.message || 'Could not save project.')
+      Alert.alert(t('saveFailed'), e?.message || t('couldNotSaveProject'))
     } finally {
       setSaving(false)
     }
@@ -258,7 +268,7 @@ export default function ProjectEditScreen() {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
         <ActivityIndicator size="large" color={COLORS.teal} />
-        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading project...</Text>
+        <Text style={{ marginTop: 12, color: COLORS.text }}>{t('loadingProject')}</Text>
       </SafeAreaView>
     )
   }
@@ -266,10 +276,10 @@ export default function ProjectEditScreen() {
   if (errorMessage) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>Error</Text>
+        <Text style={{ color: COLORS.red, fontWeight: '700', marginBottom: 10 }}>{t('error')}</Text>
         <Text style={{ color: COLORS.text, textAlign: 'center', marginBottom: 16 }}>{errorMessage}</Text>
         <Pressable onPress={() => router.back()} style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12 }}>
-          <Text style={{ color: COLORS.white, fontWeight: '700' }}>Back</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('back')}</Text>
         </Pressable>
       </SafeAreaView>
     )
@@ -278,8 +288,8 @@ export default function ProjectEditScreen() {
   if (!isManager) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>Manager Only</Text>
-        <Text style={{ color: COLORS.text, textAlign: 'center' }}>You do not have permission to edit this project.</Text>
+        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
+        <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noPermissionEditProject')}</Text>
       </SafeAreaView>
     )
   }
@@ -293,63 +303,73 @@ export default function ProjectEditScreen() {
           {/* Header */}
           <View style={{ backgroundColor: COLORS.navy, borderRadius: 28, padding: 22, marginBottom: 18 }}>
             <Text style={{ color: COLORS.white, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>
-              Edit Project
+              {t('editProject')}
             </Text>
             <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-              Update project info, permits, and the jobsite location used for clock-in geofencing.
+              {t('editProjectIntro')}
             </Text>
           </View>
 
           {/* Project Information */}
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 12 }}>
-              Project Information
+              {t('projectInformation')}
             </Text>
 
-            <FieldLabel>Name *</FieldLabel>
-            <TextField value={project.name || ''} onChangeText={t => setField('name', t)} placeholder="Project name" />
+            <FieldLabel>{`${t('projectName')} *`}</FieldLabel>
+            <TextField value={project.name || ''} onChangeText={v => setField('name', v)} placeholder={t('projectNamePlaceholder')} />
 
-            <FieldLabel>Street Address</FieldLabel>
-            <TextField value={project.address || ''} onChangeText={t => setField('address', t)} placeholder="123 Main St" />
+            <FieldLabel>{t('streetAddress')}</FieldLabel>
+            <TextField value={project.address || ''} onChangeText={v => setField('address', v)} placeholder={t('streetAddressPlaceholder')} />
 
-            <FieldLabel>City</FieldLabel>
-            <TextField value={project.city || ''} onChangeText={t => setField('city', t)} placeholder="Dallas" />
+            <FieldLabel>{t('cityLabel')}</FieldLabel>
+            <TextField value={project.city || ''} onChangeText={v => setField('city', v)} placeholder={t('cityPlaceholder')} />
 
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <FieldLabel>State</FieldLabel>
-                <TextField value={project.state || ''} onChangeText={t => setField('state', t.toUpperCase())} placeholder="TX" />
+                <FieldLabel>{t('stateLabel')}</FieldLabel>
+                <TextField value={project.state || ''} onChangeText={v => setField('state', v.toUpperCase())} placeholder={t('statePlaceholder')} />
               </View>
               <View style={{ flex: 1 }}>
-                <FieldLabel>Zip</FieldLabel>
-                <TextField value={project.zip || ''} onChangeText={t => setField('zip', t)} placeholder="75201" keyboardType="numeric" />
+                <FieldLabel>{t('zip')}</FieldLabel>
+                <TextField value={project.zip || ''} onChangeText={v => setField('zip', v)} placeholder={t('zipPlaceholder')} keyboardType="numeric" />
               </View>
             </View>
 
-            <FieldLabel>Description</FieldLabel>
-            <TextField value={project.description || ''} onChangeText={t => setField('description', t)} placeholder="Scope, notes, etc." multiline />
+            <FieldLabel>{t('descriptionLabel')}</FieldLabel>
+            <TextField value={project.description || ''} onChangeText={v => setField('description', v)} placeholder={t('descriptionPlaceholder')} multiline />
 
-            <FieldLabel>Status</FieldLabel>
+            <FieldLabel>{t('status')}</FieldLabel>
             <View style={{
               backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
               borderRadius: 14, marginBottom: 14, overflow: 'hidden',
             }}>
-              <Picker selectedValue={project.status || 'active'} onValueChange={v => setField('status', v)}>
+              <Picker
+                selectedValue={project.status || 'active'}
+                onValueChange={v => setField('status', v)}
+                itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
+                style={{ color: COLORS.text, backgroundColor: COLORS.white }}
+              >
                 {PROJECT_STATUSES.map(s => (
-                  <Picker.Item key={s} label={s.charAt(0).toUpperCase() + s.slice(1)} value={s} />
+                  <Picker.Item key={s.value} label={t(s.key)} value={s.value} color={COLORS.text} />
                 ))}
               </Picker>
             </View>
 
-            <FieldLabel>Construction Type</FieldLabel>
+            <FieldLabel>{t('constructionType')}</FieldLabel>
             <View style={{
               backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border,
               borderRadius: 14, marginBottom: 4, overflow: 'hidden',
             }}>
-              <Picker selectedValue={project.construction_type || ''} onValueChange={v => setField('construction_type', v || null)}>
-                <Picker.Item label="— Not set —" value="" />
-                {CONSTRUCTION_TYPES.map(t => (
-                  <Picker.Item key={t} label={t.charAt(0).toUpperCase() + t.slice(1)} value={t} />
+              <Picker
+                selectedValue={project.construction_type || ''}
+                onValueChange={v => setField('construction_type', v || null)}
+                itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
+                style={{ color: COLORS.text, backgroundColor: COLORS.white }}
+              >
+                <Picker.Item label={t('notSet')} value="" color={COLORS.text} />
+                {CONSTRUCTION_TYPES.map(c => (
+                  <Picker.Item key={c.value} label={t(c.key)} value={c.value} color={COLORS.text} />
                 ))}
               </Picker>
             </View>
@@ -358,15 +378,15 @@ export default function ProjectEditScreen() {
           {/* Types of Work */}
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 12 }}>
-              Types of Work
+              {t('typesOfWork')}
             </Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {WORK_TYPES.map(t => {
-                const active = (project.work_types || []).includes(t)
+              {WORK_TYPES.map(workType => {
+                const active = (project.work_types || []).includes(workType)
                 return (
                   <Pressable
-                    key={t}
-                    onPress={() => toggleWorkType(t)}
+                    key={workType}
+                    onPress={() => toggleWorkType(workType)}
                     style={{
                       paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100,
                       backgroundColor: active ? COLORS.navy : COLORS.white,
@@ -374,7 +394,7 @@ export default function ProjectEditScreen() {
                     }}
                   >
                     <Text style={{ color: active ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>
-                      {t}
+                      {workType}
                     </Text>
                   </Pressable>
                 )
@@ -385,30 +405,30 @@ export default function ProjectEditScreen() {
           {/* Owner Information */}
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 4 }}>
-              Owner Information
+              {t('ownerInformation')}
             </Text>
             <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
-              Used by all pay applications, warranty letters, and lien waivers for this project.
+              {t('ownerInfoIntro')}
             </Text>
-            <FieldLabel>Owner Name</FieldLabel>
-            <TextField value={project.owner_name || ''} onChangeText={t => setField('owner_name', t)} />
-            <FieldLabel>Owner Company</FieldLabel>
-            <TextField value={project.owner_company || ''} onChangeText={t => setField('owner_company', t)} />
-            <FieldLabel>Owner Address</FieldLabel>
-            <TextField value={project.owner_address || ''} onChangeText={t => setField('owner_address', t)} multiline placeholder="Street, City, State Zip" />
+            <FieldLabel>{t('ownerName')}</FieldLabel>
+            <TextField value={project.owner_name || ''} onChangeText={v => setField('owner_name', v)} />
+            <FieldLabel>{t('ownerCompany')}</FieldLabel>
+            <TextField value={project.owner_company || ''} onChangeText={v => setField('owner_company', v)} />
+            <FieldLabel>{t('ownerAddress')}</FieldLabel>
+            <TextField value={project.owner_address || ''} onChangeText={v => setField('owner_address', v)} multiline placeholder={t('ownerAddressPlaceholder')} />
           </View>
 
           {/* Permit Numbers */}
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 12 }}>
-              Permit Numbers
+              {t('permitNumbers')}
             </Text>
-            {PERMIT_FIELDS.map(({ key, label }) => (
+            {PERMIT_FIELDS.map(({ key, labelKey }) => (
               <View key={key}>
-                <FieldLabel>{label}</FieldLabel>
+                <FieldLabel>{t(labelKey)}</FieldLabel>
                 <TextField
                   value={(project[key] || '') as string}
-                  onChangeText={t => setField(key, t)}
+                  onChangeText={v => setField(key, v)}
                   placeholder="—"
                 />
               </View>
@@ -418,13 +438,13 @@ export default function ProjectEditScreen() {
           {/* Jobsite Location */}
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 18, marginBottom: 16 }}>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 17, marginBottom: 6 }}>
-              Jobsite Location
+              {t('jobsiteLocation')}
             </Text>
             <Text style={{ color: COLORS.subtext, fontSize: 13, marginBottom: 14, lineHeight: 18 }}>
-              Used to detect off-site clock-ins. If a worker clocks in beyond the radius, they're prompted for a reason.
+              {t('jobsiteIntro')}
             </Text>
 
-            <FieldLabel>Coordinates (from project address above)</FieldLabel>
+            <FieldLabel>{t('coordinatesFromAddress')}</FieldLabel>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <Pressable
                 onPress={handleGeocode}
@@ -436,7 +456,7 @@ export default function ProjectEditScreen() {
                 }}
               >
                 <Text style={{ color: COLORS.white, fontWeight: '700', fontSize: 14 }}>
-                  {geocoding ? 'Geocoding…' : '📍 Geocode from address'}
+                  {geocoding ? t('geocodingEllipsis') : t('geocodeFromAddress')}
                 </Text>
               </Pressable>
               {project.latitude != null && project.longitude != null && (
@@ -446,7 +466,7 @@ export default function ProjectEditScreen() {
                     backgroundColor: '#FEF2F2', borderRadius: 14, paddingHorizontal: 16, justifyContent: 'center',
                   }}
                 >
-                  <Text style={{ color: COLORS.red, fontWeight: '700' }}>Clear</Text>
+                  <Text style={{ color: COLORS.red, fontWeight: '700' }}>{t('clear')}</Text>
                 </Pressable>
               )}
             </View>
@@ -458,11 +478,11 @@ export default function ProjectEditScreen() {
               }}>
                 {project.latitude != null && project.longitude != null
                   ? `${project.latitude.toFixed(6)}, ${project.longitude.toFixed(6)}`
-                  : 'Not yet geocoded'}
+                  : t('notYetGeocoded')}
               </Text>
             </View>
 
-            <FieldLabel>Geofence radius (miles)</FieldLabel>
+            <FieldLabel>{t('geofenceRadius')}</FieldLabel>
             <TextField
               value={radiusInput}
               onChangeText={setRadiusInput}
@@ -482,14 +502,14 @@ export default function ProjectEditScreen() {
               }}
             >
               <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-                {saving ? 'Saving…' : 'Save Changes'}
+                {saving ? t('saving') : t('saveChanges')}
               </Text>
             </Pressable>
             <Pressable
               onPress={() => router.back()}
               style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center' }}
             >
-              <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>Cancel</Text>
+              <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 15 }}>{t('cancel')}</Text>
             </Pressable>
           </View>
         </ScrollView>

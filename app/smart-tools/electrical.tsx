@@ -5,13 +5,14 @@ import {
   Modal,
   Platform,
   Pressable,
-  
+
   ScrollView,
   Text,
   TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLanguage } from '../../lib/i18n'
 
 const C = {
   bg: '#D6E8FF',
@@ -235,12 +236,13 @@ function SelectRow({ label, options, value, onChange }: {
 }
 
 function CalcButton({ onPress, label }: { onPress: () => void; label?: string }) {
+  const { t } = useLanguage()
   return (
     <Pressable onPress={onPress} style={({ pressed }) => ({
       backgroundColor: C.navy, borderRadius: 12, padding: 14, alignItems: 'center',
       marginVertical: 8, opacity: pressed ? 0.85 : 1,
     })}>
-      <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>{label || 'Calculate'}</Text>
+      <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
     </Pressable>
   )
 }
@@ -256,6 +258,7 @@ function InfoBox({ text }: { text: string }) {
 // ─── CALCULATOR 1: TABLE 310.16 AMPACITY ─────────────────────────────────────
 
 function Calc310_16({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const cuSizes = Object.keys(T310_16_CU)
   const alSizes = Object.keys(T310_16_AL)
   const [mat, setMat] = useState('CU')
@@ -274,10 +277,10 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
     if (!base) return
     const n = parseInt(conductors)
     let derateFactor = 1
-    let derateNote = 'No derating (≤ 3 current-carrying conductors)'
-    if (n >= 4 && n <= 6)  { derateFactor = 0.80; derateNote = '4–6 conductors: 80% derating (NEC 310.15(C)(1))' }
-    if (n >= 7 && n <= 9)  { derateFactor = 0.70; derateNote = '7–9 conductors: 70% derating' }
-    if (n >= 10)            { derateFactor = 0.50; derateNote = '10+ conductors: 50% derating' }
+    let derateNote = t('steNoDerating')
+    if (n >= 4 && n <= 6)  { derateFactor = 0.80; derateNote = t('steDerate46') }
+    if (n >= 7 && n <= 9)  { derateFactor = 0.70; derateNote = t('steDerate79') }
+    if (n >= 10)            { derateFactor = 0.50; derateNote = t('steDerate10Plus') }
     const derated = Math.floor(base * derateFactor)
     setResult({ base, derated, derateFactor, derateNote, size, mat, temp })
   }
@@ -285,10 +288,10 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
   const sizes = mat === 'CU' ? cuSizes : alSizes
 
   return (
-    <CalcModal visible onClose={onClose} title="Table 310.16 — Ampacity" subtitle="NEC 2026 · Allowable ampacity in conduit">
-      <SelectRow label="Material" options={['CU', 'AL']} value={mat} onChange={v => { setMat(v); setSize(v === 'CU' ? '12 AWG' : '12 AWG') }} />
-      <SelectRow label="Insulation Temp Rating" options={['60', '75', '90']} value={temp} onChange={setTemp} />
-      <Text style={lbl}>Conductor Size</Text>
+    <CalcModal visible onClose={onClose} title={t('steAmpacityTitle')} subtitle={t('steAmpacitySubtitle')}>
+      <SelectRow label={t('stcMaterial')} options={['CU', 'AL']} value={mat} onChange={v => { setMat(v); setSize(v === 'CU' ? '12 AWG' : '12 AWG') }} />
+      <SelectRow label={t('steInsulationTempRating')} options={['60', '75', '90']} value={temp} onChange={setTemp} />
+      <Text style={lbl}>{t('steConductorSize')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {sizes.map(s => (
@@ -303,7 +306,7 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
         </View>
       </ScrollView>
 
-      <Text style={lbl}>Current-Carrying Conductors in Raceway</Text>
+      <Text style={lbl}>{t('steCurrentCarryingConductors')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '14', '16'].map(n => (
@@ -322,11 +325,11 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
 
       {result && (
         <View>
-          <ResultCard label="Base Ampacity" value={`${result.base} A`} sub={`${result.size} ${result.mat} at ${result.temp}°C`} />
+          <ResultCard label={t('steBaseAmpacity')} value={`${result.base} A`} sub={t('steAtTempC', { size: result.size, mat: result.mat, temp: result.temp })} />
           <ResultCard
-            label="Derated Ampacity"
+            label={t('steDeratedAmpacity')}
             value={`${result.derated} A`}
-            sub={`× ${result.derateFactor} derating factor`}
+            sub={t('steDeratingFactor', { factor: result.derateFactor })}
             color={result.derateFactor < 1 ? '#EF4444' : '#22C55E'}
           />
           <InfoBox text={result.derateNote} />
@@ -339,6 +342,7 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
 // ─── CALCULATOR 2: VOLTAGE DROP ───────────────────────────────────────────────
 
 function CalcVoltageDrop({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [phases, setPhases] = useState('3')
   const [voltage, setVoltage] = useState('480')
   const [size, setSize] = useState('12 AWG')
@@ -360,13 +364,16 @@ function CalcVoltageDrop({ onClose }: { onClose: () => void }) {
     setResult({ vd: vd.toFixed(2), pct: pct.toFixed(2), ok: pct <= 3, size, V })
   }
 
-  return (
-    <CalcModal visible onClose={onClose} title="Voltage Drop" subtitle="NEC Ch.9 Table 9 · Recommended max 3%">
-      <SelectRow label="System" options={['3-Phase', '1-Phase']} value={phases === '3' ? '3-Phase' : '1-Phase'} onChange={v => setPhases(v === '3-Phase' ? '3' : '1')} />
-      <SelectRow label="Voltage (L-L)" options={['120', '208', '240', '277', '480', '600']} value={voltage} onChange={setVoltage} />
-      <SelectRow label="Material" options={['CU', 'AL']} value={mat} onChange={setMat} />
+  const labelThree = t('ste3Phase')
+  const labelOne = t('ste1Phase')
 
-      <Text style={lbl}>Wire Size</Text>
+  return (
+    <CalcModal visible onClose={onClose} title={t('steVdropTitle')} subtitle={t('steVdropSubtitle')}>
+      <SelectRow label={t('steSystem')} options={[labelThree, labelOne]} value={phases === '3' ? labelThree : labelOne} onChange={v => setPhases(v === labelThree ? '3' : '1')} />
+      <SelectRow label={t('steVoltageLL')} options={['120', '208', '240', '277', '480', '600']} value={voltage} onChange={setVoltage} />
+      <SelectRow label={t('stcMaterial')} options={['CU', 'AL']} value={mat} onChange={setMat} />
+
+      <Text style={lbl}>{t('stcWireSize')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {cuSizes.map(s => (
@@ -381,19 +388,19 @@ function CalcVoltageDrop({ onClose }: { onClose: () => void }) {
         </View>
       </ScrollView>
 
-      <Text style={lbl}>Load Current (A)</Text>
-      <TextInput style={inp} keyboardType="numeric" value={amps} onChangeText={setAmps} placeholder="e.g. 45" placeholderTextColor={C.sub} />
-      <Text style={lbl}>One-Way Length (ft)</Text>
-      <TextInput style={inp} keyboardType="numeric" value={length} onChangeText={setLength} placeholder="e.g. 150" placeholderTextColor={C.sub} />
+      <Text style={lbl}>{t('steLoadCurrentA')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={amps} onChangeText={setAmps} placeholder={t('steLoadCurrentPlaceholder')} placeholderTextColor={C.sub} />
+      <Text style={lbl}>{t('stcOneWayLengthFt')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={length} onChangeText={setLength} placeholder={t('steOneWayLengthPlaceholder')} placeholderTextColor={C.sub} />
 
       <CalcButton onPress={calculate} />
 
       {result && (
         <View>
-          <ResultCard label="Voltage Drop" value={`${result.vd} V`} sub={`${result.pct}% of ${result.V}V`} color={result.ok ? '#22C55E' : '#EF4444'} />
+          <ResultCard label={t('steVoltageDropResult')} value={`${result.vd} V`} sub={t('stePctOfV', { pct: result.pct, v: result.V })} color={result.ok ? '#22C55E' : '#EF4444'} />
           <InfoBox text={result.ok
-            ? `${result.pct}% — within the NEC recommended maximum of 3% for branch circuits.`
-            : `${result.pct}% exceeds 3%. Consider a larger conductor or shorter run.`}
+            ? t('steVdropOk', { pct: result.pct })
+            : t('steVdropOver', { pct: result.pct })}
           />
         </View>
       )}
@@ -404,6 +411,7 @@ function CalcVoltageDrop({ onClose }: { onClose: () => void }) {
 // ─── CALCULATOR 3: CONDUIT FILL ───────────────────────────────────────────────
 
 function CalcConduitFill({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [conduitType, setConduitType] = useState('EMT')
   const [conduitSize, setConduitSize] = useState('1"')
   const [wireType, setWireType] = useState('THHN/THWN')
@@ -443,12 +451,12 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
   const wireSizes = Object.keys(WIRE_AREAS[wireType] || {})
 
   return (
-    <CalcModal visible onClose={onClose} title="Conduit Fill" subtitle="NEC Ch.9 Table 1 · Max fill % by wire count">
-      <SelectRow label="Conduit Type" options={['EMT', 'RMC', 'PVC-40']} value={conduitType} onChange={v => { setConduitType(v); setConduitSize('1"') }} />
-      <SelectRow label="Conduit Size" options={conduitSizes} value={conduitSize} onChange={setConduitSize} />
-      <SelectRow label="Wire Insulation" options={['THHN/THWN', 'XHHW']} value={wireType} onChange={setWireType} />
+    <CalcModal visible onClose={onClose} title={t('steConduitTitle')} subtitle={t('steConduitSubtitle')}>
+      <SelectRow label={t('steConduitType')} options={['EMT', 'RMC', 'PVC-40']} value={conduitType} onChange={v => { setConduitType(v); setConduitSize('1"') }} />
+      <SelectRow label={t('steConduitSize')} options={conduitSizes} value={conduitSize} onChange={setConduitSize} />
+      <SelectRow label={t('steWireInsulation')} options={['THHN/THWN', 'XHHW']} value={wireType} onChange={setWireType} />
 
-      <Text style={lbl}>Wire Size</Text>
+      <Text style={lbl}>{t('stcWireSize')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {wireSizes.map(s => (
@@ -463,18 +471,18 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
         </View>
       </ScrollView>
 
-      <Text style={lbl}>Quantity</Text>
-      <TextInput style={inp} keyboardType="numeric" value={count} onChangeText={setCount} placeholder="Number of this wire" placeholderTextColor={C.sub} />
+      <Text style={lbl}>{t('stcQuantity')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={count} onChangeText={setCount} placeholder={t('steQuantityPlaceholder')} placeholderTextColor={C.sub} />
 
       <Pressable onPress={addWire} style={{
         backgroundColor: C.teal, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 16,
       }}>
-        <Text style={{ color: C.white, fontWeight: '700' }}>+ Add Wire</Text>
+        <Text style={{ color: C.white, fontWeight: '700' }}>{t('stcAddWire')}</Text>
       </Pressable>
 
       {wires.length > 0 && (
         <View style={{ backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: C.border }}>
-          <Text style={{ fontWeight: '700', color: C.navy, marginBottom: 8 }}>Wires in Conduit:</Text>
+          <Text style={{ fontWeight: '700', color: C.navy, marginBottom: 8 }}>{t('steWiresInConduit')}</Text>
           {wires.map((w, i) => (
             <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
               <Text style={{ color: C.text, fontSize: 14 }}>{w.count}× {w.size} {w.type}</Text>
@@ -491,22 +499,22 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
       {result && (
         <View>
           <ResultCard
-            label="Fill Percentage"
+            label={t('steFillPercentage')}
             value={`${result.fillPct}%`}
-            sub={`Max allowed: ${result.maxFill}% for ${wires.length} wire(s)`}
+            sub={t('steMaxAllowedFor', { max: result.maxFill, n: wires.length })}
             color={result.ok ? '#22C55E' : '#EF4444'}
           />
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <View style={{ flex: 1, backgroundColor: C.inputBg, borderRadius: 10, padding: 12 }}>
-              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>WIRE AREA</Text>
+              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>{t('steWireArea')}</Text>
               <Text style={{ fontSize: 16, fontWeight: '800', color: C.navy }}>{result.totalWireArea} in²</Text>
             </View>
             <View style={{ flex: 1, backgroundColor: C.inputBg, borderRadius: 10, padding: 12 }}>
-              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>CONDUIT AREA</Text>
+              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>{t('steConduitArea')}</Text>
               <Text style={{ fontSize: 16, fontWeight: '800', color: C.navy }}>{result.conduitArea} in²</Text>
             </View>
           </View>
-          <InfoBox text={result.ok ? 'Conduit fill is within NEC limits.' : 'Conduit is overfilled. Use a larger conduit or reduce wire count.'} />
+          <InfoBox text={result.ok ? t('steConduitOk') : t('steConduitOver')} />
         </View>
       )}
     </CalcModal>
@@ -516,6 +524,7 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
 // ─── CALCULATOR 4: EGC SIZE ───────────────────────────────────────────────────
 
 function CalcEGC({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [ocpd, setOcpd] = useState('')
   const [result, setResult] = useState<any>(null)
 
@@ -527,23 +536,23 @@ function CalcEGC({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Table 250.122 — EGC Size" subtitle="NEC 2026 · Equipment Grounding Conductor">
-      <Text style={lbl}>OCPD Rating (A)</Text>
-      <TextInput style={inp} keyboardType="numeric" value={ocpd} onChangeText={setOcpd} placeholder="e.g. 100" placeholderTextColor={C.sub} />
+    <CalcModal visible onClose={onClose} title={t('steEgcTitle')} subtitle={t('steEgcSubtitle')}>
+      <Text style={lbl}>{t('steOcpdRatingA')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={ocpd} onChangeText={setOcpd} placeholder={t('steOcpdPlaceholder')} placeholderTextColor={C.sub} />
       <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>
-        Enter the rating of the upstream overcurrent device protecting this circuit.
+        {t('steOcpdHelp')}
       </Text>
       <CalcButton onPress={calculate} />
       {result && (
         <View>
           <Text style={{ fontWeight: '700', color: C.navy, marginBottom: 10, marginTop: 4 }}>
-            OCPD ≤ {result.ocpd}A:
+            {t('steOcpdLessOrEqual', { amps: result.ocpd })}
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <ResultCard label="Copper EGC" value={result.cu} />
-            <ResultCard label="Aluminum EGC" value={result.al} color="#1565C0" />
+            <ResultCard label={t('steCopperEgc')} value={result.cu} />
+            <ResultCard label={t('steAluminumEgc')} value={result.al} color="#1565C0" />
           </View>
-          <InfoBox text="EGC may be increased proportionally if ungrounded conductors are increased above minimum size (NEC 250.122(B))." />
+          <InfoBox text={t('steEgcInfo')} />
         </View>
       )}
     </CalcModal>
@@ -553,6 +562,7 @@ function CalcEGC({ onClose }: { onClose: () => void }) {
 // ─── CALCULATOR 5: BOX FILL ───────────────────────────────────────────────────
 
 function CalcBoxFill({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const VOL: Record<string, number> = {
     '14 AWG': 2.00, '12 AWG': 2.25, '10 AWG': 2.50, '8 AWG': 3.00, '6 AWG': 5.00,
   }
@@ -573,18 +583,18 @@ function CalcBoxFill({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <CalcModal visible onClose={onClose} title="Box Fill — Table 314.16(B)" subtitle="NEC 2026 · Required box volume">
-      <SelectRow label="Largest Conductor Size" options={Object.keys(VOL)} value={condSize} onChange={setCondSize} />
-      <Text style={lbl}>Number of Conductors</Text>
-      <TextInput style={inp} keyboardType="numeric" value={conductors} onChangeText={setConductors} placeholder="All conductors entering box" placeholderTextColor={C.sub} />
-      <Text style={lbl}>Devices (switches, outlets)</Text>
-      <TextInput style={inp} keyboardType="numeric" value={devices} onChangeText={setDevices} placeholder="Number of devices" placeholderTextColor={C.sub} />
-      <SelectRow label="Internal Cable Clamps?" options={['0', '1']} value={clamps} onChange={setClamps} />
+    <CalcModal visible onClose={onClose} title={t('steBoxFillTitle')} subtitle={t('steBoxFillSubtitle')}>
+      <SelectRow label={t('steLargestConductorSize')} options={Object.keys(VOL)} value={condSize} onChange={setCondSize} />
+      <Text style={lbl}>{t('steNumberOfConductors')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={conductors} onChangeText={setConductors} placeholder={t('steNumberOfConductorsPlaceholder')} placeholderTextColor={C.sub} />
+      <Text style={lbl}>{t('steDevices')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={devices} onChangeText={setDevices} placeholder={t('steDevicesPlaceholder')} placeholderTextColor={C.sub} />
+      <SelectRow label={t('steInternalCableClamps')} options={['0', '1']} value={clamps} onChange={setClamps} />
       <CalcButton onPress={calculate} />
       {result && (
         <View>
-          <ResultCard label="Required Box Volume" value={`${result.total} in³`} sub={`Based on ${result.vol} in³ per conductor (${condSize})`} />
-          <InfoBox text="Select a box with a cubic inch rating equal to or greater than this value. Standard 4x4 square box = 30.3 in³, single-gang = 18 in³." />
+          <ResultCard label={t('steRequiredBoxVolume')} value={`${result.total} in³`} sub={t('steBoxVolumeBased', { vol: result.vol, size: condSize })} />
+          <InfoBox text={t('steBoxFillInfo')} />
         </View>
       )}
     </CalcModal>
@@ -594,6 +604,7 @@ function CalcBoxFill({ onClose }: { onClose: () => void }) {
 // ─── CALCULATOR 6: FAULT CURRENT (BUSSMANN P-t-P) ────────────────────────────
 
 function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [phases, setPhases] = useState('3')
   const [secV, setSecV] = useState('480')
   const [kva, setKva] = useState('')
@@ -622,35 +633,40 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
     const isc0 = phases === '3'
       ? (kvaNum * 1000) / (1.732 * vLL * zNum)
       : (kvaNum * 1000) / (vLL * zNum)
-    const chain: typeof points = [{ label: 'Transformer Secondary', isc: isc0, note: `${kvaNum} kVA, %Z = ${zPct}%` }]
+    const chain: typeof points = [{ label: t('steTransformerSecondary'), isc: isc0, note: t('steXfmrNote', { kva: kvaNum, z: zPct }) }]
     for (let i = 0; i < runs.length; i++) {
       const r = runs[i]
       const L = parseFloat(r.length), P = parseInt(r.parallel) || 1
-      if (!L || L <= 0) { chain.push({ label: r.label || `Point ${i + 1}`, isc: null, note: 'Missing length' }); continue }
+      if (!L || L <= 0) { chain.push({ label: r.label || t('stePointN', { n: i + 1 }), isc: null, note: t('steMissingLength') }); continue }
       const Rv = (r.mat === 'CU' ? T9_CU[r.size] : T9_AL[r.size]) || null
-      if (!Rv) { chain.push({ label: r.label || `Point ${i + 1}`, isc: null, note: 'Invalid conductor' }); continue }
+      if (!Rv) { chain.push({ label: r.label || t('stePointN', { n: i + 1 }), isc: null, note: t('steInvalidConductor') }); continue }
       const isc_prev = chain[chain.length - 1].isc
-      if (!isc_prev) { chain.push({ label: r.label || `Point ${i + 1}`, isc: null, note: 'Upstream invalid' }); continue }
+      if (!isc_prev) { chain.push({ label: r.label || t('stePointN', { n: i + 1 }), isc: null, note: t('steUpstreamInvalid') }); continue }
       const Reff = Rv / P
       const f = phases === '3'
         ? (1.732 * Reff * L * isc_prev) / (1000 * vLL)
         : (2 * Reff * L * isc_prev) / (1000 * vLL)
       const isc_new = isc_prev / (1 + f)
       const drop = ((1 - isc_new / isc_prev) * 100).toFixed(1)
-      chain.push({ label: r.label || `Point ${i + 1}`, isc: isc_new, note: `${P > 1 ? P + ' sets ' : ''}${r.size} ${r.mat}, ${L} ft`, drop })
+      const note = P > 1
+        ? t('steRunNoteParallel', { p: P, size: r.size, mat: r.mat, len: L })
+        : t('steRunNote', { size: r.size, mat: r.mat, len: L })
+      chain.push({ label: r.label || t('stePointN', { n: i + 1 }), isc: isc_new, note, drop })
     }
     setPoints(chain)
   }
 
   const autoZ = XFMR_Z[parseFloat(kva)]
+  const labelThree = t('ste3Phase')
+  const labelOne = t('ste1Phase')
 
   return (
-    <CalcModal visible onClose={onClose} title="Available Fault Current" subtitle="Bussmann Point-to-Point · NEC 110.9">
-      <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>Step 1 — Transformer</Text>
-      <SelectRow label="Phases" options={['3-Phase', '1-Phase']} value={phases === '3' ? '3-Phase' : '1-Phase'} onChange={v => { setPhases(v === '3-Phase' ? '3' : '1'); setPoints([]) }} />
-      <SelectRow label="Secondary Voltage" options={phases === '3' ? ['208','240','480','600','4160'] : ['120','240','277']} value={secV} onChange={setSecV} />
+    <CalcModal visible onClose={onClose} title={t('steFaultTitle')} subtitle={t('steFaultSubtitle')}>
+      <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>{t('steStep1Transformer')}</Text>
+      <SelectRow label={t('stePhases')} options={[labelThree, labelOne]} value={phases === '3' ? labelThree : labelOne} onChange={v => { setPhases(v === labelThree ? '3' : '1'); setPoints([]) }} />
+      <SelectRow label={t('steSecondaryVoltage')} options={phases === '3' ? ['208','240','480','600','4160'] : ['120','240','277']} value={secV} onChange={setSecV} />
 
-      <Text style={lbl}>Transformer kVA</Text>
+      <Text style={lbl}>{t('steTransformerKva')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', gap: 6 }}>
           {XFMR_KVA.map(k => (
@@ -659,29 +675,29 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
               backgroundColor: kva === String(k) ? C.navy : C.card,
               borderWidth: 1, borderColor: kva === String(k) ? C.navy : C.border,
             }}>
-              <Text style={{ color: kva === String(k) ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{k} kVA</Text>
+              <Text style={{ color: kva === String(k) ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{t('steXfmrKva', { k })}</Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
 
-      <Text style={lbl}>%Z Impedance</Text>
-      <TextInput style={inp} keyboardType="numeric" value={zPct} onChangeText={setZpct} placeholder={autoZ ? `Typical: ${autoZ}%` : 'e.g. 5.75'} placeholderTextColor={C.sub} />
+      <Text style={lbl}>{t('steZImpedance')}</Text>
+      <TextInput style={inp} keyboardType="numeric" value={zPct} onChangeText={setZpct} placeholder={autoZ ? t('steZTypical', { z: autoZ }) : t('steZPlaceholder')} placeholderTextColor={C.sub} />
 
       {runs.length > 0 && (
         <View>
-          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10, marginTop: 4 }}>Step 2 — Conductor Runs</Text>
+          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10, marginTop: 4 }}>{t('steStep2Runs')}</Text>
           {runs.map((r, i) => (
             <View key={r.id} style={{ backgroundColor: C.inputBg, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontWeight: '700', color: C.navy }}>Run {i + 1}</Text>
+                <Text style={{ fontWeight: '700', color: C.navy }}>{t('steRunNum', { n: i + 1 })}</Text>
                 <Pressable onPress={() => removeRun(r.id)}>
                   <MaterialCommunityIcons name="close-circle" size={20} color={C.red} />
                 </Pressable>
               </View>
-              <TextInput style={{ ...inp, marginBottom: 8 }} value={r.label} onChangeText={v => updateRun(r.id, 'label', v)} placeholder="Label (e.g. MDP → Panel A)" placeholderTextColor={C.sub} />
-              <SelectRow label="Material" options={['CU', 'AL']} value={r.mat} onChange={v => updateRun(r.id, 'mat', v)} />
-              <Text style={lbl}>Wire Size</Text>
+              <TextInput style={{ ...inp, marginBottom: 8 }} value={r.label} onChangeText={v => updateRun(r.id, 'label', v)} placeholder={t('steRunLabelPlaceholder')} placeholderTextColor={C.sub} />
+              <SelectRow label={t('stcMaterial')} options={['CU', 'AL']} value={r.mat} onChange={v => updateRun(r.id, 'mat', v)} />
+              <Text style={lbl}>{t('stcWireSize')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {SIZES_CU.map(s => (
@@ -695,8 +711,8 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
                   ))}
                 </View>
               </ScrollView>
-              <TextInput style={{ ...inp, marginBottom: 8 }} keyboardType="numeric" value={r.length} onChangeText={v => updateRun(r.id, 'length', v)} placeholder="One-way length (ft)" placeholderTextColor={C.sub} />
-              <SelectRow label="Parallel Sets" options={['1','2','3','4']} value={r.parallel} onChange={v => updateRun(r.id, 'parallel', v)} />
+              <TextInput style={{ ...inp, marginBottom: 8 }} keyboardType="numeric" value={r.length} onChangeText={v => updateRun(r.id, 'length', v)} placeholder={t('stcOneWayLengthFt')} placeholderTextColor={C.sub} />
+              <SelectRow label={t('steParallelSets')} options={['1','2','3','4']} value={r.parallel} onChange={v => updateRun(r.id, 'parallel', v)} />
             </View>
           ))}
         </View>
@@ -704,16 +720,16 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Pressable onPress={calculate} style={{ flex: 1, backgroundColor: C.navy, borderRadius: 12, padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>Calculate</Text>
+          <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>{t('stcCalculate')}</Text>
         </Pressable>
         <Pressable onPress={addRun} style={{ flex: 1, backgroundColor: C.teal, borderRadius: 12, padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: C.white, fontWeight: '700' }}>+ Add Run</Text>
+          <Text style={{ color: C.white, fontWeight: '700' }}>{t('stcAddRun')}</Text>
         </Pressable>
       </View>
 
       {points.length > 0 && (
         <View style={{ marginTop: 16 }}>
-          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>Results</Text>
+          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>{t('stcResults')}</Text>
           {points.map((pt, i) => (
             <View key={i} style={{
               backgroundColor: i === 0 ? C.navy : C.card,
@@ -735,12 +751,12 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
                     {pt.drop && <Text style={{ color: C.yellow, fontSize: 11, fontWeight: '700' }}>↓ {pt.drop}%</Text>}
                   </>
                 ) : (
-                  <Text style={{ color: C.red, fontSize: 13, fontWeight: '600' }}>⚠ Error</Text>
+                  <Text style={{ color: C.red, fontSize: 13, fontWeight: '600' }}>{t('steErrorBadge')}</Text>
                 )}
               </View>
             </View>
           ))}
-          <InfoBox text="Use these values to select properly rated overcurrent devices. All OCPDs must have an interrupting rating ≥ available fault current (NEC 110.9)." />
+          <InfoBox text={t('steFaultInfo')} />
         </View>
       )}
     </CalcModal>
@@ -749,24 +765,25 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
 
 // ─── TOOLS LIST ───────────────────────────────────────────────────────────────
 
-const TOOLS = [
-  { id: 'ampacity',    icon: 'table-large',           title: 'Table 310.16 — Ampacity',       desc: 'Allowable ampacity by wire size, insulation, and material with derating',  ref: 'NEC 2026 §310.16' },
-  { id: 'vdrop',      icon: 'lightning-bolt-outline', title: 'Voltage Drop',                  desc: 'VD% for any conductor, length, and load current',                          ref: 'NEC Ch.9 Table 9' },
-  { id: 'conduit',    icon: 'pipe',                   title: 'Conduit Fill',                  desc: 'Fill % for any conduit type and size with multiple wire types',             ref: 'NEC Ch.9 Table 1' },
-  { id: 'egc',        icon: 'electric-switch',        title: 'EGC Size — Table 250.122',      desc: 'Equipment grounding conductor size based on OCPD rating',                  ref: 'NEC 2026 §250.122' },
-  { id: 'boxfill',    icon: 'checkbox-blank-outline', title: 'Box Fill — Table 314.16(B)',    desc: 'Required box volume from conductors, devices, and clamps',                  ref: 'NEC 2026 §314.16' },
-  { id: 'fault',      icon: 'flash-alert',            title: 'Available Fault Current',       desc: 'Bussmann Point-to-Point: fault current at transformer & downstream panels', ref: 'NEC 110.9 / Bussmann' },
-]
-
 export default function ElectricalTools() {
+  const { t } = useLanguage()
   const [open, setOpen] = useState<string | null>(null)
+
+  const TOOLS = [
+    { id: 'ampacity', icon: 'table-large',           title: t('steAmpacityTitle'), desc: t('steAmpacityDesc'), ref: 'NEC 2026 §310.16' },
+    { id: 'vdrop',    icon: 'lightning-bolt-outline', title: t('steVdropTitle'),    desc: t('steVdropDesc'),    ref: 'NEC Ch.9 Table 9' },
+    { id: 'conduit',  icon: 'pipe',                   title: t('steConduitTitle'),  desc: t('steConduitDesc'),  ref: 'NEC Ch.9 Table 1' },
+    { id: 'egc',      icon: 'electric-switch',        title: t('steEgcTitle'),      desc: t('steEgcDesc'),      ref: 'NEC 2026 §250.122' },
+    { id: 'boxfill',  icon: 'checkbox-blank-outline', title: t('steBoxFillTitle'),  desc: t('steBoxFillDesc'),  ref: 'NEC 2026 §314.16' },
+    { id: 'fault',    icon: 'flash-alert',            title: t('steFaultTitle'),    desc: t('steFaultDesc'),    ref: 'NEC 110.9 / Bussmann' },
+  ]
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 20 }}>
-          <Text style={{ color: C.navy, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>⚡ Electrical Tools</Text>
-          <Text style={{ color: C.sub, fontSize: 13 }}>Field calculators based on NEC 2026</Text>
+          <Text style={{ color: C.navy, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>⚡ {t('steTitle')}</Text>
+          <Text style={{ color: C.sub, fontSize: 13 }}>{t('steSubtitle')}</Text>
         </View>
 
         {TOOLS.map(tool => (

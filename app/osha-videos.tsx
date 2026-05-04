@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 
 type VideoRow = {
@@ -27,6 +28,7 @@ type VideoRow = {
 };
 
 export default function OshaVideosScreen() {
+  const { t } = useLanguage();
   const [videos, setVideos] = useState<VideoRow[]>([]);
   const [filtered, setFiltered] = useState<VideoRow[]>([]);
   const [search, setSearch] = useState('');
@@ -96,13 +98,13 @@ export default function OshaVideosScreen() {
     const url = item.video_url || item.youtube_url || item.url;
 
     if (!url) {
-      Alert.alert('Missing Video', 'No video URL was found for this item.');
+      Alert.alert(t('missingVideo'), t('missingVideoMessage'));
       return;
     }
 
     const canOpen = await Linking.canOpenURL(url);
     if (!canOpen) {
-      Alert.alert('Cannot Open', 'This video link could not be opened.');
+      Alert.alert(t('cannotOpen'), t('cannotOpenVideo'));
       return;
     }
 
@@ -110,12 +112,12 @@ export default function OshaVideosScreen() {
   }
 
   function renderItem({ item }: { item: VideoRow }) {
-    const title = item.title || item.name || item.module_name || 'OSHA Video';
+    const title = item.title || item.name || item.module_name || t('oshaVideoDefault');
 
     return (
       <View style={styles.card}>
         {!!item.module_number && (
-          <Text style={styles.moduleNumber}>Module {item.module_number}</Text>
+          <Text style={styles.moduleNumber}>{`${t('moduleLabel')} ${item.module_number}`}</Text>
         )}
 
         <Text style={styles.title}>{title}</Text>
@@ -125,7 +127,7 @@ export default function OshaVideosScreen() {
         )}
 
         <TouchableOpacity style={styles.button} onPress={() => openVideo(item)}>
-          <Text style={styles.buttonText}>Watch Video</Text>
+          <Text style={styles.buttonText}>{t('watchVideo')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -135,17 +137,17 @@ export default function OshaVideosScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading OSHA videos...</Text>
+        <Text style={styles.loadingText}>{t('loadingOshaVideos')}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>OSHA Videos</Text>
+      <Text style={styles.header}>{t('oshaVideos')}</Text>
 
       <TextInput
-        placeholder="Search videos..."
+        placeholder={t('searchVideos')}
         value={search}
         onChangeText={setSearch}
         style={styles.search}
@@ -160,7 +162,7 @@ export default function OshaVideosScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No OSHA videos found.</Text>
+          <Text style={styles.emptyText}>{t('noOshaVideosFound')}</Text>
         }
       />
     </View>
