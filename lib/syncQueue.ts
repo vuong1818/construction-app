@@ -1,9 +1,13 @@
 // AsyncStorage-backed queue for ops that should survive network drops.
 //
-// v1 scope: only queues clock-in. Clock-out usually happens somewhere
-// with signal (worker driving home), and offline clock-out introduces
-// a chained-op problem (the row to update doesn't exist server-side
-// yet if clock-in is still queued). Defer until there's actual demand.
+// Scope:
+//   - clock_in: original case. Worker may tap Clock In with no signal.
+//   - task_status_update: worker on site may toggle a task to in_progress
+//     or completed; the row already exists server-side so there is no
+//     chained-op problem. Safe to queue.
+//
+// Clock-out is still excluded because it would need to wait for a queued
+// clock-in to flush before it could resolve the target row id.
 //
 // Lifecycle:
 //   1. Worker taps Clock In on the home screen.
@@ -44,7 +48,18 @@ export type ClockInQueueOp = {
   attempts: number
 }
 
-export type QueueOp = ClockInQueueOp
+export type TaskStatusUpdateOp = {
+  id: string
+  kind: 'task_status_update'
+  payload: {
+    task_id: number
+    status: 'assigned' | 'in_progress' | 'completed'
+  }
+  queued_at: string
+  attempts: number
+}
+
+export type QueueOp = ClockInQueueOp | TaskStatusUpdateOp
 
 // ── Storage primitives ──────────────────────────────────────────────────────
 async function readQueue(): Promise<QueueOp[]> {
@@ -104,6 +119,26 @@ export async function queueClockIn(
   await notify()
 }
 
+export async function queueTaskStatusUpdate(
+  payload: TaskStatusUpdateOp['payload'],
+): Promise<void> {
+  const ops = await readQueue()
+  // Collapse duplicate updates for the same task: latest intent wins so the
+  // queue can't snowball into a stack of redundant writes.
+  const filtered = ops.filter(
+    (op) => !(op.kind === 'task_status_update' && op.payload.task_id === payload.task_id),
+  )
+  filtered.push({
+    id: makeId(),
+    kind: 'task_status_update',
+    payload,
+    queued_at: new Date().toISOString(),
+    attempts: 0,
+  })
+  await writeQueue(filtered)
+  await notify()
+}
+
 // ── Drain ───────────────────────────────────────────────────────────────────
 let draining = false
 
@@ -120,6 +155,13 @@ export async function drainQueue(): Promise<{ synced: number; remaining: number 
       try {
         if (op.kind === 'clock_in') {
           const { error } = await supabase.from('time_entries').insert(op.payload)
+          if (error) throw new Error(error.message)
+          synced++
+        } else if (op.kind === 'task_status_update') {
+          const { error } = await supabase
+            .from('project_tasks')
+            .update({ status: op.payload.status })
+            .eq('id', op.payload.task_id)
           if (error) throw new Error(error.message)
           synced++
         }
