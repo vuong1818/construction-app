@@ -3,7 +3,7 @@
     "name": "Nguyen MEP On-Site Tech",
     "slug": "nguyenmep-onsite-tech",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "onsitetech",
     "userInterfaceStyle": "automatic",
@@ -18,7 +18,16 @@
         "NSPhotoLibraryAddUsageDescription": "Save signed acknowledgement PDFs and job photos to your library.",
         "NSLocationWhenInUseUsageDescription": "Verify you are on the job site when you clock in or out.",
         "NSMicrophoneUsageDescription": "Record audio when capturing video on the job site.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+          "UIInterfaceOrientationLandscapeLeft",
+          "UIInterfaceOrientationLandscapeRight"
+        ]
       }
     },
     "android": {
