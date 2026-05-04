@@ -442,6 +442,12 @@ const es: Record<TranslationKey, string> = {
   todayClockOut: 'Salida de hoy',
   workWeek: 'Semana laboral',
   activeProject: 'Proyecto activo',
+  reviewClockOut: 'Revisa tu jornada',
+  reviewClockOutSubtitle: 'Verifica antes de marcar la salida — aún puedes cancelar.',
+  hoursWorked: 'Horas trabajadas',
+  startedAt: 'Inicio',
+  endingAt: 'Fin',
+  confirmClockOut: 'Confirmar salida',
 
   // ── Daily report ──────────────────────────────────────────────────────
   workCompleted: 'Trabajo completado',

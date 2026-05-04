@@ -450,6 +450,12 @@ const en = {
   todayClockOut: 'Today Clock Out',
   workWeek: 'Work Week',
   activeProject: 'Active Project',
+  reviewClockOut: 'Review your day',
+  reviewClockOutSubtitle: 'Double-check before you clock out — you can still cancel.',
+  hoursWorked: 'Hours worked',
+  startedAt: 'Started',
+  endingAt: 'Ending',
+  confirmClockOut: 'Confirm clock out',
 
   // ── Daily report ──────────────────────────────────────────────────────
   workCompleted: 'Work Completed',

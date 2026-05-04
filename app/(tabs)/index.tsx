@@ -111,6 +111,7 @@ export default function HomeScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
   const [pendingSync, setPendingSync] = useState(0)
+  const [clockOutReviewVisible, setClockOutReviewVisible] = useState(false)
   const offsiteReasons = useClockInReasons()
 
   useEffect(() => {
@@ -1193,7 +1194,10 @@ export default function HomeScreen() {
 
               {activeEntry && (
                 <Pressable
-                  onPress={handleClockOut}
+                  onPress={() => {
+                    setClockModalVisible(false)
+                    setClockOutReviewVisible(true)
+                  }}
                   disabled={clocking}
                   style={{
                     backgroundColor: clocking ? '#CBD5E1' : COLORS.red,
@@ -1300,6 +1304,96 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Clock-out review — show a summary of the day so the worker has
+          one last chance to back out before the time entry closes. */}
+      <Modal visible={clockOutReviewVisible} transparent animationType="fade" onRequestClose={() => setClockOutReviewVisible(false)}>
+        <Pressable onPress={() => setClockOutReviewVisible(false)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', padding: 24 }}>
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 22, padding: 22 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 }}>
+              {t(language, 'reviewClockOut')}
+            </Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 14, marginBottom: 16 }}>
+              {t(language, 'reviewClockOutSubtitle')}
+            </Text>
+
+            {(() => {
+              const inIso = activeEntry?.clock_in_time
+              const nowIso = new Date().toISOString()
+              const hours = calculateHours(inIso ?? null, nowIso)
+              const project = projects.find(p => p.id === activeEntry?.project_id)
+              const fmt = (iso: string | null | undefined) =>
+                iso ? new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '—'
+              return (
+                <View style={{ backgroundColor: COLORS.background, borderRadius: 16, padding: 16, marginBottom: 16 }}>
+                  <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                    {t(language, 'activeProject').toUpperCase()}
+                  </Text>
+                  <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', marginTop: 2 }}>
+                    {project?.name || t(language, 'project')}
+                  </Text>
+
+                  <View style={{ flexDirection: 'row', marginTop: 14, gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        {t(language, 'startedAt').toUpperCase()}
+                      </Text>
+                      <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', marginTop: 2 }}>
+                        {fmt(inIso)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        {t(language, 'endingAt').toUpperCase()}
+                      </Text>
+                      <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '700', marginTop: 2 }}>
+                        {fmt(nowIso)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ marginTop: 14, backgroundColor: COLORS.navy, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#A8C4EE', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                        {t(language, 'hoursWorked').toUpperCase()}
+                      </Text>
+                      <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '900', marginTop: 2 }}>
+                        {hours.toFixed(2)}
+                      </Text>
+                    </View>
+                    <Ionicons name="time-outline" size={36} color="rgba(255,255,255,0.25)" />
+                  </View>
+                </View>
+              )
+            })()}
+
+            <Pressable
+              onPress={() => {
+                setClockOutReviewVisible(false)
+                handleClockOut()
+              }}
+              disabled={clocking}
+              style={{
+                backgroundColor: clocking ? '#CBD5E1' : COLORS.red,
+                borderRadius: 16,
+                paddingVertical: 16,
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '800' }}>
+                {t(language, 'confirmClockOut')}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setClockOutReviewVisible(false)}
+              style={{ borderRadius: 16, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}
+            >
+              <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15 }}>{t(language, 'cancel')}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Language picker — data-driven from LANGUAGES so a new locale
