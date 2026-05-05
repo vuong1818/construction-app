@@ -18,16 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
-
-const COLORS = {
-  navy: '#16356B',
-  white: '#FFFFFF',
-  text: '#0F172A',
-  border: '#D8E1EC',
-  inputBg: 'rgba(255,255,255,0.95)',
-  cardBg: 'rgba(255,255,255,0.18)',
-  muted: '#94A3B8',
-}
+import { COLORS } from '../lib/theme'
 
 type Mode = 'login' | 'signup'
 

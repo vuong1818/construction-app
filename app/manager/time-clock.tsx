@@ -17,22 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  green: '#22C55E',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-}
+import { COLORS } from '../../lib/theme'
 
 type TimeEntry = {
   id: number

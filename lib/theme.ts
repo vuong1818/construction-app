@@ -1,11 +1,15 @@
 export const COLORS = {
   // Page + surface
-  background: '#F6F8FB',
+  background: '#D6E8FF',
   card: '#FFFFFF',
   border: '#E2E8F0',
   white: '#FFFFFF',
   black: '#000000',
   overlay: 'rgba(15, 23, 42, 0.40)',
+
+  // Sign-in surfaces (translucent over the brand backdrop image).
+  inputBg: 'rgba(255,255,255,0.95)',
+  cardBg:  'rgba(255,255,255,0.18)',
 
   // Brand
   navy: '#16356B',
@@ -15,7 +19,7 @@ export const COLORS = {
 
   // Text — bumped subtext slightly darker so 13–15px reads in sun.
   text: '#0F172A',
-  subtext: '#475569',
+  subtext: '#64748B',
   muted: '#94A3B8',
 
   // Status colors (pulled from per-screen duplicates, now centralized).
@@ -26,6 +30,21 @@ export const COLORS = {
   greenSoft: '#ECFDF5',
   amber: '#E65100',
   amberSoft: '#FFF3E0',
+  // Aliases for orange — files that already say COLORS.orange map here.
+  orange: '#E65100',
+  orangeSoft: '#FFF3E0',
+
+  // Yellow / amount accents used on smart-tools and expense screens.
+  yellow: '#F9A825',
+  yellowSoft: '#FFF8E1',
+  yellowText: '#A16207',
+  blue: '#1565C0',
+  blueSoft: '#E3F2FD',
+  amount: '#C62828',
+
+  // Disabled states (used by BigActionCard).
+  disabled: '#94A3B8',
+  disabledSoft: '#CBD5E1',
 } as const
 
 // Minimum tap target for gloved hands. Use this on action buttons.

@@ -13,6 +13,7 @@ import { SkeletonList } from '../components/SkeletonCard'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
+import { COLORS } from '../lib/theme'
 
 type Project = {
   id: number
@@ -21,17 +22,6 @@ type Project = {
   status: string | null
   description: string | null
   created_at?: string | null
-}
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
 }
 
 export default function ProjectsScreen() {

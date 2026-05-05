@@ -2,14 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import { useState } from 'react'
 import { Modal, Platform, Pressable, Text, View } from 'react-native'
 import { useLanguage } from '../lib/i18n'
-
-const COLORS = {
-  card: '#FFFFFF',
-  navy: '#16356B',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-}
+import { COLORS } from '../lib/theme'
 
 function toIso(d: Date): string {
   const yyyy = d.getFullYear()

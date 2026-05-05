@@ -13,19 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  navySoft: '#EAF0F8',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-}
+import { COLORS } from '../../lib/theme'
 
 type Status = 'assigned' | 'in_progress' | 'completed'
 

@@ -14,25 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../lib/i18n'
 import type { TranslationKey } from '../../lib/locales/en'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  yellow: '#F9A825',
-  yellowSoft: '#FFF8E1',
-  red: '#EF4444',
-  green: '#22C55E',
-  greenSoft: '#ECFDF5',
-  blue: '#1565C0',
-  blueSoft: '#E3F2FD',
-}
+import { COLORS } from '../../lib/theme'
 
 // ─── Shared Components ────────────────────────────────────────────────────────
 

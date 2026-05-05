@@ -1,5 +1,5 @@
 import { Text, TextInput, View } from 'react-native'
-import { COLORS } from '../theme/colors'
+import { COLORS } from '../lib/theme'
 
 type FormFieldProps = {
   label: string

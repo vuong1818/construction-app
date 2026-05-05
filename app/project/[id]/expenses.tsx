@@ -23,25 +23,10 @@ import PickerWrap from '../../../components/PickerWrap'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
+import { COLORS } from '../../../lib/theme'
 
 type ExpenseType = { id: number; value: string; label: string; sort_order: number; deleted_at: string | null }
 type Vendor      = { id: number; name: string; deleted_at: string | null }
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  amount: '#C62828',
-}
 
 const RECEIPTS_BUCKET = 'expense-receipts'
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

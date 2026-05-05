@@ -1,11 +1,6 @@
 import { Picker } from '@react-native-picker/picker'
 import { Platform, View, type ViewStyle } from 'react-native'
-
-const COLORS = {
-  card: '#FFFFFF',
-  text: '#0F172A',
-  border: '#E2E8F0',
-}
+import { COLORS } from '../lib/theme'
 
 export function PickerWrap<T>({
   selectedValue,

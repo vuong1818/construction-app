@@ -13,27 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  navySoft: '#EAF0F8',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  red: '#C62828',
-  redSoft: '#FFEBEE',
-  green: '#2E7D32',
-  greenSoft: '#E8F5E9',
-  orange: '#E65100',
-  orangeSoft: '#FFF3E0',
-  blue: '#1565C0',
-  blueSoft: '#E3F2FD',
-}
+import { COLORS } from '../../lib/theme'
 
 type Project = { id: number; name: string; status: string | null; contract_amount: number | null }
 type ChangeOrder = { id: number; project_id: number; amount: number }

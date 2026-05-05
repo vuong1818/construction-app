@@ -21,6 +21,7 @@ import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { getPhotoUrl, type DocType } from '../../services/projectDetailService'
+import { COLORS } from '../../lib/theme'
 
 const DOC_TYPE_LABEL_KEYS: Record<DocType, TranslationKey> = {
   submittal:    'docTypeSubmittal',
@@ -49,20 +50,6 @@ const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; label: string
   landscape:     { bg: '#E8F5E9', color: '#2E7D32', label: 'Landscape' },
   other:         { bg: '#F4F7FA', color: '#555555', label: 'Other' },
   mep:           { bg: '#EDE7F6', color: '#4527A0', label: 'MEP' },
-}
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
 }
 
 function SectionTitle({

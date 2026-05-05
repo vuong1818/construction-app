@@ -13,16 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../../../components/DatePickerField'
 import { useNewReport } from '../../../hooks/useNewReport'
 import { useLanguage } from '../../../lib/i18n'
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  text: '#0F172A',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  subtext: '#64748B',
-}
+import { COLORS } from '../../../lib/theme'
 
 function Field({
   label,

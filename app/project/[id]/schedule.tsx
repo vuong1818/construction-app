@@ -7,6 +7,7 @@ import { SkeletonList } from '../../../components/SkeletonCard'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
+import { COLORS } from '../../../lib/theme'
 
 type Task = {
   id: number
@@ -21,20 +22,6 @@ type Task = {
 
 type Profile = { id: string; full_name: string | null }
 type Project = { id: number; name: string }
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  text: '#0F172A',
-  subtext: '#64748B',
-  muted: '#94A3B8',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  red: '#C62828',
-}
 
 const STATUS_BADGE: Record<Task['status'], { bg: string; color: string; key: 'statusAssigned' | 'statusInProgress' | 'statusCompleted' }> = {
   assigned:    { bg: '#E3F2FD', color: '#1565C0', key: 'statusAssigned' },

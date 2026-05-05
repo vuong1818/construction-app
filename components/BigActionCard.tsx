@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Pressable, Text, View } from 'react-native'
-import { COLORS } from '../theme/colors'
+import { COLORS } from '../lib/theme'
 
 type BigActionCardProps = {
   icon: string

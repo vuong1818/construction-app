@@ -30,6 +30,7 @@ import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
+import { COLORS } from '../../lib/theme'
 
 type Project = {
   id: number
@@ -66,24 +67,6 @@ type Profile = {
   wage: number | null
 }
 
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  red: '#EF4444',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  green: '#22C55E',
-  yellowSoft: '#FEFCE8',
-  yellowText: '#A16207',
-  greenSoft: '#ECFDF5',
-}
 
 export default function HomeScreen() {
   const router = useRouter()

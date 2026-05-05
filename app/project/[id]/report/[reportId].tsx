@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../../lib/i18n'
 import { supabase } from '../../../../lib/supabase'
+import { COLORS } from '../../../../lib/theme'
 
 type DailyReport = {
   id: number
@@ -21,18 +22,6 @@ type DailyReport = {
   materials_used: string | null
   weather: string | null
   created_at: string
-}
-
-const COLORS = {
-  background: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  navySoft: '#EAF0F8',
-  text: '#0F172A',
-  subtext: '#64748B',
-  border: '#E2E8F0',
 }
 
 function DetailCard({
