@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { COLORS } from '../../lib/theme'
 import {
   ActivityIndicator,
   Alert,
@@ -15,20 +16,7 @@ import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
-const C = {
-  bg: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  navySoft: '#EAF0F8',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  text: '#0F172A',
-  sub: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-}
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Report = {
@@ -77,22 +65,22 @@ function ReportModal({ report, visible, onClose }: { report: Report | null; visi
   ]
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
-        <View style={{ backgroundColor: C.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
-          <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>{t('dailyReport')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <View style={{ backgroundColor: COLORS.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={{ flex: 1, color: COLORS.white, fontWeight: '900', fontSize: 18 }}>{t('dailyReport')}</Text>
           <Pressable onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Text style={{ color: C.white, fontSize: 22 }}>✕</Text>
+            <Text style={{ color: COLORS.white, fontSize: 22 }}>✕</Text>
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }}>
           {rows.map(row =>
             row.value ? (
               <View key={row.label} style={{ marginBottom: 16 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 }}>
                   {row.label}
                 </Text>
-                <View style={{ backgroundColor: C.card, borderRadius: 12, borderWidth: 1, borderColor: C.border, padding: 12 }}>
-                  <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{row.value}</Text>
+                <View style={{ backgroundColor: COLORS.card, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, padding: 12 }}>
+                  <Text style={{ color: COLORS.text, fontSize: 14, lineHeight: 20 }}>{row.value}</Text>
                 </View>
               </View>
             ) : null
@@ -205,46 +193,46 @@ export default function ManagerReportsScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={C.teal} />
-        <Text style={{ marginTop: 12, color: C.sub }}>{t('loadingReports')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.teal} />
+        <Text style={{ marginTop: 12, color: COLORS.subtext }}>{t('loadingReports')}</Text>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
 
       {/* ── Filter bar ── */}
       <View style={{
-        backgroundColor: C.card, borderBottomWidth: 1, borderBottomColor: C.border,
+        backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border,
         paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10,
       }}>
         <Pressable
           onPress={() => setShowFilter(true)}
           style={{
             flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
-            backgroundColor: filterProject !== null ? C.navySoft : '#F1F5F9',
+            backgroundColor: filterProject !== null ? COLORS.navySoft : '#F1F5F9',
             borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
-            borderWidth: 1, borderColor: filterProject !== null ? C.navy : C.border,
+            borderWidth: 1, borderColor: filterProject !== null ? COLORS.navy : COLORS.border,
           }}
         >
           <Text style={{ fontSize: 14 }}>🏗️</Text>
-          <Text style={{ flex: 1, color: filterProject !== null ? C.navy : C.sub, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+          <Text style={{ flex: 1, color: filterProject !== null ? COLORS.navy : COLORS.subtext, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
             {activeProjectName || t('allProjects')}
           </Text>
-          <Text style={{ color: C.sub }}>▾</Text>
+          <Text style={{ color: COLORS.subtext }}>▾</Text>
         </Pressable>
         {filterProject !== null && (
           <Pressable
             onPress={() => setFilterProject(null)}
-            style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}
+            style={{ backgroundColor: COLORS.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}
           >
-            <Text style={{ color: C.red, fontWeight: '800', fontSize: 13 }}>{t('clear')}</Text>
+            <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 13 }}>{t('clear')}</Text>
           </Pressable>
         )}
-        <View style={{ backgroundColor: C.navySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text style={{ color: C.navy, fontWeight: '900', fontSize: 13 }}>{filtered.length}</Text>
+        <View style={{ backgroundColor: COLORS.navySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+          <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 13 }}>{filtered.length}</Text>
         </View>
       </View>
 
@@ -253,10 +241,10 @@ export default function ManagerReportsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {filtered.length === 0 ? (
-          <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: C.border, marginTop: 20 }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginTop: 20 }}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
-            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noReportsTitle')}</Text>
-            <Text style={{ color: C.sub, textAlign: 'center' }}>
+            <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noReportsTitle')}</Text>
+            <Text style={{ color: COLORS.subtext, textAlign: 'center' }}>
               {filterProject !== null ? t('noReportsForProject') : t('noReportsSubmitted')}
             </Text>
           </View>
@@ -264,27 +252,27 @@ export default function ManagerReportsScreen() {
           filtered.map(report => (
             <View
               key={report.id}
-              style={{ backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 14, marginBottom: 10 }}
+              style={{ backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 10 }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
-                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: C.navy, justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
-                  <Text style={{ color: C.white, fontWeight: '900', fontSize: 17 }}>{initial(report.created_by_name)}</Text>
+                <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: COLORS.navy, justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                  <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 17 }}>{initial(report.created_by_name)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: C.text, fontWeight: '800', fontSize: 14 }}>
+                  <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 14 }}>
                     {report.created_by_name || t('unknownWorkerLabel')}
                   </Text>
-                  <Text style={{ color: C.teal, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
+                  <Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
                     {report.project_name || t('unknownProjectLabel')}
                   </Text>
-                  <Text style={{ color: C.sub, fontSize: 12, marginTop: 1 }}>
+                  <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 1 }}>
                     {fmtDate(report.report_date)}
                   </Text>
                 </View>
               </View>
 
               {report.work_completed ? (
-                <Text style={{ color: C.text, fontSize: 13, lineHeight: 18, marginBottom: 10 }} numberOfLines={3}>
+                <Text style={{ color: COLORS.text, fontSize: 13, lineHeight: 18, marginBottom: 10 }} numberOfLines={3}>
                   {report.work_completed}
                 </Text>
               ) : null}
@@ -297,8 +285,8 @@ export default function ManagerReportsScreen() {
                   </View>
                 ) : null}
                 {report.materials_used ? (
-                  <View style={{ backgroundColor: C.tealSoft, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                    <Text style={{ color: C.teal, fontSize: 11, fontWeight: '700' }}>{t('materialsListed')}</Text>
+                  <View style={{ backgroundColor: COLORS.tealSoft, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: COLORS.teal, fontSize: 11, fontWeight: '700' }}>{t('materialsListed')}</Text>
                   </View>
                 ) : null}
                 {report.weather ? (
@@ -311,15 +299,15 @@ export default function ManagerReportsScreen() {
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Pressable
                   onPress={() => setSelected(report)}
-                  style={{ flex: 1, backgroundColor: C.navySoft, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
+                  style={{ flex: 1, backgroundColor: COLORS.navySoft, borderRadius: 10, paddingVertical: 10, alignItems: 'center' }}
                 >
-                  <Text style={{ color: C.navy, fontWeight: '800', fontSize: 13 }}>{t('viewFullReport')}</Text>
+                  <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 13 }}>{t('viewFullReport')}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => deleteReport(report)}
-                  style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' }}
+                  style={{ backgroundColor: COLORS.redSoft, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' }}
                 >
-                  <Text style={{ color: C.red, fontWeight: '800', fontSize: 13 }}>🗑</Text>
+                  <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 13 }}>🗑</Text>
                 </Pressable>
               </View>
             </View>
@@ -329,23 +317,23 @@ export default function ManagerReportsScreen() {
 
       {/* ── Project Filter Modal ── */}
       <Modal visible={showFilter} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowFilter(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
-          <View style={{ backgroundColor: C.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ flex: 1, color: C.white, fontWeight: '900', fontSize: 18 }}>{t('filterByProject')}</Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+          <View style={{ backgroundColor: COLORS.navy, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ flex: 1, color: COLORS.white, fontWeight: '900', fontSize: 18 }}>{t('filterByProject')}</Text>
             <Pressable onPress={() => setShowFilter(false)}>
-              <Text style={{ color: C.white, fontSize: 22 }}>✕</Text>
+              <Text style={{ color: COLORS.white, fontSize: 22 }}>✕</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 16 }}>
             <Pressable
               onPress={() => { setFilterProject(null); setShowFilter(false) }}
               style={{
-                backgroundColor: filterProject === null ? C.navy : C.card,
+                backgroundColor: filterProject === null ? COLORS.navy : COLORS.card,
                 borderRadius: 14, padding: 16, marginBottom: 8,
-                borderWidth: 1, borderColor: filterProject === null ? C.navy : C.border,
+                borderWidth: 1, borderColor: filterProject === null ? COLORS.navy : COLORS.border,
               }}
             >
-              <Text style={{ color: filterProject === null ? C.white : C.text, fontWeight: '800', fontSize: 15 }}>
+              <Text style={{ color: filterProject === null ? COLORS.white : COLORS.text, fontWeight: '800', fontSize: 15 }}>
                 {t('allProjects')}
               </Text>
             </Pressable>
@@ -354,12 +342,12 @@ export default function ManagerReportsScreen() {
                 key={p.id}
                 onPress={() => { setFilterProject(p.id); setShowFilter(false) }}
                 style={{
-                  backgroundColor: filterProject === p.id ? C.navy : C.card,
+                  backgroundColor: filterProject === p.id ? COLORS.navy : COLORS.card,
                   borderRadius: 14, padding: 16, marginBottom: 8,
-                  borderWidth: 1, borderColor: filterProject === p.id ? C.navy : C.border,
+                  borderWidth: 1, borderColor: filterProject === p.id ? COLORS.navy : COLORS.border,
                 }}
               >
-                <Text style={{ color: filterProject === p.id ? C.white : C.text, fontWeight: '700', fontSize: 15 }}>
+                <Text style={{ color: filterProject === p.id ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 15 }}>
                   {p.name}
                 </Text>
               </Pressable>

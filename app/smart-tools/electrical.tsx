@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useState } from 'react'
+import { COLORS } from '../../lib/theme'
 import {
   KeyboardAvoidingView,
   Modal,
@@ -14,39 +15,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../lib/i18n'
 
-const C = {
-  bg: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  teal: '#19B6D2',
-  yellow: '#F9A825',
-  yellowSoft: '#FFF8E1',
-  text: '#0F172A',
-  sub: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-  green: '#22C55E',
-  greenSoft: '#ECFDF5',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  inputBg: '#F8FAFC',
-}
+
 
 const inp = {
-  backgroundColor: C.inputBg,
+  backgroundColor: COLORS.inputBg,
   borderWidth: 1,
-  borderColor: C.border,
+  borderColor: COLORS.border,
   borderRadius: 10,
   padding: 12,
   fontSize: 15,
-  color: C.text,
+  color: COLORS.text,
   marginBottom: 12,
 }
 
 const lbl = {
   fontSize: 12,
   fontWeight: '700' as const,
-  color: C.navy,
+  color: COLORS.navy,
   marginBottom: 4,
   textTransform: 'uppercase' as const,
   letterSpacing: 0.5,
@@ -173,18 +158,18 @@ function CalcModal({ visible, title, subtitle, onClose, children }: {
 }) {
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
         <View style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
           paddingHorizontal: 20, paddingVertical: 14,
-          backgroundColor: C.navy, borderBottomWidth: 1, borderBottomColor: '#0a2550',
+          backgroundColor: COLORS.navy, borderBottomWidth: 1, borderBottomColor: '#0a2550',
         }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: C.white, fontSize: 17, fontWeight: '800' }}>{title}</Text>
+            <Text style={{ color: COLORS.white, fontSize: 17, fontWeight: '800' }}>{title}</Text>
             {subtitle ? <Text style={{ color: '#9DD8E8', fontSize: 12, marginTop: 1 }}>{subtitle}</Text> : null}
           </View>
           <Pressable onPress={onClose} style={{ padding: 8 }}>
-            <MaterialCommunityIcons name="close" size={22} color={C.white} />
+            <MaterialCommunityIcons name="close" size={22} color={COLORS.white} />
           </Pressable>
         </View>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -200,13 +185,13 @@ function CalcModal({ visible, title, subtitle, onClose, children }: {
 function ResultCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <View style={{
-      backgroundColor: color ? color + '18' : C.greenSoft,
+      backgroundColor: color ? color + '18' : COLORS.greenSoft,
       borderRadius: 12, padding: 14, marginBottom: 10,
       borderWidth: 1, borderColor: color ? color + '40' : '#86EFAC',
     }}>
-      <Text style={{ fontSize: 11, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
-      <Text style={{ fontSize: 22, fontWeight: '900', color: color || C.navy, marginTop: 2 }}>{value}</Text>
-      {sub ? <Text style={{ fontSize: 12, color: C.sub, marginTop: 2 }}>{sub}</Text> : null}
+      <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
+      <Text style={{ fontSize: 22, fontWeight: '900', color: color || COLORS.navy, marginTop: 2 }}>{value}</Text>
+      {sub ? <Text style={{ fontSize: 12, color: COLORS.subtext, marginTop: 2 }}>{sub}</Text> : null}
     </View>
   )
 }
@@ -223,10 +208,10 @@ function SelectRow({ label, options, value, onChange }: {
             <Pressable key={opt} onPress={() => onChange(opt)}
               style={{
                 paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-                backgroundColor: value === opt ? C.navy : C.card,
-                borderWidth: 1, borderColor: value === opt ? C.navy : C.border,
+                backgroundColor: value === opt ? COLORS.navy : COLORS.card,
+                borderWidth: 1, borderColor: value === opt ? COLORS.navy : COLORS.border,
               }}>
-              <Text style={{ color: value === opt ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{opt}</Text>
+              <Text style={{ color: value === opt ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{opt}</Text>
             </Pressable>
           ))}
         </View>
@@ -239,17 +224,17 @@ function CalcButton({ onPress, label }: { onPress: () => void; label?: string })
   const { t } = useLanguage()
   return (
     <Pressable onPress={onPress} style={({ pressed }) => ({
-      backgroundColor: C.navy, borderRadius: 12, padding: 14, alignItems: 'center',
+      backgroundColor: COLORS.navy, borderRadius: 12, padding: 14, alignItems: 'center',
       marginVertical: 8, opacity: pressed ? 0.85 : 1,
     })}>
-      <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
+      <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{label || t('stcCalculate')}</Text>
     </Pressable>
   )
 }
 
 function InfoBox({ text }: { text: string }) {
   return (
-    <View style={{ backgroundColor: C.yellowSoft, borderRadius: 10, padding: 12, marginTop: 8 }}>
+    <View style={{ backgroundColor: COLORS.yellowSoft, borderRadius: 10, padding: 12, marginTop: 8 }}>
       <Text style={{ color: '#7B5800', fontSize: 12, lineHeight: 18 }}>{text}</Text>
     </View>
   )
@@ -297,10 +282,10 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
           {sizes.map(s => (
             <Pressable key={s} onPress={() => setSize(s)} style={{
               paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: size === s ? C.navy : C.card,
-              borderWidth: 1, borderColor: size === s ? C.navy : C.border,
+              backgroundColor: size === s ? COLORS.navy : COLORS.card,
+              borderWidth: 1, borderColor: size === s ? COLORS.navy : COLORS.border,
             }}>
-              <Text style={{ color: size === s ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
+              <Text style={{ color: size === s ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
             </Pressable>
           ))}
         </View>
@@ -312,10 +297,10 @@ function Calc310_16({ onClose }: { onClose: () => void }) {
           {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '12', '14', '16'].map(n => (
             <Pressable key={n} onPress={() => setConductors(n)} style={{
               paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: conductors === n ? C.navy : C.card,
-              borderWidth: 1, borderColor: conductors === n ? C.navy : C.border,
+              backgroundColor: conductors === n ? COLORS.navy : COLORS.card,
+              borderWidth: 1, borderColor: conductors === n ? COLORS.navy : COLORS.border,
             }}>
-              <Text style={{ color: conductors === n ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{n}</Text>
+              <Text style={{ color: conductors === n ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{n}</Text>
             </Pressable>
           ))}
         </View>
@@ -379,19 +364,19 @@ function CalcVoltageDrop({ onClose }: { onClose: () => void }) {
           {cuSizes.map(s => (
             <Pressable key={s} onPress={() => setSize(s)} style={{
               paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: size === s ? C.navy : C.card,
-              borderWidth: 1, borderColor: size === s ? C.navy : C.border,
+              backgroundColor: size === s ? COLORS.navy : COLORS.card,
+              borderWidth: 1, borderColor: size === s ? COLORS.navy : COLORS.border,
             }}>
-              <Text style={{ color: size === s ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
+              <Text style={{ color: size === s ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
 
       <Text style={lbl}>{t('steLoadCurrentA')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={amps} onChangeText={setAmps} placeholder={t('steLoadCurrentPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={amps} onChangeText={setAmps} placeholder={t('steLoadCurrentPlaceholder')} placeholderTextColor={COLORS.subtext} />
       <Text style={lbl}>{t('stcOneWayLengthFt')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={length} onChangeText={setLength} placeholder={t('steOneWayLengthPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={length} onChangeText={setLength} placeholder={t('steOneWayLengthPlaceholder')} placeholderTextColor={COLORS.subtext} />
 
       <CalcButton onPress={calculate} />
 
@@ -462,32 +447,32 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
           {wireSizes.map(s => (
             <Pressable key={s} onPress={() => setWireSize(s)} style={{
               paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: wireSize === s ? C.navy : C.card,
-              borderWidth: 1, borderColor: wireSize === s ? C.navy : C.border,
+              backgroundColor: wireSize === s ? COLORS.navy : COLORS.card,
+              borderWidth: 1, borderColor: wireSize === s ? COLORS.navy : COLORS.border,
             }}>
-              <Text style={{ color: wireSize === s ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
+              <Text style={{ color: wireSize === s ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{s}</Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
 
       <Text style={lbl}>{t('stcQuantity')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={count} onChangeText={setCount} placeholder={t('steQuantityPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={count} onChangeText={setCount} placeholder={t('steQuantityPlaceholder')} placeholderTextColor={COLORS.subtext} />
 
       <Pressable onPress={addWire} style={{
-        backgroundColor: C.teal, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 16,
+        backgroundColor: COLORS.teal, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 16,
       }}>
-        <Text style={{ color: C.white, fontWeight: '700' }}>{t('stcAddWire')}</Text>
+        <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('stcAddWire')}</Text>
       </Pressable>
 
       {wires.length > 0 && (
-        <View style={{ backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: C.border }}>
-          <Text style={{ fontWeight: '700', color: C.navy, marginBottom: 8 }}>{t('steWiresInConduit')}</Text>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border }}>
+          <Text style={{ fontWeight: '700', color: COLORS.navy, marginBottom: 8 }}>{t('steWiresInConduit')}</Text>
           {wires.map((w, i) => (
             <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
-              <Text style={{ color: C.text, fontSize: 14 }}>{w.count}× {w.size} {w.type}</Text>
+              <Text style={{ color: COLORS.text, fontSize: 14 }}>{w.count}× {w.size} {w.type}</Text>
               <Pressable onPress={() => removeWire(i)} style={{ padding: 4 }}>
-                <MaterialCommunityIcons name="close-circle" size={18} color={C.red} />
+                <MaterialCommunityIcons name="close-circle" size={18} color={COLORS.red} />
               </Pressable>
             </View>
           ))}
@@ -505,13 +490,13 @@ function CalcConduitFill({ onClose }: { onClose: () => void }) {
             color={result.ok ? '#22C55E' : '#EF4444'}
           />
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={{ flex: 1, backgroundColor: C.inputBg, borderRadius: 10, padding: 12 }}>
-              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>{t('steWireArea')}</Text>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: C.navy }}>{result.totalWireArea} in²</Text>
+            <View style={{ flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 10, padding: 12 }}>
+              <Text style={{ fontSize: 11, color: COLORS.subtext, fontWeight: '700' }}>{t('steWireArea')}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.navy }}>{result.totalWireArea} in²</Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: C.inputBg, borderRadius: 10, padding: 12 }}>
-              <Text style={{ fontSize: 11, color: C.sub, fontWeight: '700' }}>{t('steConduitArea')}</Text>
-              <Text style={{ fontSize: 16, fontWeight: '800', color: C.navy }}>{result.conduitArea} in²</Text>
+            <View style={{ flex: 1, backgroundColor: COLORS.inputBg, borderRadius: 10, padding: 12 }}>
+              <Text style={{ fontSize: 11, color: COLORS.subtext, fontWeight: '700' }}>{t('steConduitArea')}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.navy }}>{result.conduitArea} in²</Text>
             </View>
           </View>
           <InfoBox text={result.ok ? t('steConduitOk') : t('steConduitOver')} />
@@ -538,14 +523,14 @@ function CalcEGC({ onClose }: { onClose: () => void }) {
   return (
     <CalcModal visible onClose={onClose} title={t('steEgcTitle')} subtitle={t('steEgcSubtitle')}>
       <Text style={lbl}>{t('steOcpdRatingA')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={ocpd} onChangeText={setOcpd} placeholder={t('steOcpdPlaceholder')} placeholderTextColor={C.sub} />
-      <Text style={{ color: C.sub, fontSize: 12, marginBottom: 12 }}>
+      <TextInput style={inp} keyboardType="numeric" value={ocpd} onChangeText={setOcpd} placeholder={t('steOcpdPlaceholder')} placeholderTextColor={COLORS.subtext} />
+      <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 12 }}>
         {t('steOcpdHelp')}
       </Text>
       <CalcButton onPress={calculate} />
       {result && (
         <View>
-          <Text style={{ fontWeight: '700', color: C.navy, marginBottom: 10, marginTop: 4 }}>
+          <Text style={{ fontWeight: '700', color: COLORS.navy, marginBottom: 10, marginTop: 4 }}>
             {t('steOcpdLessOrEqual', { amps: result.ocpd })}
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -586,9 +571,9 @@ function CalcBoxFill({ onClose }: { onClose: () => void }) {
     <CalcModal visible onClose={onClose} title={t('steBoxFillTitle')} subtitle={t('steBoxFillSubtitle')}>
       <SelectRow label={t('steLargestConductorSize')} options={Object.keys(VOL)} value={condSize} onChange={setCondSize} />
       <Text style={lbl}>{t('steNumberOfConductors')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={conductors} onChangeText={setConductors} placeholder={t('steNumberOfConductorsPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={conductors} onChangeText={setConductors} placeholder={t('steNumberOfConductorsPlaceholder')} placeholderTextColor={COLORS.subtext} />
       <Text style={lbl}>{t('steDevices')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={devices} onChangeText={setDevices} placeholder={t('steDevicesPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={devices} onChangeText={setDevices} placeholder={t('steDevicesPlaceholder')} placeholderTextColor={COLORS.subtext} />
       <SelectRow label={t('steInternalCableClamps')} options={['0', '1']} value={clamps} onChange={setClamps} />
       <CalcButton onPress={calculate} />
       {result && (
@@ -662,7 +647,7 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
 
   return (
     <CalcModal visible onClose={onClose} title={t('steFaultTitle')} subtitle={t('steFaultSubtitle')}>
-      <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>{t('steStep1Transformer')}</Text>
+      <Text style={{ fontWeight: '800', color: COLORS.navy, marginBottom: 10 }}>{t('steStep1Transformer')}</Text>
       <SelectRow label={t('stePhases')} options={[labelThree, labelOne]} value={phases === '3' ? labelThree : labelOne} onChange={v => { setPhases(v === labelThree ? '3' : '1'); setPoints([]) }} />
       <SelectRow label={t('steSecondaryVoltage')} options={phases === '3' ? ['208','240','480','600','4160'] : ['120','240','277']} value={secV} onChange={setSecV} />
 
@@ -672,30 +657,30 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
           {XFMR_KVA.map(k => (
             <Pressable key={k} onPress={() => { setKva(String(k)); if (!zPct) setZpct(String(XFMR_Z[k])) }} style={{
               paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: kva === String(k) ? C.navy : C.card,
-              borderWidth: 1, borderColor: kva === String(k) ? C.navy : C.border,
+              backgroundColor: kva === String(k) ? COLORS.navy : COLORS.card,
+              borderWidth: 1, borderColor: kva === String(k) ? COLORS.navy : COLORS.border,
             }}>
-              <Text style={{ color: kva === String(k) ? C.white : C.text, fontWeight: '700', fontSize: 13 }}>{t('steXfmrKva', { k })}</Text>
+              <Text style={{ color: kva === String(k) ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }}>{t('steXfmrKva', { k })}</Text>
             </Pressable>
           ))}
         </View>
       </ScrollView>
 
       <Text style={lbl}>{t('steZImpedance')}</Text>
-      <TextInput style={inp} keyboardType="numeric" value={zPct} onChangeText={setZpct} placeholder={autoZ ? t('steZTypical', { z: autoZ }) : t('steZPlaceholder')} placeholderTextColor={C.sub} />
+      <TextInput style={inp} keyboardType="numeric" value={zPct} onChangeText={setZpct} placeholder={autoZ ? t('steZTypical', { z: autoZ }) : t('steZPlaceholder')} placeholderTextColor={COLORS.subtext} />
 
       {runs.length > 0 && (
         <View>
-          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10, marginTop: 4 }}>{t('steStep2Runs')}</Text>
+          <Text style={{ fontWeight: '800', color: COLORS.navy, marginBottom: 10, marginTop: 4 }}>{t('steStep2Runs')}</Text>
           {runs.map((r, i) => (
-            <View key={r.id} style={{ backgroundColor: C.inputBg, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
+            <View key={r.id} style={{ backgroundColor: COLORS.inputBg, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontWeight: '700', color: C.navy }}>{t('steRunNum', { n: i + 1 })}</Text>
+                <Text style={{ fontWeight: '700', color: COLORS.navy }}>{t('steRunNum', { n: i + 1 })}</Text>
                 <Pressable onPress={() => removeRun(r.id)}>
-                  <MaterialCommunityIcons name="close-circle" size={20} color={C.red} />
+                  <MaterialCommunityIcons name="close-circle" size={20} color={COLORS.red} />
                 </Pressable>
               </View>
-              <TextInput style={{ ...inp, marginBottom: 8 }} value={r.label} onChangeText={v => updateRun(r.id, 'label', v)} placeholder={t('steRunLabelPlaceholder')} placeholderTextColor={C.sub} />
+              <TextInput style={{ ...inp, marginBottom: 8 }} value={r.label} onChangeText={v => updateRun(r.id, 'label', v)} placeholder={t('steRunLabelPlaceholder')} placeholderTextColor={COLORS.subtext} />
               <SelectRow label={t('stcMaterial')} options={['CU', 'AL']} value={r.mat} onChange={v => updateRun(r.id, 'mat', v)} />
               <Text style={lbl}>{t('stcWireSize')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
@@ -703,15 +688,15 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
                   {SIZES_CU.map(s => (
                     <Pressable key={s} onPress={() => updateRun(r.id, 'size', s)} style={{
                       paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
-                      backgroundColor: r.size === s ? C.teal : C.card,
-                      borderWidth: 1, borderColor: r.size === s ? C.teal : C.border,
+                      backgroundColor: r.size === s ? COLORS.teal : COLORS.card,
+                      borderWidth: 1, borderColor: r.size === s ? COLORS.teal : COLORS.border,
                     }}>
-                      <Text style={{ color: r.size === s ? C.white : C.text, fontWeight: '700', fontSize: 12 }}>{s}</Text>
+                      <Text style={{ color: r.size === s ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 12 }}>{s}</Text>
                     </Pressable>
                   ))}
                 </View>
               </ScrollView>
-              <TextInput style={{ ...inp, marginBottom: 8 }} keyboardType="numeric" value={r.length} onChangeText={v => updateRun(r.id, 'length', v)} placeholder={t('stcOneWayLengthFt')} placeholderTextColor={C.sub} />
+              <TextInput style={{ ...inp, marginBottom: 8 }} keyboardType="numeric" value={r.length} onChangeText={v => updateRun(r.id, 'length', v)} placeholder={t('stcOneWayLengthFt')} placeholderTextColor={COLORS.subtext} />
               <SelectRow label={t('steParallelSets')} options={['1','2','3','4']} value={r.parallel} onChange={v => updateRun(r.id, 'parallel', v)} />
             </View>
           ))}
@@ -719,39 +704,39 @@ function CalcFaultCurrent({ onClose }: { onClose: () => void }) {
       )}
 
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pressable onPress={calculate} style={{ flex: 1, backgroundColor: C.navy, borderRadius: 12, padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>{t('stcCalculate')}</Text>
+        <Pressable onPress={calculate} style={{ flex: 1, backgroundColor: COLORS.navy, borderRadius: 12, padding: 14, alignItems: 'center' }}>
+          <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 15 }}>{t('stcCalculate')}</Text>
         </Pressable>
-        <Pressable onPress={addRun} style={{ flex: 1, backgroundColor: C.teal, borderRadius: 12, padding: 14, alignItems: 'center' }}>
-          <Text style={{ color: C.white, fontWeight: '700' }}>{t('stcAddRun')}</Text>
+        <Pressable onPress={addRun} style={{ flex: 1, backgroundColor: COLORS.teal, borderRadius: 12, padding: 14, alignItems: 'center' }}>
+          <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('stcAddRun')}</Text>
         </Pressable>
       </View>
 
       {points.length > 0 && (
         <View style={{ marginTop: 16 }}>
-          <Text style={{ fontWeight: '800', color: C.navy, marginBottom: 10 }}>{t('stcResults')}</Text>
+          <Text style={{ fontWeight: '800', color: COLORS.navy, marginBottom: 10 }}>{t('stcResults')}</Text>
           {points.map((pt, i) => (
             <View key={i} style={{
-              backgroundColor: i === 0 ? C.navy : C.card,
+              backgroundColor: i === 0 ? COLORS.navy : COLORS.card,
               borderRadius: 12, padding: 14, marginBottom: 8,
-              borderWidth: 1, borderColor: i === 0 ? C.navy : C.border,
+              borderWidth: 1, borderColor: i === 0 ? COLORS.navy : COLORS.border,
               flexDirection: 'row', alignItems: 'center',
             }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '700', color: i === 0 ? C.white : C.navy, fontSize: 14 }}>{pt.label}</Text>
-                <Text style={{ color: i === 0 ? '#9DD8E8' : C.sub, fontSize: 12 }}>{pt.note}</Text>
+                <Text style={{ fontWeight: '700', color: i === 0 ? COLORS.white : COLORS.navy, fontSize: 14 }}>{pt.label}</Text>
+                <Text style={{ color: i === 0 ? '#9DD8E8' : COLORS.subtext, fontSize: 12 }}>{pt.note}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 {pt.isc ? (
                   <>
-                    <Text style={{ fontWeight: '900', color: i === 0 ? C.white : (pt.isc > 10000 ? C.red : C.navy), fontSize: 18 }}>
+                    <Text style={{ fontWeight: '900', color: i === 0 ? COLORS.white : (pt.isc > 10000 ? COLORS.red : COLORS.navy), fontSize: 18 }}>
                       {(pt.isc / 1000).toFixed(2)} kA
                     </Text>
-                    <Text style={{ color: i === 0 ? '#9DD8E8' : C.sub, fontSize: 12 }}>{Math.round(pt.isc).toLocaleString()} A</Text>
-                    {pt.drop && <Text style={{ color: C.yellow, fontSize: 11, fontWeight: '700' }}>↓ {pt.drop}%</Text>}
+                    <Text style={{ color: i === 0 ? '#9DD8E8' : COLORS.subtext, fontSize: 12 }}>{Math.round(pt.isc).toLocaleString()} A</Text>
+                    {pt.drop && <Text style={{ color: COLORS.yellow, fontSize: 11, fontWeight: '700' }}>↓ {pt.drop}%</Text>}
                   </>
                 ) : (
-                  <Text style={{ color: C.red, fontSize: 13, fontWeight: '600' }}>{t('steErrorBadge')}</Text>
+                  <Text style={{ color: COLORS.red, fontSize: 13, fontWeight: '600' }}>{t('steErrorBadge')}</Text>
                 )}
               </View>
             </View>
@@ -779,11 +764,11 @@ export default function ElectricalTools() {
   ]
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <View style={{ marginBottom: 20 }}>
-          <Text style={{ color: C.navy, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>⚡ {t('steTitle')}</Text>
-          <Text style={{ color: C.sub, fontSize: 13 }}>{t('steSubtitle')}</Text>
+          <Text style={{ color: COLORS.navy, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>⚡ {t('steTitle')}</Text>
+          <Text style={{ color: COLORS.subtext, fontSize: 13 }}>{t('steSubtitle')}</Text>
         </View>
 
         {TOOLS.map(tool => (
@@ -791,22 +776,22 @@ export default function ElectricalTools() {
             key={tool.id}
             onPress={() => setOpen(tool.id)}
             style={({ pressed }) => ({
-              backgroundColor: C.card, borderRadius: 16, padding: 16, marginBottom: 12,
-              borderWidth: 1, borderColor: C.border, flexDirection: 'row',
+              backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 12,
+              borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row',
               alignItems: 'center', gap: 14, opacity: pressed ? 0.85 : 1,
             })}
           >
-            <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: C.yellowSoft, justifyContent: 'center', alignItems: 'center' }}>
-              <MaterialCommunityIcons name={tool.icon as any} size={26} color={C.yellow} />
+            <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: COLORS.yellowSoft, justifyContent: 'center', alignItems: 'center' }}>
+              <MaterialCommunityIcons name={tool.icon as any} size={26} color={COLORS.yellow} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: C.navy, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{tool.title}</Text>
-              <Text style={{ color: C.sub, fontSize: 12, lineHeight: 16 }}>{tool.desc}</Text>
-              <View style={{ marginTop: 4, backgroundColor: C.yellowSoft, alignSelf: 'flex-start', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ color: C.yellow, fontSize: 10, fontWeight: '700' }}>{tool.ref}</Text>
+              <Text style={{ color: COLORS.navy, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{tool.title}</Text>
+              <Text style={{ color: COLORS.subtext, fontSize: 12, lineHeight: 16 }}>{tool.desc}</Text>
+              <View style={{ marginTop: 4, backgroundColor: COLORS.yellowSoft, alignSelf: 'flex-start', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ color: COLORS.yellow, fontSize: 10, fontWeight: '700' }}>{tool.ref}</Text>
               </View>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={C.sub} />
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.subtext} />
           </Pressable>
         ))}
       </ScrollView>

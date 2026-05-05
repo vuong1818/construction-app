@@ -2,6 +2,7 @@ import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
 import { LanguageProvider } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
+import { COLORS } from '../lib/theme'
 
 export default function RootLayout() {
   // Global auth listener — redirect to sign-in if session expires or token refresh fails
@@ -19,11 +20,11 @@ export default function RootLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
-        headerStyle: { backgroundColor: '#16356B' },
-        headerTintColor: '#FFFFFF',
-        headerTitleStyle: { fontWeight: '700', color: '#FFFFFF' },
+        headerStyle: { backgroundColor: COLORS.navy },
+        headerTintColor: COLORS.white,
+        headerTitleStyle: { fontWeight: '700', color: COLORS.white },
         headerBackTitleVisible: false,
-        contentStyle: { backgroundColor: '#D6E8FF' },
+        contentStyle: { backgroundColor: COLORS.background },
       }}
     >
       <Stack.Screen name="index"                          options={{ headerShown: false }} />

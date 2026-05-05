@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../lib/supabase'
+import { COLORS } from '../lib/theme'
 
 export default function IndexScreen() {
   const [ready, setReady] = useState(false)
@@ -40,11 +41,11 @@ export default function IndexScreen() {
           flex: 1,
           justifyContent: 'center',
           alignItems: 'center',
-          backgroundColor: '#D6E8FF',
+          backgroundColor: COLORS.background,
         }}
       >
-        <ActivityIndicator size="large" color="#19B6D2" />
-        <Text style={{ marginTop: 12, color: '#0F172A' }}>Loading...</Text>
+        <ActivityIndicator size="large" color={COLORS.teal} />
+        <Text style={{ marginTop: 12, color: COLORS.text }}>Loading...</Text>
       </SafeAreaView>
     )
   }

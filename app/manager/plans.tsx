@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { COLORS } from '../../lib/theme'
 import {
   ActivityIndicator,
   Alert,
@@ -22,24 +23,7 @@ import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
-const C = {
-  bg: '#D6E8FF',
-  card: '#FFFFFF',
-  navy: '#16356B',
-  navySoft: '#EAF0F8',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
-  green: '#22C55E',
-  greenSoft: '#ECFDF5',
-  red: '#EF4444',
-  redSoft: '#FEF2F2',
-  yellow: '#F9A825',
-  yellowSoft: '#FFF8E1',
-  text: '#0F172A',
-  sub: '#64748B',
-  border: '#E2E8F0',
-  white: '#FFFFFF',
-}
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Project = {
@@ -81,10 +65,10 @@ const STATUS_VALUES = ['Active', 'Bidding', 'On Hold', 'Completed']
 
 function statusColor(status: string | null) {
   switch ((status || '').toLowerCase()) {
-    case 'active':    return { bg: C.greenSoft,  text: C.green  }
-    case 'completed': return { bg: C.navySoft,   text: C.navy   }
-    case 'bidding':   return { bg: C.yellowSoft, text: C.yellow }
-    default:          return { bg: '#F1F5F9',    text: C.sub    }
+    case 'active':    return { bg: COLORS.greenSoft,  text: COLORS.green  }
+    case 'completed': return { bg: COLORS.navySoft,   text: COLORS.navy   }
+    case 'bidding':   return { bg: COLORS.yellowSoft, text: COLORS.yellow }
+    default:          return { bg: '#F1F5F9',    text: COLORS.subtext    }
   }
 }
 
@@ -351,15 +335,15 @@ export default function ManagerPlansScreen() {
   // ─── Render ───────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={C.teal} />
-        <Text style={{ marginTop: 12, color: C.sub }}>{t('loadingProjects')}</Text>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.teal} />
+        <Text style={{ marginTop: 12, color: COLORS.subtext }}>{t('loadingProjects')}</Text>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -367,16 +351,16 @@ export default function ManagerPlansScreen() {
         {/* Create button */}
         <Pressable
           onPress={openCreate}
-          style={{ backgroundColor: C.teal, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginBottom: 16 }}
+          style={{ backgroundColor: COLORS.teal, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginBottom: 16 }}
         >
-          <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>{t('createNewProject')}</Text>
+          <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>{t('createNewProject')}</Text>
         </Pressable>
 
         {projects.length === 0 ? (
-          <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: C.border }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>🏗️</Text>
-            <Text style={{ color: C.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noProjectsTitle')}</Text>
-            <Text style={{ color: C.sub, textAlign: 'center' }}>{t('noProjectsHint')}</Text>
+            <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noProjectsTitle')}</Text>
+            <Text style={{ color: COLORS.subtext, textAlign: 'center' }}>{t('noProjectsHint')}</Text>
           </View>
         ) : (
           projects.map(project => {
@@ -385,15 +369,15 @@ export default function ManagerPlansScreen() {
             return (
               <View
                 key={project.id}
-                style={{ backgroundColor: C.card, borderRadius: 20, borderWidth: 1, borderColor: C.border, marginBottom: 12, overflow: 'hidden' }}
+                style={{ backgroundColor: COLORS.card, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12, overflow: 'hidden' }}
               >
                 {/* Project header */}
                 <View style={{ padding: 16 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: C.text, fontWeight: '800', fontSize: 16 }}>{project.name}</Text>
+                      <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 16 }}>{project.name}</Text>
                       {project.address ? (
-                        <Text style={{ color: C.sub, fontSize: 13, marginTop: 2 }}>{project.address}</Text>
+                        <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>{project.address}</Text>
                       ) : null}
                     </View>
                     <View style={{ backgroundColor: sc.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 8 }}>
@@ -402,7 +386,7 @@ export default function ManagerPlansScreen() {
                   </View>
 
                   {project.description ? (
-                    <Text style={{ color: C.sub, fontSize: 13, marginBottom: 10, lineHeight: 18 }} numberOfLines={2}>
+                    <Text style={{ color: COLORS.subtext, fontSize: 13, marginBottom: 10, lineHeight: 18 }} numberOfLines={2}>
                       {project.description}
                     </Text>
                   ) : null}
@@ -410,40 +394,40 @@ export default function ManagerPlansScreen() {
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Pressable
                       onPress={() => router.push(`/project/${project.id}`)}
-                      style={{ flex: 1, backgroundColor: C.tealSoft, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
+                      style={{ flex: 1, backgroundColor: COLORS.tealSoft, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
                     >
-                      <Text style={{ color: C.teal, fontWeight: '800', fontSize: 13 }}>{t('openProject')}</Text>
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 13 }}>{t('openProject')}</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => deleteProject(project)}
-                      style={{ width: 44, backgroundColor: C.redSoft, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}
+                      style={{ width: 44, backgroundColor: COLORS.redSoft, borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}
                     >
-                      <Text style={{ color: C.red, fontSize: 18 }}>🗑</Text>
+                      <Text style={{ color: COLORS.red, fontSize: 18 }}>🗑</Text>
                     </Pressable>
                   </View>
                 </View>
 
                 {/* Plans section (expanded inline) */}
                 {isOpen && (
-                  <View style={{ borderTopWidth: 1, borderTopColor: C.border, padding: 14, backgroundColor: '#FAFBFD' }}>
+                  <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, padding: 14, backgroundColor: '#FAFBFD' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                      <Text style={{ flex: 1, color: C.navy, fontWeight: '800', fontSize: 14 }}>{t('projectPlans')}</Text>
+                      <Text style={{ flex: 1, color: COLORS.navy, fontWeight: '800', fontSize: 14 }}>{t('projectPlans')}</Text>
                       <Pressable
                         onPress={() => promptForPlanTypeAndUpload(project.id)}
                         disabled={uploading}
-                        style={{ backgroundColor: C.teal, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, opacity: uploading ? 0.6 : 1 }}
+                        style={{ backgroundColor: COLORS.teal, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, opacity: uploading ? 0.6 : 1 }}
                       >
                         {uploading
-                          ? <ActivityIndicator color={C.white} size="small" />
-                          : <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>{t('uploadPlanBtn')}</Text>
+                          ? <ActivityIndicator color={COLORS.white} size="small" />
+                          : <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 12 }}>{t('uploadPlanBtn')}</Text>
                         }
                       </Pressable>
                     </View>
 
                     {plansLoading ? (
-                      <ActivityIndicator color={C.teal} style={{ marginVertical: 12 }} />
+                      <ActivityIndicator color={COLORS.teal} style={{ marginVertical: 12 }} />
                     ) : plans.length === 0 ? (
-                      <Text style={{ color: C.sub, textAlign: 'center', paddingVertical: 12, fontSize: 13 }}>
+                      <Text style={{ color: COLORS.subtext, textAlign: 'center', paddingVertical: 12, fontSize: 13 }}>
                         {t('noPlansUploadedYet')}
                       </Text>
                     ) : (
@@ -452,11 +436,11 @@ export default function ManagerPlansScreen() {
                         return (
                           <View
                             key={plan.id}
-                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: C.border, gap: 10 }}
+                            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border, gap: 10 }}
                           >
                             <Text style={{ fontSize: 22 }}>📄</Text>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ color: C.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
+                              <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>
                                 {plan.original_name || plan.file_name}
                               </Text>
                               {badge && (
@@ -469,15 +453,15 @@ export default function ManagerPlansScreen() {
                             </View>
                             <Pressable
                               onPress={() => viewPlan(plan)}
-                              style={{ backgroundColor: C.navySoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                              style={{ backgroundColor: COLORS.navySoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                             >
-                              <Text style={{ color: C.navy, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
+                              <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
                             </Pressable>
                             <Pressable
                               onPress={() => deletePlan(plan)}
-                              style={{ backgroundColor: C.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
+                              style={{ backgroundColor: COLORS.redSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}
                             >
-                              <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{t('delete')}</Text>
+                              <Text style={{ color: COLORS.red, fontWeight: '800', fontSize: 12 }}>{t('delete')}</Text>
                             </Pressable>
                           </View>
                         )
@@ -493,43 +477,43 @@ export default function ManagerPlansScreen() {
 
       {/* ── Create Project Modal ── */}
       <Modal visible={showCreate} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowCreate(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={{ padding: 20 }}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-                <Text style={{ flex: 1, fontSize: 22, fontWeight: '900', color: C.navy }}>{t('newProjectTitle')}</Text>
+                <Text style={{ flex: 1, fontSize: 22, fontWeight: '900', color: COLORS.navy }}>{t('newProjectTitle')}</Text>
                 <Pressable onPress={() => setShowCreate(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Text style={{ fontSize: 22, color: C.sub }}>✕</Text>
+                  <Text style={{ fontSize: 22, color: COLORS.subtext }}>✕</Text>
                 </Pressable>
               </View>
 
               {/* Name */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                 {t('projectNameLabel')}
               </Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
                 placeholder={t('projectNameExample')}
-                placeholderTextColor={C.sub}
-                style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text, marginBottom: 16 }}
+                placeholderTextColor={COLORS.subtext}
+                style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 16 }}
               />
 
               {/* Address */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                 {t('addressFieldLabel')}
               </Text>
               <TextInput
                 value={address}
                 onChangeText={setAddress}
                 placeholder={t('addressExample')}
-                placeholderTextColor={C.sub}
-                style={{ backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text, marginBottom: 16 }}
+                placeholderTextColor={COLORS.subtext}
+                style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 16 }}
               />
 
               {/* Status */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
                 {t('statusLabel')}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -539,29 +523,29 @@ export default function ManagerPlansScreen() {
                     onPress={() => setStatusIdx(i)}
                     style={{
                       paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-                      backgroundColor: statusIdx === i ? C.navy : C.card,
-                      borderWidth: 1, borderColor: statusIdx === i ? C.navy : C.border,
+                      backgroundColor: statusIdx === i ? COLORS.navy : COLORS.card,
+                      borderWidth: 1, borderColor: statusIdx === i ? COLORS.navy : COLORS.border,
                     }}
                   >
-                    <Text style={{ color: statusIdx === i ? C.white : C.sub, fontWeight: '700', fontSize: 14 }}>{t(STATUS_KEYS[i])}</Text>
+                    <Text style={{ color: statusIdx === i ? COLORS.white : COLORS.subtext, fontWeight: '700', fontSize: 14 }}>{t(STATUS_KEYS[i])}</Text>
                   </Pressable>
                 ))}
               </View>
 
               {/* Description */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: C.sub, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
                 {t('descriptionFieldLabel')}
               </Text>
               <TextInput
                 value={description}
                 onChangeText={setDescription}
                 placeholder={t('descriptionExample')}
-                placeholderTextColor={C.sub}
+                placeholderTextColor={COLORS.subtext}
                 multiline
                 numberOfLines={4}
                 style={{
-                  backgroundColor: C.card, borderWidth: 1, borderColor: C.border, borderRadius: 12,
-                  paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: C.text,
+                  backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12,
+                  paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text,
                   minHeight: 100, textAlignVertical: 'top', marginBottom: 24,
                 }}
               />
@@ -570,13 +554,13 @@ export default function ManagerPlansScreen() {
                 onPress={handleCreate}
                 disabled={saving || !name.trim()}
                 style={{
-                  backgroundColor: saving || !name.trim() ? '#94A3B8' : C.navy,
+                  backgroundColor: saving || !name.trim() ? '#94A3B8' : COLORS.navy,
                   borderRadius: 16, paddingVertical: 16, alignItems: 'center',
                 }}
               >
                 {saving
-                  ? <ActivityIndicator color={C.white} />
-                  : <Text style={{ color: C.white, fontWeight: '800', fontSize: 16 }}>{t('createProjectBtn')}</Text>
+                  ? <ActivityIndicator color={COLORS.white} />
+                  : <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>{t('createProjectBtn')}</Text>
                 }
               </Pressable>
             </ScrollView>
