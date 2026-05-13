@@ -35,6 +35,10 @@ type Expense = {
   id: number
   project_id: number
   expense_type: string
+  // 'company' = paid from company funds; 'reimbursement' = worker paid out
+  // of pocket and gets reimbursed via their weekly payroll. Defaults to
+  // 'company' on the server, but the form below lets the worker choose.
+  expense_kind: 'company' | 'reimbursement'
   amount: number
   expense_date: string
   vendor: string | null
@@ -82,6 +86,7 @@ export default function ProjectExpensesScreen() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({
     expense_type: 'materials',
+    expense_kind: 'company' as 'company' | 'reimbursement',
     amount: '',
     expense_date: '',
     vendor: '',
@@ -112,7 +117,7 @@ export default function ProjectExpensesScreen() {
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_expenses')
-          .select('id, project_id, expense_type, amount, expense_date, vendor, notes, receipt_photo_url, receipt_photo_path, created_by, created_at, payment_method, is_paid, paid_date, subcontract_id')
+          .select('id, project_id, expense_type, expense_kind, amount, expense_date, vendor, notes, receipt_photo_url, receipt_photo_path, created_by, created_at, payment_method, is_paid, paid_date, subcontract_id')
           .eq('project_id', projectId)
           .order('expense_date', { ascending: false }),
         supabase.from('expense_types').select('id, value, label, sort_order, deleted_at').eq('scope', 'project').order('sort_order'),
@@ -165,6 +170,7 @@ export default function ProjectExpensesScreen() {
   function openCreate() {
     setForm({
       expense_type: activeTypes[0]?.value || 'other',
+      expense_kind: 'company',
       amount: '',
       expense_date: new Date().toISOString().split('T')[0],
       vendor: '',
@@ -179,6 +185,7 @@ export default function ProjectExpensesScreen() {
   function openEdit(e: Expense) {
     setForm({
       expense_type: e.expense_type || (activeTypes[0]?.value ?? 'other'),
+      expense_kind: e.expense_kind === 'reimbursement' ? 'reimbursement' : 'company',
       amount: e.amount != null ? String(e.amount) : '',
       expense_date: e.expense_date || '',
       vendor: e.vendor || '',
@@ -269,6 +276,7 @@ export default function ProjectExpensesScreen() {
       if (editing) {
         const { error } = await supabase.from('project_expenses').update({
           expense_type: form.expense_type,
+          expense_kind: form.expense_kind,
           amount: amt,
           expense_date: form.expense_date || new Date().toISOString().split('T')[0],
           vendor: form.vendor.trim() || null,
@@ -282,6 +290,7 @@ export default function ProjectExpensesScreen() {
         const { error } = await supabase.from('project_expenses').insert({
           project_id: projectId,
           expense_type: form.expense_type,
+          expense_kind: form.expense_kind,
           amount: amt,
           expense_date: form.expense_date || new Date().toISOString().split('T')[0],
           vendor: form.vendor.trim() || null,
@@ -411,6 +420,13 @@ export default function ProjectExpensesScreen() {
                         {labelForType(e.expense_type).toUpperCase()}
                       </Text>
                     </View>
+                    {e.expense_kind === 'reimbursement' && (
+                      <View style={{ backgroundColor: COLORS.tealSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
+                        <Text style={{ color: COLORS.teal, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+                          REIMBURSE
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
                     {fmtDate(e.expense_date)}{e.vendor ? ` · ${e.vendor}` : ''}
@@ -473,6 +489,37 @@ export default function ProjectExpensesScreen() {
                   <Picker.Item key={et.value} label={et.label} value={et.value} />
                 ))}
               </PickerWrap>
+
+              {/* Who paid? Company = paid with company funds (card / account).
+                  Reimbursement = worker paid out of pocket — adds to this
+                  week's paycheck. Two big buttons so it's hard to miss. */}
+              <Text style={styles.lbl}>Who paid?</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                {([
+                  { value: 'company', label: 'Company',       sub: 'Paid with company funds' },
+                  { value: 'reimbursement', label: 'Reimburse me', sub: 'Adds to my weekly pay' },
+                ] as const).map(opt => {
+                  const on = form.expense_kind === opt.value
+                  return (
+                    <Pressable
+                      key={opt.value}
+                      onPress={() => setForm(f => ({ ...f, expense_kind: opt.value }))}
+                      style={{
+                        flex: 1,
+                        borderRadius: 12,
+                        borderWidth: 2,
+                        borderColor: on ? COLORS.teal : COLORS.border,
+                        backgroundColor: on ? COLORS.tealSoft : COLORS.white,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                      }}
+                    >
+                      <Text style={{ color: on ? COLORS.teal : COLORS.text, fontWeight: '800', fontSize: 14 }}>{opt.label}</Text>
+                      <Text style={{ color: COLORS.subtext, fontSize: 11, marginTop: 2 }}>{opt.sub}</Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
 
               {/* Amount */}
               <Text style={styles.lbl}>{t('amount')}</Text>
