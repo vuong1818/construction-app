@@ -420,10 +420,16 @@ export default function ProjectExpensesScreen() {
                         {labelForType(e.expense_type).toUpperCase()}
                       </Text>
                     </View>
-                    {e.expense_kind === 'reimbursement' && (
+                    {e.expense_kind === 'reimbursement' ? (
                       <View style={{ backgroundColor: COLORS.tealSoft, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 }}>
                         <Text style={{ color: COLORS.teal, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
-                          REIMBURSE
+                          {t('expenseKindReimburseBadge')}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: COLORS.background, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100, borderWidth: 1, borderColor: COLORS.border }}>
+                        <Text style={{ color: COLORS.subtext, fontSize: 10, fontWeight: '700', letterSpacing: 0.3 }}>
+                          {t('expenseKindCompanyBadge')}
                         </Text>
                       </View>
                     )}
@@ -493,11 +499,11 @@ export default function ProjectExpensesScreen() {
               {/* Who paid? Company = paid with company funds (card / account).
                   Reimbursement = worker paid out of pocket — adds to this
                   week's paycheck. Two big buttons so it's hard to miss. */}
-              <Text style={styles.lbl}>Who paid?</Text>
+              <Text style={styles.lbl}>{t('expenseWhoPaid')}</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
                 {([
-                  { value: 'company', label: 'Company',       sub: 'Paid with company funds' },
-                  { value: 'reimbursement', label: 'Reimburse me', sub: 'Adds to my weekly pay' },
+                  { value: 'company',       label: t('expenseKindCompany'),   sub: t('expenseKindCompanySub') },
+                  { value: 'reimbursement', label: t('expenseKindReimburse'), sub: t('expenseKindReimburseSub') },
                 ] as const).map(opt => {
                   const on = form.expense_kind === opt.value
                   return (

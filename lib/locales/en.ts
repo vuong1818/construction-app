@@ -214,6 +214,15 @@ const en = {
   newExpense: 'New Expense',
   editExpense: 'Edit Expense',
   type: 'Type',
+  // Who paid? Company = paid with company funds. Reimbursement = the
+  // worker paid out of pocket; the amount adds to their weekly payroll.
+  expenseWhoPaid: 'Who paid?',
+  expenseKindCompany: 'Company',
+  expenseKindCompanySub: 'Paid with company funds',
+  expenseKindReimburse: 'Reimburse me',
+  expenseKindReimburseSub: 'Adds to my weekly pay',
+  expenseKindReimburseBadge: 'REIMBURSE',
+  expenseKindCompanyBadge: 'COMPANY',
   amount: 'Amount ($)',
   date: 'Date',
   vendor: 'Vendor',

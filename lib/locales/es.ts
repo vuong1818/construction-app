@@ -206,6 +206,15 @@ const es: Record<TranslationKey, string> = {
   newExpense: 'Nuevo gasto',
   editExpense: 'Editar gasto',
   type: 'Tipo',
+  // ¿Quién pagó? Empresa = pagado con fondos de la empresa. Reembolso =
+  // el trabajador pagó de su bolsillo y se le suma al pago semanal.
+  expenseWhoPaid: '¿Quién pagó?',
+  expenseKindCompany: 'Empresa',
+  expenseKindCompanySub: 'Pagado con fondos de la empresa',
+  expenseKindReimburse: 'Reembolsarme',
+  expenseKindReimburseSub: 'Se suma a mi pago semanal',
+  expenseKindReimburseBadge: 'REEMBOLSO',
+  expenseKindCompanyBadge: 'EMPRESA',
   amount: 'Monto ($)',
   date: 'Fecha',
   vendor: 'Proveedor',
