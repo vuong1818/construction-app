@@ -300,6 +300,10 @@ export default function WeeklySafetyMeetingScreen() {
 
       const weekStart = formatDateOnly(getStartOfWeek());
 
+      // Auto-pick an OSHA topic if the manager hasn't set one yet. The RPC is
+      // a no-op when a row already exists.
+      await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart });
+
       const { data: topicData, error: topicError } = await supabase
         .from('weekly_safety_topics')
         .select('id, week_start, topic, pdf_url, video_url')

@@ -260,6 +260,9 @@ export default function ManagerSafetyScreen() {
 
   async function loadAll() {
     setLoading(true)
+    // Auto-pick an OSHA topic if none is set for this week. RPC is a no-op
+    // when a topic already exists, so the manager's manual edits are preserved.
+    await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart })
     await Promise.all([loadManual(), loadManualAcks(), loadTopic(), loadMeetingAcks(), loadWorkerCount(), loadSafetyResources()])
     setLoading(false)
   }
