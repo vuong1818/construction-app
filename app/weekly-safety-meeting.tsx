@@ -18,6 +18,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
+import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -251,22 +252,6 @@ export default function WeeklySafetyMeetingScreen() {
 
   useEffect(() => { loadMeeting(); }, []);
 
-  function getStartOfWeek(date = new Date()) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + diff);
-    return d;
-  }
-
-  function formatDateOnly(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   async function loadMeeting() {
     try {
       setLoading(true);
@@ -298,7 +283,7 @@ export default function WeeklySafetyMeetingScreen() {
         .maybeSingle();
       setCompanyEmail(settingsData?.company_email || null);
 
-      const weekStart = formatDateOnly(getStartOfWeek());
+      const weekStart = fmtLocalDate(await currentWorkWeekStart());
 
       // Auto-pick an OSHA topic if the manager hasn't set one yet. The RPC is
       // a no-op when a row already exists.

@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
+import { currentWorkWeekStart, fmtLocalDate } from '../../../lib/workWeek'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 const C = {
@@ -79,15 +80,6 @@ type MeetingAck = {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function getWeekStart(date = new Date()): string {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() + diff)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('en-US', {
@@ -218,7 +210,8 @@ export default function ManagerSafetyScreen() {
     error: t('error'),
     couldNotOpen: t('couldNotOpenLink'),
   }
-  const weekStart = getWeekStart()
+  const [weekStart, setWeekStart] = useState<string>('')
+  useEffect(() => { currentWorkWeekStart().then(d => setWeekStart(fmtLocalDate(d))) }, [])
 
   // Loading
   const [loading, setLoading]       = useState(true)
@@ -250,7 +243,7 @@ export default function ManagerSafetyScreen() {
   const [safetyVideos, setSafetyVideos]   = useState<SafetyDoc[]>([])
   const [docLang, setDocLang]             = useState<'en' | 'es'>('en')
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { if (weekStart) loadAll() }, [weekStart])
 
   async function onRefresh() {
     setRefreshing(true)
