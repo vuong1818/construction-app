@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Picker } from '@react-native-picker/picker'
 import { useEffect, useState } from 'react'
 import {
@@ -573,11 +573,78 @@ function ResultBadge({ result }: { result: 'pass' | 'fail' | null }) {
   )
 }
 
+// Map a saved backflow_tests row back into the form's string-based state.
+function rowToForm(row: Record<string, any>): FormState {
+  const s = (v: unknown) => (v == null ? '' : String(v))
+  const base = emptyForm()
+  return {
+    ...base,
+    city:                       row.city                       || '',
+    assembly_address:           row.assembly_address           || '',
+    manufacturer:               row.manufacturer               || '',
+    size:                       row.size                       || '',
+    model_number:               row.model_number               || '',
+    serial_number:              row.serial_number              || '',
+    facility_owner:             row.facility_owner             || '',
+    facility_phone:             row.facility_phone             || '',
+    facility_address:           row.facility_address           || '',
+    facility_city:              row.facility_city              || '',
+    facility_state:             row.facility_state             || 'TX',
+    facility_zip:               row.facility_zip               || '',
+    facility_type:              (row.facility_type as FacilityType) || 'containment',
+    contact_name:               row.contact_name               || '',
+    contact_phone:              row.contact_phone              || '',
+    contact_address:            row.contact_address            || '',
+    contact_city:               row.contact_city               || '',
+    contact_state:              row.contact_state              || 'TX',
+    contact_zip:                row.contact_zip                || '',
+    assembly_status:            (row.assembly_status as AssemblyStatus) || 'new',
+    replacement_old_serial:     row.replacement_old_serial     || '',
+    on_site_location:           row.on_site_location           || '',
+    service_type:               (row.service_type as ServiceType) || 'domestic',
+    assembly_type:              (row.assembly_type as AssemblyType) || 'rpp',
+    installed_per_manufacturer: row.installed_per_manufacturer  ?? true,
+    installed_on_non_potable:   row.installed_on_non_potable    ?? false,
+    initial_test_time:          row.initial_test_time           || '',
+    check1_held_psid:           s(row.check1_held_psid),
+    check1_closed_tight:        row.check1_closed_tight        ?? true,
+    check2_held_psid:           s(row.check2_held_psid),
+    check2_closed_tight:        row.check2_closed_tight        ?? true,
+    relief_opened_psid:         s(row.relief_opened_psid),
+    relief_did_not_open:        row.relief_did_not_open        ?? false,
+    air_inlet_opened_psid:      s(row.air_inlet_opened_psid),
+    air_inlet_did_not_open:     row.air_inlet_did_not_open     ?? false,
+    air_inlet_did_fully_open:   row.air_inlet_did_fully_open   ?? true,
+    check_valve_held_psid:      s(row.check_valve_held_psid),
+    check_valve_closed_tight:   row.check_valve_closed_tight   ?? true,
+    repair_main:                row.repair_main                ?? false,
+    repair_bypass:              row.repair_bypass              ?? false,
+    repair_notes:               row.repair_notes               || '',
+    after_test_time:            row.after_test_time            || '',
+    after_check1_held_psid:     s(row.after_check1_held_psid),
+    after_check1_closed_tight:  row.after_check1_closed_tight  ?? true,
+    after_check2_held_psid:     s(row.after_check2_held_psid),
+    after_check2_closed_tight:  row.after_check2_closed_tight  ?? true,
+    after_relief_opened_psid:   s(row.after_relief_opened_psid),
+    after_air_inlet_opened_psid: s(row.after_air_inlet_opened_psid),
+    after_air_inlet_did_not_open: row.after_air_inlet_did_not_open ?? false,
+    after_air_inlet_did_fully_open: row.after_air_inlet_did_fully_open ?? true,
+    after_check_valve_held_psid: s(row.after_check_valve_held_psid),
+    after_check_valve_closed_tight: row.after_check_valve_closed_tight ?? true,
+    gauge_id:                   row.gauge_id  != null ? String(row.gauge_id)  : '',
+    tester_id:                  row.tester_id != null ? String(row.tester_id) : '',
+    test_date:                  row.test_date                  || new Date().toISOString().slice(0, 10),
+    comments:                   row.comments                   || '',
+  }
+}
+
 // ── Screen ──────────────────────────────────────────────────────────────────
 
 export default function NewBackflowTest() {
   const router = useRouter()
   const { t } = useLanguage()
+  const { editId } = useLocalSearchParams<{ editId?: string }>()
+  const editingId = editId ? String(editId) : null
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm())
@@ -598,18 +665,29 @@ export default function NewBackflowTest() {
         return
       }
       setUserId(user.id)
-      const [gRes, tRes] = await Promise.all([
+      const tasks: Promise<any>[] = [
         supabase.from('backflow_test_gauges').select('id, make, model, serial, calibration_date').order('make'),
         supabase
           .from('backflow_testers')
           .select('id, name, license_number, firm_name, firm_address, firm_city_state_zip, firm_phone')
           .order('name'),
-      ])
+      ]
+      if (editingId) {
+        tasks.push(supabase.from('backflow_tests').select('*').eq('id', editingId).single())
+      }
+      const [gRes, tRes, testRes] = await Promise.all(tasks)
       setGauges((gRes.data as Gauge[]) || [])
       setTesters((tRes.data as Tester[]) || [])
+      if (editingId) {
+        if (testRes?.error || !testRes?.data) {
+          setErrorMsg(testRes?.error?.message || t('backflowNotFound'))
+        } else {
+          setForm(rowToForm(testRes.data))
+        }
+      }
       setLoading(false)
     })()
-  }, [router])
+  }, [router, editingId, t])
 
   async function save() {
     setErrorMsg('')
@@ -700,13 +778,26 @@ export default function NewBackflowTest() {
       result: computeResult(form) ?? 'fail',
     }
 
-    const { data, error } = await supabase.from('backflow_tests').insert(payload).select('id').single()
-    setSaving(false)
-    if (error) {
-      setErrorMsg(t('backflowSaveFailed', { msg: error.message }))
-      return
+    let savedId: number | string | null = null
+    if (editingId) {
+      const { error } = await supabase.from('backflow_tests').update(payload).eq('id', editingId)
+      if (error) {
+        setSaving(false)
+        setErrorMsg(t('backflowSaveFailed', { msg: error.message }))
+        return
+      }
+      savedId = editingId
+    } else {
+      const { data, error } = await supabase.from('backflow_tests').insert(payload).select('id').single()
+      if (error) {
+        setSaving(false)
+        setErrorMsg(t('backflowSaveFailed', { msg: error.message }))
+        return
+      }
+      savedId = (data as { id: number }).id
     }
-    router.replace(`/smart-tools/backflow/${(data as { id: number }).id}` as any)
+    setSaving(false)
+    router.replace(`/smart-tools/backflow/${savedId}` as any)
   }
 
   if (loading) {
@@ -727,7 +818,9 @@ export default function NewBackflowTest() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
           <View style={{ marginBottom: 12 }}>
-            <Text style={{ color: C.navy, fontSize: 20, fontWeight: '900' }}>{t('backflowNewTitle')}</Text>
+            <Text style={{ color: C.navy, fontSize: 20, fontWeight: '900' }}>
+              {editingId ? t('backflowEditTitle') : t('backflowNewTitle')}
+            </Text>
           </View>
 
           {/* Permit & Assembly */}
@@ -1136,7 +1229,7 @@ export default function NewBackflowTest() {
               })}
             >
               <Text style={{ color: C.white, fontWeight: '800', fontSize: 15 }}>
-                {saving ? t('saving') : t('backflowSaveTest')}
+                {saving ? t('saving') : editingId ? t('backflowUpdateTest') : t('backflowSaveTest')}
               </Text>
             </Pressable>
           </View>

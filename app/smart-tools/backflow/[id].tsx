@@ -370,23 +370,42 @@ export default function BackflowDetail() {
           </Text>
 
           {isManager ? (
-            <Pressable
-              onPress={confirmDelete}
-              style={({ pressed }) => ({
-                marginTop: 12,
-                backgroundColor: C.redSoft,
-                borderRadius: 10,
-                padding: 10,
-                alignItems: 'center',
-                flexDirection: 'row',
-                justifyContent: 'center',
-                gap: 6,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red} />
-              <Text style={{ color: C.red, fontWeight: '700', fontSize: 13 }}>{t('delete')}</Text>
-            </Pressable>
+            <View style={{ marginTop: 12, flexDirection: 'row', gap: 8 }}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/smart-tools/backflow/new', params: { editId: String(id) } } as any)}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  backgroundColor: C.tealSoft,
+                  borderRadius: 10,
+                  padding: 10,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 6,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={18} color={C.teal} />
+                <Text style={{ color: C.teal, fontWeight: '700', fontSize: 13 }}>{t('backflowEdit')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmDelete}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  backgroundColor: C.redSoft,
+                  borderRadius: 10,
+                  padding: 10,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 6,
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={18} color={C.red} />
+                <Text style={{ color: C.red, fontWeight: '700', fontSize: 13 }}>{t('delete')}</Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
 

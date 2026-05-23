@@ -1333,7 +1333,10 @@ const es: Record<TranslationKey, string> = {
 
   // New form
   backflowNewTitle: 'Nueva prueba de antirreflujo',
+  backflowEditTitle: 'Editar prueba de antirreflujo',
   backflowSaveTest: 'Guardar prueba',
+  backflowUpdateTest: 'Actualizar prueba',
+  backflowEdit: 'Editar',
   backflowAutoResult: 'Auto: {result}',
   backflowResultLabel: 'Resultado',
   backflowRequireAddressOrSerial: 'Se requiere al menos la dirección del ensamble o el número de serie.',

@@ -1341,7 +1341,10 @@ const en = {
 
   // New form
   backflowNewTitle: 'New Backflow Test',
+  backflowEditTitle: 'Edit Backflow Test',
   backflowSaveTest: 'Save Test',
+  backflowUpdateTest: 'Update Test',
+  backflowEdit: 'Edit',
   backflowAutoResult: 'Auto: {result}',
   backflowResultLabel: 'Result',
   backflowRequireAddressOrSerial: 'At least one of Assembly Address or Serial Number is required.',
