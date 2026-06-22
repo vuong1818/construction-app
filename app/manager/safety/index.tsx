@@ -237,6 +237,7 @@ export default function ManagerSafetyScreen() {
   const [editing, setEditing]             = useState(false)
   const [topicText, setTopicText]         = useState('')
   const [savingTopic, setSavingTopic]     = useState(false)
+  const [pickingRandom, setPickingRandom] = useState(false)
   const [selectedDoc, setSelectedDoc]     = useState<SafetyDoc | null>(null)
   const [selectedVideo, setSelectedVideo] = useState<SafetyDoc | null>(null)
   const [safetyDocs, setSafetyDocs]       = useState<SafetyDoc[]>([])
@@ -430,6 +431,33 @@ export default function ManagerSafetyScreen() {
     }
   }
 
+  // ── Pick a random OSHA topic (overwrites this week's topic) ──
+  async function pickRandomTopic() {
+    const doPick = async () => {
+      try {
+        setPickingRandom(true)
+        const { data, error } = await supabase.rpc('pick_random_safety_topic', { p_week_start: weekStart })
+        if (error) throw error
+        const row = Array.isArray(data) ? data[0] : data
+        if (!row) { Alert.alert(t('noOshaDocsTitle'), t('noOshaDocsMsg')); return }
+        await loadTopic()
+        Alert.alert(t('saved'), t('randomTopicPicked'))
+      } catch (err: any) {
+        Alert.alert(t('error'), err?.message || t('couldNotSaveTopic'))
+      } finally {
+        setPickingRandom(false)
+      }
+    }
+    if (topic) {
+      Alert.alert(t('pickRandomTitle'), t('pickRandomConfirm'), [
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('pickRandomAction'), onPress: doPick },
+      ])
+    } else {
+      doPick()
+    }
+  }
+
   function viewPdf(url: string, _title: string) {
     openPdf(url, openLabels)
   }
@@ -595,9 +623,16 @@ export default function ManagerSafetyScreen() {
           )}
 
           <Pressable onPress={openEditor}
-            style={{ backgroundColor: C.teal, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 18 }}>
+            style={{ backgroundColor: C.teal, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 10 }}>
             <Text style={{ color: C.white, fontWeight: '900', fontSize: 15 }}>
               {topic ? t('editTopic') : t('setThisWeeksTopic')}
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={pickRandomTopic} disabled={pickingRandom}
+            style={{ backgroundColor: C.tealSoft, borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginBottom: 18, borderWidth: 1, borderColor: C.teal, opacity: pickingRandom ? 0.6 : 1 }}>
+            <Text style={{ color: C.teal, fontWeight: '900', fontSize: 15 }}>
+              {pickingRandom ? t('pickingDots') : t('pickRandomOshaTopic')}
             </Text>
           </Pressable>
 
