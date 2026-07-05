@@ -14,6 +14,11 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../lib/i18n'
+import {
+  CalcAdjustment, CalcAmbient, CalcBonding, CalcBurial, CalcClearance, CalcGEC,
+  CalcLightingDemand, CalcMaxFill, CalcMotorBreaker, CalcMotorFLC, CalcMultifamily,
+  CalcRangeDemand, CalcStdSizes, CalcTransformer, RefClass2, RefFeederTap, RefPoolBonding,
+} from '../../components/electricalCalcs'
 
 
 
@@ -754,54 +759,105 @@ export default function ElectricalTools() {
   const { t } = useLanguage()
   const [open, setOpen] = useState<string | null>(null)
 
-  const TOOLS = [
-    { id: 'ampacity', icon: 'table-large',           title: t('steAmpacityTitle'), desc: t('steAmpacityDesc'), ref: 'NEC 2026 §310.16' },
-    { id: 'vdrop',    icon: 'lightning-bolt-outline', title: t('steVdropTitle'),    desc: t('steVdropDesc'),    ref: 'NEC Ch.9 Table 9' },
-    { id: 'conduit',  icon: 'pipe',                   title: t('steConduitTitle'),  desc: t('steConduitDesc'),  ref: 'NEC Ch.9 Table 1' },
-    { id: 'egc',      icon: 'electric-switch',        title: t('steEgcTitle'),      desc: t('steEgcDesc'),      ref: 'NEC 2026 §250.122' },
-    { id: 'boxfill',  icon: 'checkbox-blank-outline', title: t('steBoxFillTitle'),  desc: t('steBoxFillDesc'),  ref: 'NEC 2026 §314.16' },
-    { id: 'fault',    icon: 'flash-alert',            title: t('steFaultTitle'),    desc: t('steFaultDesc'),    ref: 'NEC 110.9 / Bussmann' },
+  const CATEGORIES: { key: string; label: string; tools: { id: string; icon: string; title: string; desc: string; ref: string }[] }[] = [
+    { key: 'core', label: t('steCatCore'), tools: [
+      { id: 'ampacity', icon: 'table-large',           title: t('steAmpacityTitle'), desc: t('steAmpacityDesc'), ref: 'NEC §310.16' },
+      { id: 'ambient',  icon: 'thermometer',           title: t('steAmbientTitle'),  desc: t('steAmbientDesc'),  ref: 'NEC 310.15(B)(1)' },
+      { id: 'adjust',   icon: 'layers-triple-outline', title: t('steAdjustTitle'),   desc: t('steAdjustDesc'),   ref: 'NEC 310.15(C)(1)' },
+      { id: 'vdrop',    icon: 'lightning-bolt-outline', title: t('steVdropTitle'),   desc: t('steVdropDesc'),    ref: 'NEC Ch.9 Table 9' },
+    ] },
+    { key: 'grounding', label: t('steCatGrounding'), tools: [
+      { id: 'egc',      icon: 'electric-switch',        title: t('steEgcTitle'),     desc: t('steEgcDesc'),      ref: 'NEC §250.122' },
+      { id: 'gec',      icon: 'transmission-tower',     title: t('steGecTitle'),     desc: t('steGecDesc'),      ref: 'NEC §250.66' },
+      { id: 'bonding',  icon: 'link-variant',           title: t('steBondingTitle'), desc: t('steBondingDesc'),  ref: 'NEC 250.102(C)(1)' },
+    ] },
+    { key: 'raceway', label: t('steCatRaceway'), tools: [
+      { id: 'conduit',  icon: 'pipe',                   title: t('steConduitTitle'), desc: t('steConduitDesc'),  ref: 'NEC Ch.9 Table 1' },
+      { id: 'maxfill',  icon: 'format-list-numbered',   title: t('steMaxFillTitle'), desc: t('steMaxFillDesc'),  ref: 'NEC Annex C' },
+      { id: 'boxfill',  icon: 'checkbox-blank-outline', title: t('steBoxFillTitle'), desc: t('steBoxFillDesc'),  ref: 'NEC §314.16(B)' },
+    ] },
+    { key: 'motors', label: t('steCatMotors'), tools: [
+      { id: 'motorflc', icon: 'engine-outline',         title: t('steMotorFlcTitle'),     desc: t('steMotorFlcDesc'),     ref: 'NEC 430.248/.250' },
+      { id: 'motorbrk', icon: 'flash',                  title: t('steMotorBreakerTitle'), desc: t('steMotorBreakerDesc'), ref: 'NEC Table 430.52' },
+      { id: 'xfmr',     icon: 'sine-wave',              title: t('steXfmrTitle'),         desc: t('steXfmrDesc'),         ref: 'NEC 450.3(B)' },
+      { id: 'fault',    icon: 'flash-alert',            title: t('steFaultTitle'),        desc: t('steFaultDesc'),        ref: 'NEC 110.9 / Bussmann' },
+    ] },
+    { key: 'loads', label: t('steCatLoads'), tools: [
+      { id: 'stdsizes', icon: 'fuse',                   title: t('steStdSizesTitle'),    desc: t('steStdSizesDesc'),    ref: 'NEC 240.6(A)' },
+      { id: 'lighting', icon: 'lightbulb-group-outline',title: t('steLightingTitle'),    desc: t('steLightingDesc'),    ref: 'NEC 220.42' },
+      { id: 'range',    icon: 'stove',                  title: t('steRangeTitle'),       desc: t('steRangeDesc'),       ref: 'NEC 220.55' },
+      { id: 'multi',    icon: 'home-city-outline',      title: t('steMultifamilyTitle'), desc: t('steMultifamilyDesc'), ref: 'NEC 220.84' },
+    ] },
+    { key: 'reference', label: t('steCatReference'), tools: [
+      { id: 'burial',   icon: 'shovel',                 title: t('steBurialTitle'),    desc: t('steBurialDesc'),    ref: 'NEC Table 300.5' },
+      { id: 'clearance',icon: 'ruler-square',           title: t('steClearanceTitle'), desc: t('steClearanceDesc'), ref: 'NEC 110.26(A)(1)' },
+      { id: 'tap',      icon: 'call-split',             title: t('steTapTitle'),       desc: t('steTapDesc'),       ref: 'NEC 240.21(B)' },
+      { id: 'class2',   icon: 'ethernet-cable',         title: t('steClass2Title'),    desc: t('steClass2Desc'),    ref: 'NEC 725.144' },
+      { id: 'pool',     icon: 'pool',                   title: t('stePoolTitle'),      desc: t('stePoolDesc'),      ref: 'NEC 680.26' },
+    ] },
   ]
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
-        <View style={{ marginBottom: 20 }}>
+        <View style={{ marginBottom: 16 }}>
           <Text style={{ color: COLORS.navy, fontSize: 22, fontWeight: '900', marginBottom: 4 }}>⚡ {t('steTitle')}</Text>
           <Text style={{ color: COLORS.subtext, fontSize: 13 }}>{t('steSubtitle')}</Text>
         </View>
 
-        {TOOLS.map(tool => (
-          <Pressable
-            key={tool.id}
-            onPress={() => setOpen(tool.id)}
-            style={({ pressed }) => ({
-              backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 12,
-              borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row',
-              alignItems: 'center', gap: 14, opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: COLORS.yellowSoft, justifyContent: 'center', alignItems: 'center' }}>
-              <MaterialCommunityIcons name={tool.icon as any} size={26} color={COLORS.yellow} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.navy, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{tool.title}</Text>
-              <Text style={{ color: COLORS.subtext, fontSize: 12, lineHeight: 16 }}>{tool.desc}</Text>
-              <View style={{ marginTop: 4, backgroundColor: COLORS.yellowSoft, alignSelf: 'flex-start', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ color: COLORS.yellow, fontSize: 10, fontWeight: '700' }}>{tool.ref}</Text>
-              </View>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.subtext} />
-          </Pressable>
+        {CATEGORIES.map(cat => (
+          <View key={cat.key} style={{ marginBottom: 8 }}>
+            <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8, marginTop: 4 }}>{cat.label}</Text>
+            {cat.tools.map(tool => (
+              <Pressable
+                key={tool.id}
+                onPress={() => setOpen(tool.id)}
+                style={({ pressed }) => ({
+                  backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 12,
+                  borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row',
+                  alignItems: 'center', gap: 14, opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: COLORS.yellowSoft, justifyContent: 'center', alignItems: 'center' }}>
+                  <MaterialCommunityIcons name={tool.icon as any} size={26} color={COLORS.yellow} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: COLORS.navy, fontSize: 15, fontWeight: '800', marginBottom: 2 }}>{tool.title}</Text>
+                  <Text style={{ color: COLORS.subtext, fontSize: 12, lineHeight: 16 }}>{tool.desc}</Text>
+                  <View style={{ marginTop: 4, backgroundColor: COLORS.yellowSoft, alignSelf: 'flex-start', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ color: COLORS.yellow, fontSize: 10, fontWeight: '700' }}>{tool.ref}</Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.subtext} />
+              </Pressable>
+            ))}
+          </View>
         ))}
       </ScrollView>
 
-      {open === 'ampacity' && <Calc310_16      onClose={() => setOpen(null)} />}
-      {open === 'vdrop'    && <CalcVoltageDrop onClose={() => setOpen(null)} />}
-      {open === 'conduit'  && <CalcConduitFill onClose={() => setOpen(null)} />}
-      {open === 'egc'      && <CalcEGC         onClose={() => setOpen(null)} />}
-      {open === 'boxfill'  && <CalcBoxFill     onClose={() => setOpen(null)} />}
-      {open === 'fault'    && <CalcFaultCurrent onClose={() => setOpen(null)} />}
+      {open === 'ampacity'  && <Calc310_16       onClose={() => setOpen(null)} />}
+      {open === 'ambient'   && <CalcAmbient      onClose={() => setOpen(null)} />}
+      {open === 'adjust'    && <CalcAdjustment   onClose={() => setOpen(null)} />}
+      {open === 'vdrop'     && <CalcVoltageDrop  onClose={() => setOpen(null)} />}
+      {open === 'egc'       && <CalcEGC          onClose={() => setOpen(null)} />}
+      {open === 'gec'       && <CalcGEC          onClose={() => setOpen(null)} />}
+      {open === 'bonding'   && <CalcBonding      onClose={() => setOpen(null)} />}
+      {open === 'conduit'   && <CalcConduitFill  onClose={() => setOpen(null)} />}
+      {open === 'maxfill'   && <CalcMaxFill      onClose={() => setOpen(null)} />}
+      {open === 'boxfill'   && <CalcBoxFill      onClose={() => setOpen(null)} />}
+      {open === 'motorflc'  && <CalcMotorFLC     onClose={() => setOpen(null)} />}
+      {open === 'motorbrk'  && <CalcMotorBreaker onClose={() => setOpen(null)} />}
+      {open === 'xfmr'      && <CalcTransformer  onClose={() => setOpen(null)} />}
+      {open === 'fault'     && <CalcFaultCurrent onClose={() => setOpen(null)} />}
+      {open === 'stdsizes'  && <CalcStdSizes     onClose={() => setOpen(null)} />}
+      {open === 'lighting'  && <CalcLightingDemand onClose={() => setOpen(null)} />}
+      {open === 'range'     && <CalcRangeDemand  onClose={() => setOpen(null)} />}
+      {open === 'multi'     && <CalcMultifamily  onClose={() => setOpen(null)} />}
+      {open === 'burial'    && <CalcBurial       onClose={() => setOpen(null)} />}
+      {open === 'clearance' && <CalcClearance    onClose={() => setOpen(null)} />}
+      {open === 'tap'       && <RefFeederTap     onClose={() => setOpen(null)} />}
+      {open === 'class2'    && <RefClass2        onClose={() => setOpen(null)} />}
+      {open === 'pool'      && <RefPoolBonding   onClose={() => setOpen(null)} />}
     </SafeAreaView>
   )
 }
