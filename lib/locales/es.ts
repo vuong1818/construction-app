@@ -166,7 +166,7 @@ const es: Record<TranslationKey, string> = {
   taskTitle: 'Tarea',
   taskTitlePlaceholder: '¿Qué hay que hacer?',
   assignedTo: 'Asignada a',
-  unassigned: '— Sin asignar —',
+  unassignedOption: '— Sin asignar —',
   unnamed: 'Sin nombre',
   managerSuffix: ' (gerencia)',
   clearNote: 'Borrar nota',

@@ -635,7 +635,7 @@ export default function ProjectTasksScreen() {
                   selectedValue={form.assigned_to}
                   onValueChange={(value) => setForm({ ...form, assigned_to: String(value ?? '') })}
                 >
-                  <Picker.Item label={t('unassigned')} value="" />
+                  <Picker.Item label={t('unassignedOption')} value="" />
                   {profiles.map(p => (
                     <Picker.Item
                       key={p.id}

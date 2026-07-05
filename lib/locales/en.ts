@@ -174,7 +174,7 @@ const en = {
   taskTitle: 'Task',
   taskTitlePlaceholder: 'What needs to be done?',
   assignedTo: 'Assigned to',
-  unassigned: '— Unassigned —',
+  unassignedOption: '— Unassigned —',
   unnamed: 'Unnamed',
   managerSuffix: ' (manager)',
   clearNote: 'Clear note',
