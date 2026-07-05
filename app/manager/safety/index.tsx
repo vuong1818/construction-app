@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
+import { logError } from '../../../lib/logger'
 import { supabase } from '../../../lib/supabase'
 import { currentWorkWeekStart, fmtLocalDate } from '../../../lib/workWeek'
 
@@ -256,7 +257,8 @@ export default function ManagerSafetyScreen() {
     setLoading(true)
     // Auto-pick an OSHA topic if none is set for this week. RPC is a no-op
     // when a topic already exists, so the manager's manual edits are preserved.
-    await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart })
+    const { error: ensureErr } = await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart })
+    if (ensureErr) logError('ensure_weekly_safety_topic', ensureErr, { screen: 'manager/safety', weekStart })
     await Promise.all([loadManual(), loadManualAcks(), loadTopic(), loadMeetingAcks(), loadWorkerCount(), loadSafetyResources()])
     setLoading(false)
   }

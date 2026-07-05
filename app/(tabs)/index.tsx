@@ -31,6 +31,7 @@ import { supabase } from '../../lib/supabase'
 import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
+import { currentWorkWeekStart, fmtLocalDate } from '../../lib/workWeek'
 
 type Project = {
   id: number
@@ -156,18 +157,6 @@ export default function HomeScreen() {
     return { weekStart, weekEnd }
   }
 
-  // Safety acks are stored with Monday-based week_start (matches safety-manual.tsx / weekly-safety-meeting.tsx).
-  // Must use the same calculation here or the lookup will never find the row.
-  function getSafetyWeekStart(): string {
-    const now = new Date()
-    const day = now.getDay()          // 0=Sun … 6=Sat
-    const diff = day === 0 ? -6 : 1 - day  // go back to Monday
-    const monday = new Date(now)
-    monday.setDate(now.getDate() + diff)
-    monday.setHours(0, 0, 0, 0)
-    return monday.toISOString().split('T')[0]
-  }
-
   function getTodayRange() {
     const now = new Date()
 
@@ -273,8 +262,10 @@ export default function HomeScreen() {
       }
 
       const { weekStart, weekEnd } = getWorkWeekRange()
-      // Safety acks use Monday-based week_start — must match what safety-manual.tsx writes
-      const safetyWeekStart = getSafetyWeekStart()
+      // Safety acks are keyed to the configured work week (work_week_start_day,
+      // default Friday) — same helper the signing screens + DB use. Using any
+      // other week boundary here means a signed ack never matches this lookup.
+      const safetyWeekStart = fmtLocalDate(await currentWorkWeekStart())
 
       const weeklyResult = await supabase
         .from('time_entries')
@@ -314,14 +305,14 @@ export default function HomeScreen() {
           .from('safety_manual_acknowledgements')
           .select('id')
           .eq('worker_id', currentUserId)
-          .eq('week_start', safetyWeekStart)  // Monday-based to match signing screens
+          .eq('week_start', safetyWeekStart)  // work-week-based; matches signing screens
           .maybeSingle(),
 
         supabase
           .from('weekly_meeting_acknowledgements')
           .select('id')
           .eq('worker_id', currentUserId)
-          .eq('week_start', safetyWeekStart)  // Monday-based to match signing screens
+          .eq('week_start', safetyWeekStart)  // work-week-based; matches signing screens
           .maybeSingle(),
       ])
 

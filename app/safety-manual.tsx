@@ -16,6 +16,7 @@ import {
 import { WebView } from 'react-native-webview';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
+import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -295,22 +296,6 @@ export default function SafetyManualScreen() {
 
   useEffect(() => { loadManual(); }, []);
 
-  function getStartOfWeek(date = new Date()) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + diff);
-    return d;
-  }
-
-  function formatDateOnly(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  }
-
   async function loadManual() {
     try {
       setLoading(true);
@@ -365,7 +350,7 @@ export default function SafetyManualScreen() {
 
       // Check if already signed this week (works with or without a manual_document_id)
       try {
-        const weekStart = formatDateOnly(getStartOfWeek());
+        const weekStart = fmtLocalDate(await currentWorkWeekStart());
         let query = supabase
           .from('safety_manual_acknowledgements')
           .select('id, signed_name')
@@ -427,7 +412,7 @@ export default function SafetyManualScreen() {
       const user = sess?.user;
       if (!user) throw new Error(t('sessionExpired') + '. ' + t('pleaseLogInAgain'));
 
-      const weekStart   = formatDateOnly(getStartOfWeek());
+      const weekStart   = fmtLocalDate(await currentWorkWeekStart());
       const now         = new Date();
       const signedAt    = now.toLocaleDateString('en-US', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',

@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLanguage } from '../lib/i18n';
+import { logError } from '../lib/logger';
 import { supabase } from '../lib/supabase';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
@@ -287,7 +288,8 @@ export default function WeeklySafetyMeetingScreen() {
 
       // Auto-pick an OSHA topic if the manager hasn't set one yet. The RPC is
       // a no-op when a row already exists.
-      await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart });
+      const { error: ensureErr } = await supabase.rpc('ensure_weekly_safety_topic', { p_week_start: weekStart });
+      if (ensureErr) logError('ensure_weekly_safety_topic', ensureErr, { screen: 'weekly-safety-meeting', weekStart });
 
       const { data: topicData, error: topicError } = await supabase
         .from('weekly_safety_topics')
@@ -317,7 +319,7 @@ export default function WeeklySafetyMeetingScreen() {
         setAlreadySigned(false);
       }
     } catch (error) {
-      console.error('Error loading weekly meeting:', error);
+      logError('weekly-safety-meeting.load', error);
       Alert.alert(t('error'), t('couldNotLoadMeeting'));
     } finally {
       setLoading(false);

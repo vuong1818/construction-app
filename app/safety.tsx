@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
+import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
 type Profile = {
   id: string;
@@ -38,30 +39,18 @@ export default function SafetyScreen() {
   const isWorker = profile?.role === 'worker';
   const fullyCompliant = manualSigned && meetingSigned;
 
-  useEffect(() => {
-    loadSafetyStatus();
-  }, []);
+  // Reload every time the screen regains focus (e.g. returning from the weekly
+  // meeting screen after signing) so the status pills reflect the new ack.
+  useFocusEffect(
+    useCallback(() => {
+      loadSafetyStatus();
+    }, [])
+  );
 
   async function onRefresh() {
     setRefreshing(true);
     await loadSafetyStatus();
     setRefreshing(false);
-  }
-
-  function getStartOfWeek(date = new Date()) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + diff);
-    return d;
-  }
-
-  function formatDateOnly(date: Date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
   }
 
   async function loadSafetyStatus() {
@@ -83,7 +72,7 @@ export default function SafetyScreen() {
         if (profileData) setProfile(profileData as Profile);
       } catch (e) { console.warn('Profile load skipped:', e); }
 
-      const weekStart = formatDateOnly(getStartOfWeek());
+      const weekStart = fmtLocalDate(await currentWorkWeekStart());
 
       // Check manual signed — by worker_id + week_start only (works even without a manual document record)
       try {

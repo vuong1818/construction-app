@@ -1,8 +1,12 @@
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
 import { LanguageProvider } from '../lib/i18n'
+import { installGlobalErrorLogger } from '../lib/logger'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
+
+// Capture uncaught JS errors app-wide into the error log.
+installGlobalErrorLogger()
 
 export default function RootLayout() {
   // Global auth listener — redirect to sign-in if session expires or token refresh fails
