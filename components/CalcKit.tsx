@@ -156,6 +156,31 @@ export function InfoBox({ text }: { text: string }) {
   )
 }
 
+/** Simple reference table — headers + rows, optional row highlight. */
+export function RefTable({ headers, rows, highlightRow }: {
+  headers: string[]; rows: (string | number)[][]; highlightRow?: (row: (string | number)[], i: number) => boolean
+}) {
+  return (
+    <View style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 8, overflow: 'hidden', marginTop: 8 }}>
+      <View style={{ flexDirection: 'row', backgroundColor: COLORS.inputBg }}>
+        {headers.map((h, i) => (
+          <Text key={i} style={{ flex: 1, padding: 8, fontWeight: '800', fontSize: 11, color: COLORS.navy, textAlign: 'center' }}>{h}</Text>
+        ))}
+      </View>
+      {rows.map((row, ri) => {
+        const hl = highlightRow?.(row, ri)
+        return (
+          <View key={ri} style={{ flexDirection: 'row', backgroundColor: hl ? COLORS.greenSoft : ri % 2 ? '#FAFBFD' : COLORS.white, borderTopWidth: 1, borderTopColor: '#f0f0f0' }}>
+            {row.map((c, ci) => (
+              <Text key={ci} style={{ flex: 1, padding: 6, fontSize: 12, fontWeight: hl ? '700' : '400', color: hl ? '#2E7D32' : COLORS.text, textAlign: 'center' }}>{String(c)}</Text>
+            ))}
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
 /** Bulleted reference list — for rules-based tools (tap rules, pool bonding). */
 export function BulletList({ items }: { items: string[] }) {
   return (

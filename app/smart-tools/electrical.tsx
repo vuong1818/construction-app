@@ -15,9 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../lib/i18n'
 import {
-  CalcAdjustment, CalcAmbient, CalcBonding, CalcBurial, CalcClearance, CalcGEC,
-  CalcLightingDemand, CalcMaxFill, CalcMotorBreaker, CalcMotorFLC, CalcMultifamily,
-  CalcRangeDemand, CalcStdSizes, CalcTransformer, RefClass2, RefFeederTap, RefPoolBonding,
+  CalcAdjustment, CalcAmbient, CalcBonding, CalcBurial, CalcClearance, CalcConduitBend,
+  CalcDwellingService, CalcGEC, CalcLightingDemand, CalcMaxFill, CalcMotorBreaker, CalcMotorFLC,
+  CalcMultifamily, CalcRangeDemand, CalcResistance, CalcStdSizes, CalcTransformer,
+  RefClass2, RefFeederTap, RefPoolBonding,
 } from '../../components/electricalCalcs'
 
 
@@ -762,9 +763,11 @@ export default function ElectricalTools() {
   const CATEGORIES: { key: string; label: string; tools: { id: string; icon: string; title: string; desc: string; ref: string }[] }[] = [
     { key: 'core', label: t('steCatCore'), tools: [
       { id: 'ampacity', icon: 'table-large',           title: t('steAmpacityTitle'), desc: t('steAmpacityDesc'), ref: 'NEC §310.16' },
+      { id: 'dwelling', icon: 'home-lightning-bolt-outline', title: t('steDwellingTitle'), desc: t('steDwellingDesc'), ref: 'NEC §310.12' },
       { id: 'ambient',  icon: 'thermometer',           title: t('steAmbientTitle'),  desc: t('steAmbientDesc'),  ref: 'NEC 310.15(B)(1)' },
       { id: 'adjust',   icon: 'layers-triple-outline', title: t('steAdjustTitle'),   desc: t('steAdjustDesc'),   ref: 'NEC 310.15(C)(1)' },
       { id: 'vdrop',    icon: 'lightning-bolt-outline', title: t('steVdropTitle'),   desc: t('steVdropDesc'),    ref: 'NEC Ch.9 Table 9' },
+      { id: 'resist',   icon: 'omega',                 title: t('steResistanceTitle'), desc: t('steResistanceDesc'), ref: 'NEC Ch.9 Table 8' },
     ] },
     { key: 'grounding', label: t('steCatGrounding'), tools: [
       { id: 'egc',      icon: 'electric-switch',        title: t('steEgcTitle'),     desc: t('steEgcDesc'),      ref: 'NEC §250.122' },
@@ -774,6 +777,7 @@ export default function ElectricalTools() {
     { key: 'raceway', label: t('steCatRaceway'), tools: [
       { id: 'conduit',  icon: 'pipe',                   title: t('steConduitTitle'), desc: t('steConduitDesc'),  ref: 'NEC Ch.9 Table 1' },
       { id: 'maxfill',  icon: 'format-list-numbered',   title: t('steMaxFillTitle'), desc: t('steMaxFillDesc'),  ref: 'NEC Annex C' },
+      { id: 'bend',     icon: 'vector-radius',          title: t('steBendTitle'),    desc: t('steBendDesc'),     ref: 'NEC Ch.9 Table 2' },
       { id: 'boxfill',  icon: 'checkbox-blank-outline', title: t('steBoxFillTitle'), desc: t('steBoxFillDesc'),  ref: 'NEC §314.16(B)' },
     ] },
     { key: 'motors', label: t('steCatMotors'), tools: [
@@ -836,6 +840,8 @@ export default function ElectricalTools() {
       </ScrollView>
 
       {open === 'ampacity'  && <Calc310_16       onClose={() => setOpen(null)} />}
+      {open === 'dwelling'  && <CalcDwellingService onClose={() => setOpen(null)} />}
+      {open === 'resist'    && <CalcResistance   onClose={() => setOpen(null)} />}
       {open === 'ambient'   && <CalcAmbient      onClose={() => setOpen(null)} />}
       {open === 'adjust'    && <CalcAdjustment   onClose={() => setOpen(null)} />}
       {open === 'vdrop'     && <CalcVoltageDrop  onClose={() => setOpen(null)} />}
@@ -844,6 +850,7 @@ export default function ElectricalTools() {
       {open === 'bonding'   && <CalcBonding      onClose={() => setOpen(null)} />}
       {open === 'conduit'   && <CalcConduitFill  onClose={() => setOpen(null)} />}
       {open === 'maxfill'   && <CalcMaxFill      onClose={() => setOpen(null)} />}
+      {open === 'bend'      && <CalcConduitBend  onClose={() => setOpen(null)} />}
       {open === 'boxfill'   && <CalcBoxFill      onClose={() => setOpen(null)} />}
       {open === 'motorflc'  && <CalcMotorFLC     onClose={() => setOpen(null)} />}
       {open === 'motorbrk'  && <CalcMotorBreaker onClose={() => setOpen(null)} />}

@@ -1187,6 +1187,34 @@ const es: Record<TranslationKey, string> = {
   stePoolD: 'Une todos los herrajes metálicos, escaleras, pasamanos, partes metálicas de bombas/equipos y metal dentro de 5 pies de la piscina.',
   stePoolE: 'Une el agua mediante una parte metálica aprobada (mín. 9 pulg² de superficie) en contacto con el agua.',
   stePoolInfo: 'La unión equipotencial mantiene todo al mismo potencial para prevenir descargas — no es una conexión de puesta a tierra. Verifica todos los puntos contra 680.26(B).',
+  // Encabezados de tabla compartidos
+  steAmps: 'Amperios',
+  steCopperCol: 'Cobre',
+  steAluminumCol: 'Aluminio',
+  steWireSizeCol: 'Calibre',
+  steCopperKft: 'Cobre (Ω/kpie)',
+  steAluminumKft: 'Aluminio (Ω/kpie)',
+  steTradeSize: 'Tamaño comercial',
+  // Tabla 310.12 — acometida / alimentador de vivienda
+  steDwellingTitle: 'Acometida de vivienda — Tabla 310.12',
+  steDwellingDesc: 'Tamaño mínimo de conductor para acometidas y alimentadores de vivienda',
+  steDwellingSubtitle: 'NEC 310.12 · 120/240V 1φ 3 hilos · terminales 75°C',
+  steDwellingAmps: 'Tamaño de acometida / alimentador',
+  steDwellingCopper: 'Conductor de cobre',
+  steDwellingAluminum: 'Conductor de aluminio',
+  steDwellingInfo: 'Aplica a acometidas/alimentadores monofásicos 120/240V de vivienda que llevan toda la carga (310.12). Para otros casos, dimensiona por ampacidad (310.16) según la temperatura de las terminales.',
+  // Capítulo 9 Tabla 8 — resistencia CC
+  steResistanceTitle: 'Resistencia CC — Cap.9 Tabla 8',
+  steResistanceDesc: 'Resistencia del conductor (Ω/kpie) para caída de voltaje y falla',
+  steResistanceSubtitle: 'NEC Cap.9 Tabla 8 · Resistencia CC a 75°C',
+  steResistanceInfo: 'Resistencia en ohmios por cada 1,000 pies a 75°C (cobre / aluminio sin recubrir). Se usa para cálculos de caída de voltaje y corriente de falla.',
+  // Capítulo 9 Tabla 2 — radio de curvatura
+  steBendTitle: 'Radio de curvatura — Cap.9 Tabla 2',
+  steBendDesc: 'Radio mínimo de curvatura al eje para todos los tamaños',
+  steBendSubtitle: 'NEC Cap.9 Tabla 2 · Radio al eje (pulgadas)',
+  steBendInfo: 'Para RMC, IMC y EMT — radio medido al eje del tubo. "Un solo tiro" = una curva con dobladora de un tiro / zapata completa. El radio mínimo del PVC coincide con RMC/IMC del mismo tamaño.',
+  steBendOneShot: 'Un tiro / zapata',
+  steBendOther: 'Otras curvas',
 
   // ── Smart tools — plumbing ────────────────────────────────────────────
   stpTitle: 'Herramientas de plomería',

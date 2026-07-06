@@ -1196,6 +1196,34 @@ const en = {
   stePoolD: 'Bond all metal fittings, ladders, handrails, metal parts of pumps/equipment, and metal within 5 ft of the pool.',
   stePoolE: 'Bond the water via an approved metal part (min 9 in² of surface area) in contact with the water.',
   stePoolInfo: 'Equipotential bonding keeps everything at the same potential to prevent shock — it is not a grounding connection. Verify all points against 680.26(B).',
+  // Shared table headers
+  steAmps: 'Amps',
+  steCopperCol: 'Copper',
+  steAluminumCol: 'Aluminum',
+  steWireSizeCol: 'Wire Size',
+  steCopperKft: 'Copper (Ω/kft)',
+  steAluminumKft: 'Aluminum (Ω/kft)',
+  steTradeSize: 'Trade Size',
+  // Table 310.12 — dwelling service / feeder
+  steDwellingTitle: 'Dwelling Service — Table 310.12',
+  steDwellingDesc: 'Minimum conductor size for dwelling services and feeders',
+  steDwellingSubtitle: 'NEC 310.12 · 120/240V 1φ 3-wire · 75°C terminations',
+  steDwellingAmps: 'Service / Feeder Size',
+  steDwellingCopper: 'Copper Conductor',
+  steDwellingAluminum: 'Aluminum Conductor',
+  steDwellingInfo: 'Applies to 120/240V single-phase dwelling services/feeders that carry the entire load (310.12). For other cases size by ampacity (310.16) at the termination temperature rating.',
+  // Chapter 9 Table 8 — DC resistance
+  steResistanceTitle: 'DC Resistance — Ch.9 Table 8',
+  steResistanceDesc: 'Conductor resistance (Ω/kft) for voltage drop & fault current',
+  steResistanceSubtitle: 'NEC Ch.9 Table 8 · DC resistance at 75°C',
+  steResistanceInfo: 'Resistance in ohms per 1,000 ft at 75°C (uncoated copper / aluminum). Used for voltage-drop and fault-current calculations.',
+  // Chapter 9 Table 2 — conduit bend radius
+  steBendTitle: 'Conduit Bend Radius — Ch.9 Table 2',
+  steBendDesc: 'Minimum bend radius to centerline for all trade sizes',
+  steBendSubtitle: 'NEC Ch.9 Table 2 · Radius to centerline (inches)',
+  steBendInfo: 'For RMC, IMC, and EMT — radius measured to the centerline of the conduit. "One-shot" = a single bend with a one-shot/full-shoe bender. PVC min radius matches RMC/IMC for the same trade size.',
+  steBendOneShot: 'One-Shot / Full Shoe',
+  steBendOther: 'Other Bends',
 
   // ── Smart tools — plumbing ────────────────────────────────────────────
   stpTitle: 'Plumbing Tools',

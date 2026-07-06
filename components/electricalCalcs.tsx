@@ -6,10 +6,11 @@ import { Text, View } from 'react-native'
 import { useLanguage } from '../lib/i18n'
 import { COLORS } from '../lib/theme'
 import {
-  BulletList, CalcButton, CalcModal, ChipPicker, InfoBox, NumberField, ResultCard, SelectRow, lbl,
+  BulletList, CalcButton, CalcModal, ChipPicker, InfoBox, NumberField, RefTable, ResultCard, SelectRow, lbl,
 } from './CalcKit'
 import {
-  BURIAL_300_5, CONDUCTOR_AREA, CONDUIT_AREA_100, MOTOR_HP_1PH, MOTOR_HP_3PH,
+  BURIAL_300_5, CONDUCTOR_AREA, CONDUIT_AREA_100, CONDUIT_BEND_CH9_T2,
+  DC_RESISTANCE_CH9_T8, DWELLING_SERVICE_310_12, MOTOR_HP_1PH, MOTOR_HP_3PH,
   MOTOR_OCPD_PCT, SERVICE_SIZES, STANDARD_OCPD, adjustmentFactor, ambientCorrection,
   gecForService, lightingDemandVA, maxConductors, motorFLC, multifamilyDemandPct,
   nextStandardOcpd, prevStandardOcpd, rangeDemandColC, supplySideBondingJumper,
@@ -479,6 +480,60 @@ export function RefClass2({ onClose }: { onClose: () => void }) {
     <CalcModal visible onClose={onClose} title={t('steClass2Title')} subtitle={t('steClass2Subtitle')}>
       <BulletList items={[t('steClass2a'), t('steClass2b'), t('steClass2c'), t('steClass2d')]} />
       <InfoBox text={t('steClass2Info')} />
+    </CalcModal>
+  )
+}
+
+// ── Table 310.12 — Dwelling service / feeder conductors ──────────────────────
+export function CalcDwellingService({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
+  const [amps, setAmps] = useState<string>('')
+  const row = DWELLING_SERVICE_310_12.find(r => String(r.amps) === amps)
+  return (
+    <CalcModal visible onClose={onClose} title={t('steDwellingTitle')} subtitle={t('steDwellingSubtitle')}>
+      <ChipPicker label={t('steDwellingAmps')} options={DWELLING_SERVICE_310_12.map(r => String(r.amps))} value={amps} onChange={setAmps} />
+      {row ? (
+        <View>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <ResultCard label={t('steDwellingCopper')} value={row.cu} />
+            <ResultCard label={t('steDwellingAluminum')} value={row.al} color="#1565C0" />
+          </View>
+          <InfoBox text={t('steDwellingInfo')} />
+        </View>
+      ) : null}
+      <RefTable
+        headers={[t('steAmps'), t('steCopperCol'), t('steAluminumCol')]}
+        rows={DWELLING_SERVICE_310_12.map(r => [`${r.amps}A`, r.cu, r.al])}
+        highlightRow={r => r[0] === (amps ? `${amps}A` : '')}
+      />
+    </CalcModal>
+  )
+}
+
+// ── Chapter 9, Table 8 — Conductor DC resistance (reference) ─────────────────
+export function CalcResistance({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
+  return (
+    <CalcModal visible onClose={onClose} title={t('steResistanceTitle')} subtitle={t('steResistanceSubtitle')}>
+      <InfoBox text={t('steResistanceInfo')} />
+      <RefTable
+        headers={[t('steWireSizeCol'), t('steCopperKft'), t('steAluminumKft')]}
+        rows={DC_RESISTANCE_CH9_T8.map(r => [r.size, r.cu, r.al ?? '—'])}
+      />
+    </CalcModal>
+  )
+}
+
+// ── Chapter 9, Table 2 — Minimum conduit bend radius (reference) ─────────────
+export function CalcConduitBend({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
+  return (
+    <CalcModal visible onClose={onClose} title={t('steBendTitle')} subtitle={t('steBendSubtitle')}>
+      <InfoBox text={t('steBendInfo')} />
+      <RefTable
+        headers={[t('steTradeSize'), t('steBendOneShot'), t('steBendOther')]}
+        rows={CONDUIT_BEND_CH9_T2.map(r => [r.size, `${r.oneShot}"`, `${r.other}"`])}
+      />
     </CalcModal>
   )
 }

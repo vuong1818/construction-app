@@ -305,6 +305,54 @@ export const CONDUCTOR_AREA: Record<string, Record<string, number>> = {
   },
 }
 
+// ─── Table 310.12 — Dwelling service/feeder conductors (120/240V 1φ 3-wire) ───
+// Minimum conductor for the given service/feeder ampacity at 75°C terminations.
+export const DWELLING_SERVICE_310_12: { amps: number; cu: string; al: string }[] = [
+  { amps: 100, cu: '4 AWG', al: '2 AWG' },
+  { amps: 110, cu: '3 AWG', al: '1 AWG' },
+  { amps: 125, cu: '2 AWG', al: '1/0' },
+  { amps: 150, cu: '1 AWG', al: '2/0' },
+  { amps: 175, cu: '1/0', al: '3/0' },
+  { amps: 200, cu: '2/0', al: '4/0' },
+  { amps: 225, cu: '3/0', al: '250 kcmil' },
+  { amps: 250, cu: '3/0', al: '300 kcmil' },
+  { amps: 300, cu: '4/0', al: '350 kcmil' },
+  { amps: 350, cu: '250 kcmil', al: '500 kcmil' },
+  { amps: 400, cu: '350 kcmil', al: '600 kcmil' },
+]
+
+// ─── Chapter 9, Table 8 — Conductor DC resistance (Ω per 1000 ft at 75°C) ─────
+export const DC_RESISTANCE_CH9_T8: { size: string; cu: number; al: number | null }[] = [
+  { size: '18 AWG', cu: 8.08, al: null }, { size: '16 AWG', cu: 5.08, al: null },
+  { size: '14 AWG', cu: 3.19, al: null }, { size: '12 AWG', cu: 2.01, al: 3.18 },
+  { size: '10 AWG', cu: 1.26, al: 2.00 }, { size: '8 AWG', cu: 0.778, al: 1.26 },
+  { size: '6 AWG', cu: 0.491, al: 0.808 }, { size: '4 AWG', cu: 0.308, al: 0.508 },
+  { size: '3 AWG', cu: 0.245, al: 0.403 }, { size: '2 AWG', cu: 0.194, al: 0.319 },
+  { size: '1 AWG', cu: 0.154, al: 0.253 }, { size: '1/0', cu: 0.122, al: 0.201 },
+  { size: '2/0', cu: 0.0967, al: 0.159 }, { size: '3/0', cu: 0.0766, al: 0.126 },
+  { size: '4/0', cu: 0.0608, al: 0.100 }, { size: '250 kcmil', cu: 0.0515, al: 0.0847 },
+  { size: '300 kcmil', cu: 0.0429, al: 0.0707 }, { size: '350 kcmil', cu: 0.0367, al: 0.0605 },
+  { size: '400 kcmil', cu: 0.0321, al: 0.0529 }, { size: '500 kcmil', cu: 0.0258, al: 0.0424 },
+  { size: '600 kcmil', cu: 0.0214, al: 0.0353 }, { size: '750 kcmil', cu: 0.0171, al: 0.0282 },
+]
+
+// ─── Chapter 9, Table 2 — Minimum conduit bend radius to centerline (inches) ──
+// Two columns: one-shot / full-shoe benders vs. other bends (RMC, IMC, EMT).
+export const CONDUIT_BEND_CH9_T2: { size: string; oneShot: number; other: number }[] = [
+  { size: '1/2"', oneShot: 4, other: 4 },
+  { size: '3/4"', oneShot: 4.5, other: 5 },
+  { size: '1"', oneShot: 5.75, other: 6 },
+  { size: '1-1/4"', oneShot: 7.25, other: 8 },
+  { size: '1-1/2"', oneShot: 8.25, other: 10 },
+  { size: '2"', oneShot: 9.5, other: 12 },
+  { size: '2-1/2"', oneShot: 10.5, other: 15 },
+  { size: '3"', oneShot: 13, other: 18 },
+  { size: '3-1/2"', oneShot: 15, other: 21 },
+  { size: '4"', oneShot: 16, other: 24 },
+  { size: '5"', oneShot: 24, other: 30 },
+  { size: '6"', oneShot: 30, other: 36 },
+]
+
 // NEC Ch.9 Table 1 max fill: 1 conductor 53%, 2 conductors 31%, over 2 = 40%.
 export function maxFillFactor(n: number): number {
   return n === 1 ? 0.53 : n === 2 ? 0.31 : 0.40
