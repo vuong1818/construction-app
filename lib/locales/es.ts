@@ -433,6 +433,7 @@ const es: Record<TranslationKey, string> = {
   offsiteHeader: 'Estás fuera del sitio',
   offsiteIntroIn: 'A {distance} m de {project}. Dinos por qué fichas entrada desde aquí.',
   offsiteIntroOut: 'A {distance} m de {project}. Dinos por qué fichas salida desde aquí.',
+  offsiteNoLocationIntro: '{project} no tiene una ubicación de obra configurada, así que no podemos confirmar que estás en el sitio. Por favor elige un motivo.',
   optionalNote: 'Nota opcional',
   offsiteNotePlaceholder: 'p.ej. Recogí materiales en Lowe\'s',
   hrs: 'h',

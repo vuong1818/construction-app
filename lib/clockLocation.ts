@@ -130,7 +130,10 @@ export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: n
 
 /**
  * Compare worker location to the project's geofence.
- * If the project has no lat/lng configured, returns inside=true and distance=null.
+ * If the project has no lat/lng configured, we can't confirm the worker is on
+ * site, so this returns inside=false and distance=null — the caller then asks
+ * for an off-site reason (fail-safe). A manager can set the project's geofence
+ * (Geocode address) to enable automatic on-site verification and skip the prompt.
  */
 export function checkGeofence(
   workerLat: number,
@@ -138,7 +141,7 @@ export function checkGeofence(
   project: { latitude: number | null; longitude: number | null; geofence_radius_meters?: number | null },
 ): GeofenceCheck {
   if (project.latitude == null || project.longitude == null) {
-    return { inside: true, distanceMeters: null }
+    return { inside: false, distanceMeters: null }
   }
   const radius = project.geofence_radius_meters ?? DEFAULT_GEOFENCE_METERS
   const distance = distanceMeters(workerLat, workerLng, project.latitude, project.longitude)

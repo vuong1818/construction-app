@@ -46,7 +46,7 @@ type Project = {
 
 type OffsitePromptState = {
   kind: 'in' | 'out'
-  distance: number
+  distance: number | null   // null = project has no set job-site location
   projectName: string
   payload: { lat: number; lng: number; snapshotUrl: string | null }
   noteText: string
@@ -414,7 +414,7 @@ export default function HomeScreen() {
       // 4b. Outside fence → ask why (separate modal)
       setOffsitePrompt({
         kind: 'in',
-        distance: fence.distanceMeters ?? 0,
+        distance: fence.distanceMeters,
         projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
@@ -539,7 +539,7 @@ export default function HomeScreen() {
 
       setOffsitePrompt({
         kind: 'out',
-        distance: fence.distanceMeters ?? 0,
+        distance: fence.distanceMeters,
         projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
@@ -1215,11 +1215,13 @@ export default function HomeScreen() {
               </Text>
               <Text style={{ color: COLORS.subtext, marginBottom: 16, lineHeight: 20 }}>
                 {offsitePrompt
-                  ? t(
-                      language,
-                      offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
-                      { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
-                    )
+                  ? offsitePrompt.distance == null
+                    ? t(language, 'offsiteNoLocationIntro', { project: offsitePrompt.projectName })
+                    : t(
+                        language,
+                        offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
+                        { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
+                      )
                   : ''}
               </Text>
 
