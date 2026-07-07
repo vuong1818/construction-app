@@ -97,6 +97,11 @@ export default function Profile() {
     })
     setReqBusy(false)
     if (error) { Alert.alert(t('error'), error.message); return }
+    // Fire-and-forget email to the manager.
+    fetch('https://www.nguyenmep.com/api/portal/notify-timeoff', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workerName: full, startDate: reqStart, endDate: end, reason: reqReason.trim() }),
+    }).catch(() => {})
     setReqStart(''); setReqEnd(''); setReqReason('')
     Alert.alert(t('requestTimeOff'), t('timeOffSubmitted'))
     await loadTimeOff(uid)
