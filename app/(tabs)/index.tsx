@@ -755,6 +755,14 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        <Pressable
+          onPress={() => router.push('/change-password' as never)}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end', marginTop: 10, marginBottom: 2, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border }}
+        >
+          <Ionicons name="key-outline" size={16} color={COLORS.navy} />
+          <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13 }}>{t(language, 'changePassword')}</Text>
+        </Pressable>
+
         <View
           style={{
             backgroundColor: COLORS.navy,

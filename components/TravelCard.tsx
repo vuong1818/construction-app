@@ -129,8 +129,10 @@ export default function TravelCard({
     }
   }
 
-  // Travel is only available on the clock.
-  if (!activeEntryId || loading) return null
+  // Always visible on the home screen so the crew knows it's there; the Start
+  // button only enables while clocked in (travel time is paid on the clock).
+  if (loading) return null
+  const onClock = !!activeEntryId
 
   return (
     <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, marginTop: 16, borderWidth: 1, borderColor: COLORS.border }}>
@@ -147,7 +149,15 @@ export default function TravelCard({
         {t(language, 'travelHint')}
       </Text>
 
-      {open ? (
+      {!onClock ? (
+        <Pressable
+          disabled
+          style={{ backgroundColor: '#CBD5E1', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+        >
+          <Ionicons name="navigate" size={20} color={COLORS.white} />
+          <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'startTravel')}</Text>
+        </Pressable>
+      ) : open ? (
         <Pressable
           onPress={arriveTravel}
           disabled={busy}
@@ -167,7 +177,11 @@ export default function TravelCard({
         </Pressable>
       )}
 
-      {open ? (
+      {!onClock ? (
+        <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
+          {t(language, 'travelClockInFirst')}
+        </Text>
+      ) : open ? (
         <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
           {t(language, 'travelingSince')} {formatTime(open.started_at)}
         </Text>
