@@ -22,8 +22,10 @@ import {
   captureMapSnapshot,
   checkGeofence,
   LocationDeniedError,
+  normalizeState,
   OffsiteReason,
   readCurrentLocation,
+  stateForLocation,
 } from '../../lib/clockLocation'
 import { useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
@@ -42,11 +44,15 @@ type Project = {
   latitude?: number | null
   longitude?: number | null
   geofence_radius_meters?: number | null
+  state?: string | null
 }
 
 type OffsitePromptState = {
   kind: 'in' | 'out'
   distance: number | null   // null = project has no set job-site location
+  outOfState?: boolean      // true when triggered by a state mismatch
+  projectState?: string | null
+  workerState?: string | null
   projectName: string
   payload: { lat: number; lng: number; snapshotUrl: string | null }
   noteText: string
@@ -385,6 +391,12 @@ export default function HomeScreen() {
         geofence_radius_meters: project?.geofence_radius_meters ?? null,
       })
 
+      // 2b. Out-of-state check — compare the worker's actual state to the
+      // project's state so a wrong/blank pin can't hide out-of-state work.
+      const projectState = normalizeState(project?.state)
+      const workerState = await stateForLocation(loc.lat, loc.lng)
+      const outOfState = !!(projectState && workerState && projectState !== workerState)
+
       // 3. Capture map snapshot (best effort — null on failure)
       const snapshotUrl = await captureMapSnapshot({
         userId,
@@ -393,8 +405,8 @@ export default function HomeScreen() {
         kind: 'in',
       })
 
-      // 4a. Inside fence → clock in directly
-      if (fence.inside) {
+      // 4a. On-site (inside fence AND in the project's state) → clock in directly
+      if (fence.inside && !outOfState) {
         const result = await svcClockIn(projectId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
@@ -415,6 +427,9 @@ export default function HomeScreen() {
       setOffsitePrompt({
         kind: 'in',
         distance: fence.distanceMeters,
+        outOfState,
+        projectState,
+        workerState,
         projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
@@ -520,6 +535,11 @@ export default function HomeScreen() {
         geofence_radius_meters: project?.geofence_radius_meters ?? null,
       })
 
+      // Out-of-state check (same as clock-in) — pin-independent.
+      const projectState = normalizeState(project?.state)
+      const workerState = await stateForLocation(loc.lat, loc.lng)
+      const outOfState = !!(projectState && workerState && projectState !== workerState)
+
       const snapshotUrl = await captureMapSnapshot({
         userId,
         lat: loc.lat,
@@ -527,7 +547,7 @@ export default function HomeScreen() {
         kind: 'out',
       })
 
-      if (fence.inside) {
+      if (fence.inside && !outOfState) {
         await svcClockOut(entryId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
@@ -540,6 +560,9 @@ export default function HomeScreen() {
       setOffsitePrompt({
         kind: 'out',
         distance: fence.distanceMeters,
+        outOfState,
+        projectState,
+        workerState,
         projectName: project?.name || t(language, 'project'),
         payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
         noteText: '',
@@ -1215,13 +1238,19 @@ export default function HomeScreen() {
               </Text>
               <Text style={{ color: COLORS.subtext, marginBottom: 16, lineHeight: 20 }}>
                 {offsitePrompt
-                  ? offsitePrompt.distance == null
-                    ? t(language, 'offsiteNoLocationIntro', { project: offsitePrompt.projectName })
-                    : t(
-                        language,
-                        offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
-                        { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
-                      )
+                  ? offsitePrompt.outOfState
+                    ? t(language, 'offsiteOutOfStateIntro', {
+                        project: offsitePrompt.projectName,
+                        projectState: offsitePrompt.projectState || '',
+                        workerState: offsitePrompt.workerState || '',
+                      })
+                    : offsitePrompt.distance == null
+                      ? t(language, 'offsiteNoLocationIntro', { project: offsitePrompt.projectName })
+                      : t(
+                          language,
+                          offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
+                          { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
+                        )
                   : ''}
               </Text>
 

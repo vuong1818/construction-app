@@ -130,10 +130,9 @@ export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: n
 
 /**
  * Compare worker location to the project's geofence.
- * If the project has no lat/lng configured, we can't confirm the worker is on
- * site, so this returns inside=false and distance=null — the caller then asks
- * for an off-site reason (fail-safe). A manager can set the project's geofence
- * (Geocode address) to enable automatic on-site verification and skip the prompt.
+ * If the project has no lat/lng configured, returns inside=true and distance=null
+ * (radius check skipped) — the out-of-state check (see stateForLocation) still
+ * applies, so a job in another state is caught even without a pin.
  */
 export function checkGeofence(
   workerLat: number,
@@ -141,11 +140,58 @@ export function checkGeofence(
   project: { latitude: number | null; longitude: number | null; geofence_radius_meters?: number | null },
 ): GeofenceCheck {
   if (project.latitude == null || project.longitude == null) {
-    return { inside: false, distanceMeters: null }
+    return { inside: true, distanceMeters: null }
   }
   const radius = project.geofence_radius_meters ?? DEFAULT_GEOFENCE_METERS
   const distance = distanceMeters(workerLat, workerLng, project.latitude, project.longitude)
   return { inside: distance <= radius, distanceMeters: distance }
+}
+
+// ── Out-of-state detection ───────────────────────────────────────────────────
+// A geofence is only as good as the pin on the project. If the pin is wrong
+// (e.g. set to the office while the job is in another state), the radius check
+// passes at home. Comparing the worker's *actual* state to the project's state
+// catches that regardless of the pin.
+
+const STATE_ABBR: Record<string, string> = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+  colorado: 'CO', connecticut: 'CT', delaware: 'DE', 'district of columbia': 'DC',
+  florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL',
+  indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA',
+  maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN',
+  mississippi: 'MS', missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV',
+  'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+  'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK',
+  oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+  'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT',
+  virginia: 'VA', washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY',
+}
+
+/** Normalize a state name or code to a 2-letter US code, or null if unknown. */
+export function normalizeState(s: string | null | undefined): string | null {
+  if (!s) return null
+  const t = String(s).trim()
+  if (!t) return null
+  if (/^[A-Za-z]{2}$/.test(t)) return t.toUpperCase()
+  return STATE_ABBR[t.toLowerCase()] ?? null
+}
+
+/**
+ * Best-effort 2-letter US state for a coordinate via the device geocoder.
+ * Returns null on failure — callers treat "unknown" as NOT out-of-state so a
+ * geocoder hiccup never produces a false off-site prompt.
+ */
+export async function stateForLocation(lat: number, lng: number): Promise<string | null> {
+  try {
+    const results = await withTimeout(
+      Location.reverseGeocodeAsync({ latitude: lat, longitude: lng }),
+      6000,
+      'Reverse geocode',
+    )
+    return normalizeState(results?.[0]?.region ?? null)
+  } catch {
+    return null
+  }
 }
 
 // Off-site clock-in/out reason slugs are now manager-editable from the

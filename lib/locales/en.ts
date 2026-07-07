@@ -442,6 +442,7 @@ const en = {
   offsiteIntroIn: "{distance} m from {project}. Tell us why you're clocking in from here.",
   offsiteIntroOut: "{distance} m from {project}. Tell us why you're clocking out from here.",
   offsiteNoLocationIntro: "{project} has no set job-site location, so we can't confirm you're on site. Please choose a reason.",
+  offsiteOutOfStateIntro: "{project} is in {projectState}, but you appear to be in {workerState} — out of state. Please choose a reason.",
   optionalNote: 'Optional note',
   offsiteNotePlaceholder: "e.g. Picked up materials at Lowe's",
   hrs: 'hrs',
