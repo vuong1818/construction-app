@@ -1131,40 +1131,48 @@ export default function HomeScreen() {
                     borderColor: COLORS.border,
                     borderRadius: 14,
                     overflow: 'hidden',
-                    marginBottom: 10,
+                    marginBottom: 16,
                     backgroundColor: '#F8FAFC',
+                    maxHeight: 300,
                   }}
                 >
-                  <Picker
-                    selectedValue={selectedProjectId}
-                    dropdownIconColor={COLORS.text}
-                    style={{ color: COLORS.text, backgroundColor: '#F8FAFC' }}
-                    itemStyle={
-                      Platform.OS === 'ios'
-                        ? {
-                            color: COLORS.text,
-                            fontSize: 18,
-                          }
-                        : undefined
-                    }
-                    onValueChange={(value) => {
-                      if (value === null || value === undefined) {
-                        setSelectedProjectId(null)
-                      } else {
-                        setSelectedProjectId(Number(value))
-                      }
-                    }}
-                  >
-                    <Picker.Item label={t(language, 'selectProject')} value={null} color={COLORS.subtext} />
-                    {projects.map((project) => (
-                      <Picker.Item key={project.id} label={project.name} value={project.id} color={COLORS.text} />
-                    ))}
-                  </Picker>
+                  <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                    {projects.length === 0 ? (
+                      <Text style={{ color: COLORS.subtext, padding: 16 }}>
+                        {t(language, 'noProjectsAvailable')}
+                      </Text>
+                    ) : (
+                      projects.map((project) => {
+                        const selected = selectedProjectId === project.id
+                        return (
+                          <Pressable
+                            key={project.id}
+                            onPress={() => setSelectedProjectId(project.id)}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 10,
+                              paddingHorizontal: 14,
+                              paddingVertical: 15,
+                              borderBottomWidth: 1,
+                              borderBottomColor: COLORS.border,
+                              backgroundColor: selected ? COLORS.greenSoft : 'transparent',
+                            }}
+                          >
+                            <Ionicons
+                              name={selected ? 'radio-button-on' : 'radio-button-off'}
+                              size={22}
+                              color={selected ? COLORS.green : COLORS.subtext}
+                            />
+                            <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: selected ? '700' : '500', flex: 1 }}>
+                              {String(project?.name ?? '').trim() || `Project #${project.id}`}
+                            </Text>
+                          </Pressable>
+                        )
+                      })
+                    )}
+                  </ScrollView>
                 </View>
-
-                <Text style={{ color: COLORS.text, marginBottom: 16, fontWeight: '600' }}>
-                  {t(language, 'selected')}: {getProjectName(selectedProjectId)}
-                </Text>
               </>
             )}
 

@@ -463,6 +463,7 @@ const en = {
   clockOut: 'Clock Out',
   clockInClockOut: 'Clock In / Clock Out',
   selectProject: 'Select Project',
+  noProjectsAvailable: 'No projects available yet. Ask your manager to add one.',
   selectAProject: 'Please choose a project first.',
   selected: 'Selected',
   alreadyClockedIn: 'You are already clocked in.',

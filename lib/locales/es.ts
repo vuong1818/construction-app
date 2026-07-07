@@ -455,6 +455,7 @@ const es: Record<TranslationKey, string> = {
   clockOut: 'Salida',
   clockInClockOut: 'Entrada / Salida',
   selectProject: 'Seleccionar Proyecto',
+  noProjectsAvailable: 'Aún no hay proyectos disponibles. Pídele a tu gerente que agregue uno.',
   selectAProject: 'Selecciona un proyecto primero.',
   selected: 'Seleccionado',
   alreadyClockedIn: 'Ya estás fichado.',
