@@ -173,75 +173,38 @@ export default function SafetyScreen() {
         <View style={styles.requirementCard}>
           <View style={styles.requirementRow}>
             <View style={styles.requirementTextWrap}>
-              <Text style={styles.requirementTitle}>{t('safetyManual')}</Text>
+              <Text style={styles.requirementTitle}>{t('weeklySafetySignIn')}</Text>
               <Text style={styles.requirementSubtitle}>
-                {t('safetyManualSubtitle')}
+                {t('weeklySafetySignInSubtitle')}
               </Text>
             </View>
             <View
               style={[
                 styles.pill,
-                manualSigned ? styles.pillComplete : styles.pillIncomplete,
+                fullyCompliant ? styles.pillComplete : styles.pillIncomplete,
               ]}
             >
               <Text style={styles.pillText}>
-                {manualSigned ? t('completed') : t('required')}
+                {fullyCompliant ? t('completed') : t('required')}
               </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => router.push('/safety-manual')}
-          >
-            <Text style={styles.primaryButtonText}>
-              {manualSigned ? t('openSafetyManual') : t('signSafetyManual')}
+          <View style={styles.topicBox}>
+            <Text style={styles.topicLabel}>{t('thisWeeksTopic')}</Text>
+            <Text style={styles.topicText}>
+              {currentTopic
+                ? (currentTopic.topic || currentTopic.title || t('weeklySafetyTopic'))
+                : t('noTopicPostedYet')}
             </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.requirementCard}>
-          <View style={styles.requirementRow}>
-            <View style={styles.requirementTextWrap}>
-              <Text style={styles.requirementTitle}>{t('weeklySafetyMeeting')}</Text>
-              <Text style={styles.requirementSubtitle}>
-                {t('weeklySafetyMeetingSubtitle')}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.pill,
-                meetingSigned ? styles.pillComplete : styles.pillIncomplete,
-              ]}
-            >
-              <Text style={styles.pillText}>
-                {meetingSigned ? t('completed') : t('required')}
-              </Text>
-            </View>
           </View>
-
-          {!!currentTopic && (
-            <View style={styles.topicBox}>
-              <Text style={styles.topicLabel}>{t('thisWeeksTopic')}</Text>
-              <Text style={styles.topicText}>
-                {currentTopic.topic || currentTopic.title || t('weeklySafetyTopic')}
-              </Text>
-            </View>
-          )}
-
-          {!currentTopic && (
-            <View style={styles.topicBox}>
-              <Text style={styles.topicLabel}>{t('thisWeeksTopic')}</Text>
-              <Text style={styles.topicText}>{t('noTopicPostedYet')}</Text>
-            </View>
-          )}
 
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={() => router.push('/weekly-safety-meeting')}
           >
             <Text style={styles.primaryButtonText}>
-              {meetingSigned ? t('openWeeklyMeeting') : t('signWeeklyMeeting')}
+              {fullyCompliant ? t('openSafetySignIn') : t('signSafetyNow')}
             </Text>
           </TouchableOpacity>
         </View>

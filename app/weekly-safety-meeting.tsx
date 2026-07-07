@@ -240,6 +240,7 @@ export default function WeeklySafetyMeetingScreen() {
   const [loading, setLoading]               = useState(true);
   const [saving, setSaving]                 = useState(false);
   const [topicRow, setTopicRow]             = useState<WeeklyTopic | null>(null);
+  const [manualUrl, setManualUrl]           = useState<string | null>(null);
   const [alreadySigned, setAlreadySigned]   = useState(false);
   const [companyEmail, setCompanyEmail]     = useState<string | null>(null);
 
@@ -283,6 +284,17 @@ export default function WeeklySafetyMeetingScreen() {
         .limit(1)
         .maybeSingle();
       setCompanyEmail(settingsData?.company_email || null);
+
+      // Active company safety manual PDF — shown as Section A of the combined sign-off.
+      const { data: manualDoc } = await supabase
+        .from('safety_documents')
+        .select('pdf_url')
+        .eq('document_type', 'company_safety_manual')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setManualUrl(manualDoc?.pdf_url || null);
 
       const weekStart = fmtLocalDate(await currentWorkWeekStart());
 
@@ -398,12 +410,28 @@ export default function WeeklySafetyMeetingScreen() {
         .single();
       if (upsertError) throw upsertError;
 
-      // Build the server-side view URL (renders HTML page from stored signature)
-      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=meeting`;
+      // Combined view URL (renders the manual + meeting acknowledgement + signature)
+      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=weekly`;
       await supabase
         .from('weekly_meeting_acknowledgements')
         .update({ pdf_url: pdfUrl })
         .eq('id', ackData.id);
+
+      // One signature satisfies BOTH requirements — also record the Safety Manual
+      // acknowledgement for this week, pointing at the same combined document.
+      await supabase
+        .from('safety_manual_acknowledgements')
+        .upsert(
+          {
+            worker_id:      user.id,
+            week_start:     weekStart,
+            signed_name:    workerName.trim(),
+            signature_text: signatureDataUrl,
+            signed_at:      now.toISOString(),
+            pdf_url:        pdfUrl,
+          },
+          { onConflict: 'worker_id,week_start' }
+        );
 
       setAlreadySigned(true);
       closeSignModal();
@@ -417,7 +445,7 @@ export default function WeeklySafetyMeetingScreen() {
             workerName: workerName.trim(),
             signedAt,
             pdfUrl,
-            type: 'meeting',
+            type: 'weekly',
             companyEmail,
             topic,
             weekStart,
@@ -463,9 +491,27 @@ export default function WeeklySafetyMeetingScreen() {
   return (
     <View style={s.container}>
       <ScrollView contentContainerStyle={s.scroll}>
-        {/* Topic card */}
+        {/* Section A — Company Safety Manual */}
         <View style={s.topicCard}>
-          <Text style={s.topicLabel}>{t('thisWeeksTopic')}</Text>
+          <Text style={s.topicLabel}>{t('sectionASafetyManual')}</Text>
+          <Text style={[s.topicText, { fontWeight: '600', marginBottom: 10 }]}>{t('safetyManualReadPrompt')}</Text>
+          {manualUrl ? (
+            <TouchableOpacity style={s.openPdfButton} onPress={() => Linking.openURL(manualUrl)}>
+              <Text style={s.openPdfIcon}>📖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={s.openPdfText}>{t('readSafetyManual')}</Text>
+                <Text style={s.openPdfSub}>{t('opensInBrowser')}</Text>
+              </View>
+              <Text style={s.openPdfArrow}>›</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={s.noPdfBox}><Text style={s.noPdfText}>{t('noManualUploaded')}</Text></View>
+          )}
+        </View>
+
+        {/* Section B — Weekly Safety Meeting topic */}
+        <View style={s.topicCard}>
+          <Text style={s.topicLabel}>{t('sectionBWeeklyMeeting')}</Text>
           <Text style={s.topicText}>{topicRow.topic || t('weeklySafetyTopic')}</Text>
         </View>
 
@@ -514,7 +560,7 @@ export default function WeeklySafetyMeetingScreen() {
         {!alreadySigned && (
           <View style={s.instructionBox}>
             <Text style={s.instructionText}>
-              {t('meetingInstruction')}
+              {t('combinedSafetyInstruction')}
             </Text>
           </View>
         )}
@@ -523,7 +569,7 @@ export default function WeeklySafetyMeetingScreen() {
       <View style={s.bottomBar}>
         {!alreadySigned && (
           <TouchableOpacity style={s.signButton} onPress={openSignModal}>
-            <Text style={s.signButtonText}>{t('signWeeklyMeetingPlain')}</Text>
+            <Text style={s.signButtonText}>{t('signSafetyAcknowledgement')}</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.closeButton} onPress={() => router.back()}>
