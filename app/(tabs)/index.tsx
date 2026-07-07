@@ -33,6 +33,7 @@ import { supabase } from '../../lib/supabase'
 import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
+import TravelCard from '../../components/TravelCard'
 import { currentWorkWeekStart, fmtLocalDate } from '../../lib/workWeek'
 
 type Project = {
@@ -822,6 +823,12 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
+        <TravelCard
+          activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
+          userName={profile?.full_name ?? null}
+          language={language}
+        />
+
         <View
           style={{
             backgroundColor: COLORS.card,
@@ -830,6 +837,7 @@ export default function HomeScreen() {
             borderWidth: 1,
             borderColor: COLORS.border,
             marginBottom: 20,
+            marginTop: 16,
           }}
         >
           <Text
