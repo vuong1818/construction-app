@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -197,6 +198,13 @@ export default function Profile() {
             <Ionicons name="key-outline" size={22} color={COLORS.navy} />
             <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('changePassword')}</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
+          </Pressable>
+
+          {/* User guide */}
+          <Pressable onPress={() => Linking.openURL('https://www.nguyenmep.com/guide')} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="book-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('userGuide')}</Text>
+            <Ionicons name="open-outline" size={20} color={COLORS.subtext} />
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -479,6 +479,7 @@ const en = {
   passwordChangedMessage: 'Your password has been updated.',
   updatePassword: 'Update Password',
   profile: 'Profile',
+  userGuide: 'User Guide',
   myProfile: 'My Profile',
   myInformation: 'My Information',
   firstNameLabel: 'First name',

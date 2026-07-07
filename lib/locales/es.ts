@@ -471,6 +471,7 @@ const es: Record<TranslationKey, string> = {
   passwordChangedMessage: 'Tu contraseña ha sido actualizada.',
   updatePassword: 'Actualizar contraseña',
   profile: 'Perfil',
+  userGuide: 'Guía del usuario',
   myProfile: 'Mi perfil',
   myInformation: 'Mi información',
   firstNameLabel: 'Nombre',
