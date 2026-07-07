@@ -138,6 +138,9 @@ export default function SignInScreen() {
         email: normalizedEmail,
         password,
         options: {
+          // If email confirmation is ever enabled, send the link to a real page
+          // (not the Supabase Site URL default, which was localhost:3000).
+          emailRedirectTo: 'https://www.nguyenmep.com/onsite-tech',
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
@@ -172,7 +175,9 @@ export default function SignInScreen() {
     }
     try {
       setLoading(true)
-      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset)
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+        redirectTo: 'https://www.nguyenmep.com/reset-password',
+      })
       if (error) throw error
       Alert.alert(t('checkYourEmail') + ' 📬', t('resetLinkSent', { email: emailToReset }))
     } catch (err: any) {
