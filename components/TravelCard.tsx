@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import React, { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native'
-import { distanceMeters, readCurrentLocation } from '../lib/clockLocation'
+import { distanceMeters, drivingDistanceMeters, readCurrentLocation } from '../lib/clockLocation'
 import { t, type LanguageCode } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
@@ -106,9 +106,17 @@ export default function TravelCard({
         .eq('id', open.id)
         .single()
       let miles: number | null = null
+      let source = 'straight_line'
       if (seg?.start_lat != null && seg?.start_lng != null) {
-        const meters = distanceMeters(seg.start_lat, seg.start_lng, loc.lat, loc.lng)
-        miles = Math.round((meters / METERS_PER_MILE) * ROAD_FACTOR * 10) / 10
+        // Prefer real driving distance (Mapbox); fall back to straight-line x factor.
+        const driving = await drivingDistanceMeters(seg.start_lat, seg.start_lng, loc.lat, loc.lng)
+        if (driving != null) {
+          miles = Math.round((driving / METERS_PER_MILE) * 10) / 10
+          source = 'routing'
+        } else {
+          const meters = distanceMeters(seg.start_lat, seg.start_lng, loc.lat, loc.lng)
+          miles = Math.round((meters / METERS_PER_MILE) * ROAD_FACTOR * 10) / 10
+        }
       }
       const { error } = await supabase
         .from('travel_segments')
@@ -117,7 +125,7 @@ export default function TravelCard({
           end_lat: loc.lat,
           end_lng: loc.lng,
           miles,
-          miles_source: 'straight_line',
+          miles_source: source,
         })
         .eq('id', open.id)
       if (error) throw error

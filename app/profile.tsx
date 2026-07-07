@@ -200,6 +200,13 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
           </Pressable>
 
+          {/* Tools & equipment */}
+          <Pressable onPress={() => router.push('/equipment' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="construct-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('toolsEquipment')}</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
+          </Pressable>
+
           {/* User guide */}
           <Pressable onPress={() => Linking.openURL('https://www.nguyenmep.com/guide')} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Ionicons name="book-outline" size={22} color={COLORS.navy} />

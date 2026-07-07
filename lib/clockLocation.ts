@@ -129,6 +129,25 @@ export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: n
 }
 
 /**
+ * Actual road/driving distance in meters between two points, via the Mapbox
+ * Directions API (free up to ~100k requests/month — reuses the existing token).
+ * Returns null on any failure so callers can fall back to straight-line.
+ */
+export async function drivingDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): Promise<number | null> {
+  if (!MAPBOX_TOKEN) return null
+  try {
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${lng1},${lat1};${lng2},${lat2}?access_token=${MAPBOX_TOKEN}&overview=false`
+    const res = await withTimeout(fetch(url), 6000, 'Directions')
+    if (!res.ok) return null
+    const json = await res.json()
+    const d = json?.routes?.[0]?.distance
+    return typeof d === 'number' ? d : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Compare worker location to the project's geofence.
  * If the project has no lat/lng configured, returns inside=true and distance=null
  * (radius check skipped) — the out-of-state check (see stateForLocation) still
