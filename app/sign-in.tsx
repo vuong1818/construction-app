@@ -24,7 +24,18 @@ import { COLORS } from '../lib/theme'
 
 type Mode = 'login' | 'signup'
 
-// Shown on the login screen so support can tell which version/OTA a user is on.
+// The native build number comes from expo-application (a native module). It's
+// required defensively so a build that doesn't include the native module yet
+// (e.g. an OTA to an older binary) falls back to null instead of crashing.
+let NATIVE_BUILD: string | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  NATIVE_BUILD = require('expo-application').nativeBuildVersion ?? null
+} catch {
+  NATIVE_BUILD = null
+}
+
+// Shown on the login screen so support can tell which version/build/OTA a user is on.
 function buildInfo(): string {
   const v = Constants.expoConfig?.version ?? '1.0.0'
   let channel = ''
@@ -33,7 +44,7 @@ function buildInfo(): string {
     channel = (Updates.channel as string) || ''
     upd = Updates.updateId ? Updates.updateId.slice(0, 8) : 'base'
   } catch { /* dev / Expo Go */ }
-  return [`v${v}`, channel, upd].filter(Boolean).join(' · ')
+  return [`v${v}`, NATIVE_BUILD ? `build ${NATIVE_BUILD}` : '', channel, upd].filter(Boolean).join(' · ')
 }
 
 export default function SignInScreen() {
