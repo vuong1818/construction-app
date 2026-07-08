@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
+import Constants from 'expo-constants'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
+import * as Updates from 'expo-updates'
 import { useState } from 'react'
 import {
   Alert,
@@ -21,6 +23,18 @@ import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 
 type Mode = 'login' | 'signup'
+
+// Shown on the login screen so support can tell which version/OTA a user is on.
+function buildInfo(): string {
+  const v = Constants.expoConfig?.version ?? '1.0.0'
+  let channel = ''
+  let upd = 'base'
+  try {
+    channel = (Updates.channel as string) || ''
+    upd = Updates.updateId ? Updates.updateId.slice(0, 8) : 'base'
+  } catch { /* dev / Expo Go */ }
+  return [`v${v}`, channel, upd].filter(Boolean).join(' · ')
+}
 
 export default function SignInScreen() {
   const router = useRouter()
@@ -253,6 +267,10 @@ export default function SignInScreen() {
                   }}
                 >
                   {mode === 'login' ? t('signInToContinue') : t('newUserDefaultRole')}
+                </Text>
+
+                <Text style={{ color: 'rgba(255,255,255,0.5)', textAlign: 'center', fontSize: 11, marginTop: 8 }}>
+                  {buildInfo()}
                 </Text>
               </View>
 
