@@ -70,6 +70,18 @@ export default function TravelCard({
   const closed = segments.filter((s) => s.ended_at)
   const totalMiles = segments.reduce((sum, s) => sum + (Number(s.miles) || 0), 0)
 
+  function confirmStart() {
+    if (busy) return
+    Alert.alert(
+      t(language, 'personalVehicleQuestion'),
+      t(language, 'personalVehicleNote'),
+      [
+        { text: t(language, 'companyVehicle'), style: 'cancel', onPress: () => Alert.alert(t(language, 'travel'), t(language, 'companyVehicleNote')) },
+        { text: t(language, 'personalVehicle'), onPress: () => { startTravel() } },
+      ],
+    )
+  }
+
   async function startTravel() {
     if (busy) return
     setBusy(true)
@@ -176,7 +188,7 @@ export default function TravelCard({
         </Pressable>
       ) : (
         <Pressable
-          onPress={startTravel}
+          onPress={confirmStart}
           disabled={busy}
           style={{ backgroundColor: busy ? '#94A3B8' : COLORS.navy, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
         >
