@@ -883,6 +883,7 @@ const en = {
   jkFrom: 'Taken from',
   jkNoLoc: 'No location',
   jkConfirm: 'Confirm',
+  jkChecksOut: 'checks out equipment',
   weeklyTopicTitle: 'Weekly Topic',
   topicDescriptionLabel: 'Topic Description',
   topicPlaceholder: 'e.g. Fall protection and harness inspection',

@@ -875,6 +875,7 @@ const es: Record<TranslationKey, string> = {
   jkFrom: 'Tomado de',
   jkNoLoc: 'Sin ubicación',
   jkConfirm: 'Confirmar',
+  jkChecksOut: 'saca el equipo',
   weeklyTopicTitle: 'Tema Semanal',
   topicDescriptionLabel: 'Descripción del Tema',
   topicPlaceholder: 'p. ej. Protección contra caídas e inspección de arnés',

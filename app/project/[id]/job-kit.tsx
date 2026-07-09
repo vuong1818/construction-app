@@ -11,7 +11,7 @@ import { COLORS } from '../../../lib/theme'
 // A project can have several (e.g. Electric, Plumbing). Crews check items off;
 // checking a material logs usage and draws it down from inventory.
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
-type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null }
+type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Material = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; qty_used: number | null; inventory_item_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; body: string | null; safety_note: string | null; sort_order: number | null }
 type Loc = { id: number; name: string; kind: string }
@@ -51,7 +51,7 @@ export default function JobKitScreen() {
     if (kitList.length) {
       const ids = kitList.map(x => x.id)
       const [{ data: tl }, { data: ml }, { data: sp }, { data: ck }, { data: loc }] = await Promise.all([
-        supabase.from('project_playbook_tools').select('id, project_playbook_id, name, qty, unit').in('project_playbook_id', ids).order('sort_order'),
+        supabase.from('project_playbook_tools').select('id, project_playbook_id, name, qty, unit, equipment_id').in('project_playbook_id', ids).order('sort_order'),
         supabase.from('project_playbook_materials').select('id, project_playbook_id, name, qty, unit, qty_used, inventory_item_id').in('project_playbook_id', ids).order('sort_order'),
         supabase.from('project_playbook_steps').select('id, project_playbook_id, title, body, safety_note, sort_order').in('project_playbook_id', ids).order('sort_order'),
         supabase.from('project_playbook_checks').select('project_playbook_id, item_type, item_id').in('project_playbook_id', ids),
@@ -82,6 +82,17 @@ export default function JobKitScreen() {
       await supabase.from('project_playbook_checks')
         .insert({ project_playbook_id: kitId, item_type: type, item_id: itemId, checked_by: uid })
     }
+  }
+
+  // Tools route through RPCs so a linked equipment asset is checked out / returned.
+  async function toggleTool(tool: Tool) {
+    const key = `tool:${tool.id}`
+    const has = checks.has(key)
+    setChecks(prev => { const n = new Set(prev); has ? n.delete(key) : n.add(key); return n })
+    const { error } = has
+      ? await supabase.rpc('checkin_kit_tool', { p_tool_id: tool.id })
+      : await supabase.rpc('checkout_kit_tool', { p_tool_id: tool.id })
+    if (error) load()
   }
 
   function openUse(m: Material) {
@@ -166,8 +177,9 @@ export default function JobKitScreen() {
               {kt.length > 0 && (
                 <Section icon="wrench-outline" label={t('jkTools')}>
                   {kt.map(x => (
-                    <CheckRow key={x.id} checked={checks.has(`tool:${x.id}`)} onPress={() => toggleCheck(kit.id, 'tool', x.id)}
-                      title={x.name} sub={`${t('jkNeed')} ${Number(x.qty || 1).toLocaleString('en-US')} ${x.unit || ''}`} />
+                    <CheckRow key={x.id} checked={checks.has(`tool:${x.id}`)} onPress={() => toggleTool(x)}
+                      title={x.name}
+                      sub={`${t('jkNeed')} ${Number(x.qty || 1).toLocaleString('en-US')} ${x.unit || ''}${x.equipment_id ? ` · ${t('jkChecksOut')}` : ''}`} />
                   ))}
                 </Section>
               )}
