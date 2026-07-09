@@ -852,6 +852,8 @@ const es: Record<TranslationKey, string> = {
   weekOfLabel: 'Semana de',
   noSignatureImage: 'No hay imagen de firma archivada',
   safetyComplianceFooter: 'Cumplimiento de Seguridad de Nguyen MEP · nguyenmep.com',
+  safetyComplianceSuffix: 'Cumplimiento de Seguridad',
+  yourCompany: 'Tu Empresa',
   weeklyTopicTitle: 'Tema Semanal',
   topicDescriptionLabel: 'Descripción del Tema',
   topicPlaceholder: 'p. ej. Protección contra caídas e inspección de arnés',

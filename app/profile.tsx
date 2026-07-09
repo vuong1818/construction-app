@@ -44,6 +44,10 @@ export default function Profile() {
   const [reqReason, setReqReason] = useState('')
   const [reqBusy, setReqBusy] = useState(false)
   const [timeOff, setTimeOff] = useState<TimeOff[]>([])
+  // Tenant branding for the time-off notification email (RLS scopes this to the
+  // worker's own org, so the manager gets an email branded with their company).
+  const [companyName, setCompanyName] = useState('')
+  const [companyEmail, setCompanyEmail] = useState('')
 
   useEffect(() => {
     (async () => {
@@ -60,6 +64,16 @@ export default function Profile() {
         setPhone(prof.phone || '')
         setAddress(prof.address || '')
       }
+      try {
+        const { data: co } = await supabase
+          .from('company_settings')
+          .select('company_name, company_email')
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        setCompanyName(co?.company_name || '')
+        setCompanyEmail(co?.company_email || '')
+      } catch { /* branding is best-effort; email still sends to the fallback */ }
       await loadTimeOff(user.id)
       setLoading(false)
     })()
@@ -101,7 +115,7 @@ export default function Profile() {
     // Fire-and-forget email to the manager.
     fetch('https://www.nguyenmep.com/api/portal/notify-timeoff', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workerName: full, startDate: reqStart, endDate: end, reason: reqReason.trim() }),
+      body: JSON.stringify({ workerName: full, startDate: reqStart, endDate: end, reason: reqReason.trim(), companyName, companyEmail }),
     }).catch(() => {})
     setReqStart(''); setReqEnd(''); setReqReason('')
     Alert.alert(t('requestTimeOff'), t('timeOffSubmitted'))

@@ -243,6 +243,7 @@ export default function WeeklySafetyMeetingScreen() {
   const [manualUrl, setManualUrl]           = useState<string | null>(null);
   const [alreadySigned, setAlreadySigned]   = useState(false);
   const [companyEmail, setCompanyEmail]     = useState<string | null>(null);
+  const [companyName, setCompanyName]       = useState<string>('');
 
   // Signature flow
   const [showSignModal, setShowSignModal]   = useState(false);
@@ -279,11 +280,12 @@ export default function WeeklySafetyMeetingScreen() {
       // Load company email for auto-send
       const { data: settingsData } = await supabase
         .from('company_settings')
-        .select('company_email')
+        .select('company_email, company_name')
         .order('id', { ascending: true })
         .limit(1)
         .maybeSingle();
       setCompanyEmail(settingsData?.company_email || null);
+      setCompanyName(settingsData?.company_name || '');
 
       // Active company safety manual PDF — shown as Section A of the combined sign-off.
       const { data: manualDoc } = await supabase
@@ -447,6 +449,7 @@ export default function WeeklySafetyMeetingScreen() {
             pdfUrl,
             type: 'weekly',
             companyEmail,
+            companyName,
             topic,
             weekStart,
           }),

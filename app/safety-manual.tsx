@@ -131,7 +131,11 @@ const SIGNATURE_HTML = `
 `;
 
 // ─── Embedded document HTML (shown in-app so loading never fails) ─────────────
-const DOCUMENT_HTML = `
+// Tenant-aware: the company name is injected from company_settings so each org
+// sees its own brand on the acknowledgement.
+function buildDocumentHtml(companyName: string): string {
+  const co = (companyName || 'Company').replace(/[<>]/g, '');
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -147,7 +151,7 @@ const DOCUMENT_HTML = `
 </style>
 </head>
 <body>
-<h1>NGUYEN MEP, LLC</h1>
+<h1>${co}</h1>
 <h2>Safety Manual Acknowledgment</h2>
 <p>I acknowledge that I have received, read, and understand the Company Safety Manual, including all safety policies, procedures, and OSHA-related requirements applicable to my work.</p>
 <p>I understand that construction work involves inherent hazards, including but not limited to falls, electrical hazards, heavy equipment operation, trenching, and exposure to potentially dangerous materials. I agree to follow all safety rules, use required personal protective equipment (PPE), and comply with all safety instructions, training, and jobsite requirements at all times.</p>
@@ -177,6 +181,7 @@ const DOCUMENT_HTML = `
 <p>Al firmar abajo, confirmo que he tenido la oportunidad de hacer preguntas y que entiendo y acepto cumplir con el contenido del Manual de Seguridad.</p>
 </body>
 </html>`;
+}
 
 // ─── PDF template ─────────────────────────────────────────────────────────────
 function buildPdfHtml(workerName: string, signedAt: string, sigDataUrl: string): string {
@@ -285,6 +290,7 @@ export default function SafetyManualScreen() {
   const [manual, setManual]             = useState<ManualDoc | null>(null);
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [companyEmail, setCompanyEmail] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string>('');
 
   // Signature flow state
   const [showSignModal, setShowSignModal]   = useState(false);
@@ -328,11 +334,12 @@ export default function SafetyManualScreen() {
       try {
         const { data: settingsData } = await supabase
           .from('company_settings')
-          .select('company_email')
+          .select('company_email, company_name')
           .order('id', { ascending: true })
           .limit(1)
           .maybeSingle();
         setCompanyEmail(settingsData?.company_email || null);
+        setCompanyName(settingsData?.company_name || '');
       } catch (e) { console.warn('Settings load skipped:', e); }
 
       // Look up the active safety manual document record (optional — document text is embedded)
@@ -458,6 +465,7 @@ export default function SafetyManualScreen() {
             pdfUrl,
             type: 'manual',
             companyEmail,
+            companyName,
           }),
         }).catch(() => { /* silent — email failure never blocks the worker */ });
       }
@@ -505,7 +513,7 @@ export default function SafetyManualScreen() {
           />
         ) : (
           <WebView
-            source={{ html: DOCUMENT_HTML }}
+            source={{ html: buildDocumentHtml(companyName) }}
             style={s.docViewer}
             scrollEnabled
             javaScriptEnabled={false}

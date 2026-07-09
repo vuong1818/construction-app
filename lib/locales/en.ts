@@ -860,6 +860,8 @@ const en = {
   weekOfLabel: 'Week Of',
   noSignatureImage: 'No signature image on file',
   safetyComplianceFooter: 'Nguyen MEP Safety Compliance · nguyenmep.com',
+  safetyComplianceSuffix: 'Safety Compliance',
+  yourCompany: 'Your Company',
   weeklyTopicTitle: 'Weekly Topic',
   topicDescriptionLabel: 'Topic Description',
   topicPlaceholder: 'e.g. Fall protection and harness inspection',

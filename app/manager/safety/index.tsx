@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useCompanyLogo } from '../../../hooks/useCompanyLogo'
 import { useLanguage } from '../../../lib/i18n'
 import { logError } from '../../../lib/logger'
 import { supabase } from '../../../lib/supabase'
@@ -205,6 +206,7 @@ async function openPdf(
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerSafetyScreen() {
   const { t } = useLanguage()
+  const { companyName } = useCompanyLogo() // tenant branding for the ack viewer
   const openLabels = {
     cannotOpen: t('cannotOpen'),
     cannotOpenMsg: t('cannotOpenLink'),
@@ -725,7 +727,7 @@ export default function ManagerSafetyScreen() {
           <ScrollView contentContainerStyle={{ padding: 20 }}>
             {viewingAck && (
               <View style={{ backgroundColor: C.card, borderRadius: 18, padding: 22, borderWidth: 1, borderColor: C.border }}>
-                <Text style={{ color: C.navy, fontSize: 20, fontWeight: '900', marginBottom: 2 }}>Nguyen MEP, LLC</Text>
+                <Text style={{ color: C.navy, fontSize: 20, fontWeight: '900', marginBottom: 2 }}>{companyName || t('yourCompany')}</Text>
                 <Text style={{ color: C.teal, fontSize: 13, fontWeight: '700', marginBottom: 20 }}>
                   {viewingAckType === 'meeting' ? t('weeklySafetyMeetingSignIn') : t('safetyManualAckTitle')}
                 </Text>
@@ -757,7 +759,7 @@ export default function ManagerSafetyScreen() {
                 )}
 
                 <Text style={{ color: C.sub, fontSize: 12, textAlign: 'center', marginTop: 24 }}>
-                  {t('safetyComplianceFooter')}
+                  {`${companyName || t('yourCompany')} · ${t('safetyComplianceSuffix')}`}
                 </Text>
               </View>
             )}
