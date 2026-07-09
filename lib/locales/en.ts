@@ -884,6 +884,7 @@ const en = {
   jkNoLoc: 'No location',
   jkConfirm: 'Confirm',
   jkChecksOut: 'checks out equipment',
+  jkDeducts: 'removes from inventory',
   inventoryScan: 'Inventory Scan',
   scanNeedCamera: 'Camera access is needed to scan barcodes.',
   scanGrant: 'Allow Camera',

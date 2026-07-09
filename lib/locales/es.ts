@@ -876,6 +876,7 @@ const es: Record<TranslationKey, string> = {
   jkNoLoc: 'Sin ubicación',
   jkConfirm: 'Confirmar',
   jkChecksOut: 'saca el equipo',
+  jkDeducts: 'sale del inventario',
   inventoryScan: 'Escanear Inventario',
   scanNeedCamera: 'Se necesita acceso a la cámara para escanear códigos.',
   scanGrant: 'Permitir Cámara',
