@@ -267,7 +267,7 @@ export default function ManagerSafetyScreen() {
 
   async function loadWorkerCount() {
     const { count } = await supabase
-      .from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'worker')
+      .from('profiles').select('id', { count: 'exact', head: true }).in('role', ['owner', 'manager', 'office', 'worker', 'warehouse'])
     setWorkerCount(count || 0)
   }
 

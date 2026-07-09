@@ -317,7 +317,7 @@ export default function WorkersManagerScreen() {
       const role = me?.role || 'worker'
       setUserRole(role)
 
-      if (role !== 'manager') {
+      if (!['manager', 'owner'].includes(String(role))) {
         return
       }
 

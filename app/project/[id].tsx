@@ -207,7 +207,7 @@ export default function ProjectDetailScreen() {
       if (!session?.user) return
       const { data } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
-      setIsManager(data?.role === 'manager')
+      setIsManager(['manager', 'owner'].includes(String(data?.role)))
     })()
   }, [])
 

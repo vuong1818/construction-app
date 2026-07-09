@@ -146,7 +146,7 @@ export default function ProjectTasksScreen() {
       ])
 
       const role = meResult.data?.role || 'worker'
-      const manager = role === 'manager'
+      const manager = ['manager', 'owner'].includes(String(role))
       setIsManager(manager)
 
       if (projectResult.error) { setErrorMessage(projectResult.error.message); setLoading(false); return }

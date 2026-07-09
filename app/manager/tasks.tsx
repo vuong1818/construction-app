@@ -66,7 +66,7 @@ export default function ManagerTasksScreen() {
 
     const { data: me } = await supabase
       .from('profiles').select('role').eq('id', session.user.id).single()
-    if (me?.role !== 'manager') { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
+    if (!['manager', 'owner'].includes(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
     const [{ data: projData }, { data: profData }, { data: taskData }] = await Promise.all([
       supabase.from('projects').select('id, name, status'),

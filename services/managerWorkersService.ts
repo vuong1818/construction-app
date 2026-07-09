@@ -33,7 +33,7 @@ export type UpsertWorkerInput = {
 export async function requireManagerAccess() {
   const role = await authService.getCurrentUserRole()
 
-  if (role !== 'manager') {
+  if (!['manager', 'owner'].includes(String(role))) {
     throw new Error('Manager access is required.')
   }
 }

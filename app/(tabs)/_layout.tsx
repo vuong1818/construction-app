@@ -21,7 +21,7 @@ export default function TabsLayout() {
         .eq('id', user.id)
         .maybeSingle()
       if (!active) return
-      setIsManager(prof?.role === 'manager')
+      setIsManager(['manager', 'owner'].includes(String(prof?.role)))
       setLoaded(true)
     }
     loadRole()

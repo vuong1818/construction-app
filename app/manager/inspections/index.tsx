@@ -65,7 +65,7 @@ export default function ManagerInspectionsIndex() {
 
       const role = me?.role || 'worker'
       setUserRole(role)
-      if (role !== 'manager') return
+      if (!['manager', 'owner'].includes(String(role))) return
 
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')

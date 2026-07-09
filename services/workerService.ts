@@ -115,7 +115,7 @@ function buildFullName(firstName: string, lastName: string) {
 export async function requireManagerAccess() {
   const profile = await authService.getCurrentUserProfile()
 
-  if ((profile.role || 'worker') !== 'manager') {
+  if (!['manager', 'owner'].includes(String(profile.role))) {
     throw new Error('Manager access is required.')
   }
 

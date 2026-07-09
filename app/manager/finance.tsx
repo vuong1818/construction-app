@@ -43,7 +43,7 @@ export default function ManagerFinanceScreen() {
     if (!session?.user) { setErrorMessage(t('signInRequired')); setLoading(false); return }
 
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-    if (me?.role !== 'manager') { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
+    if (!['manager', 'owner'].includes(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
     const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),

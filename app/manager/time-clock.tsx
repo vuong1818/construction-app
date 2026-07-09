@@ -331,7 +331,7 @@ export default function ManagerTimeClockScreen() {
       const role = me?.role || 'worker'
       setUserRole(role)
 
-      if (role !== 'manager') {
+      if (!['manager', 'owner'].includes(String(role))) {
         setEntries([])
         setProfiles([])
         setAdjustments([])
@@ -351,7 +351,7 @@ export default function ManagerTimeClockScreen() {
         supabase
           .from('profiles')
           .select('id, first_name, last_name, full_name, wage, role')
-          .in('role', ['worker', 'manager'])
+          .in('role', ['owner', 'manager', 'office', 'worker', 'warehouse'])
           .order('first_name', { ascending: true }),
 
         supabase

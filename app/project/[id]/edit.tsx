@@ -152,7 +152,7 @@ export default function ProjectEditScreen() {
 
       const { data: me } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
-      const manager = (me?.role || 'worker') === 'manager'
+      const manager = ['manager', 'owner'].includes(String(me?.role))
       setIsManager(manager)
       if (!manager) return
 

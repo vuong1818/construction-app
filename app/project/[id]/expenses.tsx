@@ -127,7 +127,7 @@ export default function ProjectExpensesScreen() {
       setExpenseTypes((typesResult.data || []) as ExpenseType[])
       setVendors((vendorsResult.data || []) as Vendor[])
 
-      const manager = meResult.data?.role === 'manager'
+      const manager = ['manager', 'owner'].includes(String(meResult.data?.role))
       setIsManager(manager)
 
       if (projectResult.error) { setErrorMessage(projectResult.error.message); setLoading(false); return }

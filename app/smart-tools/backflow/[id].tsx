@@ -229,7 +229,7 @@ export default function BackflowDetail() {
         supabase.from('profiles').select('role').eq('id', user.id).single(),
         supabase.from('backflow_tests').select('*').eq('id', id).single(),
       ])
-      setIsManager(profRes.data?.role === 'manager')
+      setIsManager(['manager', 'owner'].includes(String(profRes.data?.role)))
       if (testRes.error) {
         setErrorMsg(testRes.error.message)
       } else {
