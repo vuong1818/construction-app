@@ -347,6 +347,23 @@ export default function ProjectDetailScreen() {
         </View>
 
         <SectionTitle
+          icon="toolbox-outline"
+          iconBg={COLORS.navySoft}
+          iconColor={COLORS.navy}
+          title={t('jobKit')}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="package-variant-closed"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={t('viewJobKit')}
+            onPress={() => router.push(`/project/${id}/job-kit`)}
+          />
+        </View>
+
+        <SectionTitle
           icon="file-pdf-box"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
