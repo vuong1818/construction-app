@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -21,9 +21,9 @@ export default function InventoryScan() {
   const [projects, setProjects] = useState<Proj[]>([])
   const [uid, setUid] = useState<string | null>(null)
 
-  const [scanning, setScanning] = useState(true)
-  const [item, setItem] = useState<Item | null>(null)
-  const [notFound, setNotFound] = useState<string | null>(null)
+  // The popup: an item that was found, a not-found code, or nothing (keep scanning).
+  const [result, setResult] = useState<{ item?: Item; notFound?: string } | null>(null)
+  const scanRef = useRef(true) // gate so one scan = one popup
   const [dir, setDir] = useState<'in' | 'out'>('out')
   const [qty, setQty] = useState('1')
   const [locId, setLocId] = useState<number | null>(null)
@@ -41,26 +41,24 @@ export default function InventoryScan() {
         supabase.from('projects').select('id, name').order('name'),
       ])
       const ls = (loc as Loc[]) || []
-      setLocations(ls)
-      setProjects((pr as Proj[]) || [])
-      setLocId(ls[0]?.id ?? null)
+      setLocations(ls); setProjects((pr as Proj[]) || []); setLocId(ls[0]?.id ?? null)
     })()
   }, [])
 
-  const onScan = useCallback(async ({ data }: { data: string }) => {
-    setScanning(false)
+  async function onScan({ data }: { data: string }) {
+    if (!scanRef.current) return
+    scanRef.current = false
     const { data: found } = await supabase
       .from('inventory_items').select('id, name, unit, qty_on_hand').eq('barcode', data).limit(1).maybeSingle()
-    if (found) { setItem(found as Item); setNotFound(null); setQty('1'); setDir('out') }
-    else { setItem(null); setNotFound(data) }
-  }, [])
+    if (found) { setDir('out'); setQty('1'); setResult({ item: found as Item }) }
+    else setResult({ notFound: data })
+  }
 
-  function resume() { setItem(null); setNotFound(null); setScanning(true) }
+  function dismiss() { setResult(null); scanRef.current = true }
 
   async function record() {
-    if (!item) return
-    const n = Number(qty)
-    if (!n || n <= 0) return
+    const item = result?.item; if (!item) return
+    const n = Number(qty); if (!n || n <= 0) return
     setSaving(true)
     const from = dir === 'out' ? locId : null
     const to = dir === 'in' ? locId : null
@@ -70,7 +68,7 @@ export default function InventoryScan() {
       project_id: dir === 'out' ? projId : null, user_id: uid, reason,
     })
     setSaving(false)
-    if (!error) resume()
+    if (!error) dismiss() // resume scanning for the next item
   }
 
   const header = (
@@ -80,9 +78,7 @@ export default function InventoryScan() {
     </View>
   )
 
-  if (!permission) {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={COLORS.teal} /></SafeAreaView>
-  }
+  if (!permission) return <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={COLORS.teal} /></SafeAreaView>
   if (!permission.granted) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -98,96 +94,89 @@ export default function InventoryScan() {
     )
   }
 
+  const item = result?.item
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }} edges={['top']}>
       {header}
-
-      {scanning ? (
-        <View style={{ flex: 1 }}>
-          <CameraView
-            style={{ flex: 1 }}
-            facing="back"
-            onBarcodeScanned={onScan}
-            barcodeScannerSettings={{ barcodeTypes: ['upc_a', 'upc_e', 'ean13', 'ean8', 'code128', 'code39'] }}
-          >
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <View style={{ width: 260, height: 150, borderWidth: 3, borderColor: '#fff', borderRadius: 16 }} />
-              <Text style={{ color: '#fff', marginTop: 16, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>{t('scanAim')}</Text>
-            </View>
-          </CameraView>
+      {/* Live camera stays mounted; scanning is gated while the popup is open. */}
+      <CameraView style={{ flex: 1 }} facing="back" onBarcodeScanned={onScan}
+        barcodeScannerSettings={{ barcodeTypes: ['upc_a', 'upc_e', 'ean13', 'ean8', 'code128', 'code39'] }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 260, height: 150, borderWidth: 3, borderColor: '#fff', borderRadius: 16 }} />
+          <Text style={{ color: '#fff', marginTop: 16, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>{t('scanAim')}</Text>
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={{ padding: 18 }}>
-          {notFound && (
-            <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' }}>
-              <Ionicons name="help-circle-outline" size={44} color={COLORS.subtext} />
-              <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 16, marginTop: 8 }}>{t('scanNotFound')}</Text>
-              <Text style={{ color: COLORS.subtext, marginTop: 4 }}>{notFound}</Text>
-              <Text style={{ color: COLORS.subtext, fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('scanAddFirst')}</Text>
-              <Pressable onPress={resume} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 16 }}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>{t('scanAgain')}</Text>
-              </Pressable>
-            </View>
-          )}
+      </CameraView>
 
-          {item && (
-            <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: COLORS.border }}>
-              <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 20 }}>{item.name}</Text>
-              <Text style={{ color: COLORS.subtext, marginTop: 2, marginBottom: 16 }}>{Number(item.qty_on_hand || 0).toLocaleString('en-US')} {item.unit || ''} {t('scanOnHand')}</Text>
-
-              {/* Direction */}
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                {(['out', 'in'] as const).map(d => (
-                  <Pressable key={d} onPress={() => setDir(d)} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: dir === d ? COLORS.teal : COLORS.border, backgroundColor: dir === d ? COLORS.tealSoft : COLORS.background }}>
-                    <Text style={{ color: dir === d ? COLORS.teal : COLORS.subtext, fontWeight: '800' }}>{d === 'out' ? t('scanTake') : t('scanReceive')}</Text>
-                  </Pressable>
-                ))}
+      {/* Popup: the scanned item, with take-out / add-in + quantity + location */}
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={dismiss}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '85%' }}>
+            {result?.notFound ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Ionicons name="help-circle-outline" size={44} color={COLORS.subtext} />
+                <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 16, marginTop: 8 }}>{t('scanNotFound')}</Text>
+                <Text style={{ color: COLORS.subtext, marginTop: 4 }}>{result.notFound}</Text>
+                <Text style={{ color: COLORS.subtext, fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('scanAddFirst')}</Text>
+                <Pressable onPress={dismiss} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 18 }}>
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{t('scanAgain')}</Text>
+                </Pressable>
               </View>
+            ) : item ? (
+              <ScrollView contentContainerStyle={{ padding: 22 }}>
+                <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 22 }}>{item.name}</Text>
+                <Text style={{ color: COLORS.subtext, marginTop: 2, marginBottom: 18 }}>{Number(item.qty_on_hand || 0).toLocaleString('en-US')} {item.unit || ''} {t('scanOnHand')}</Text>
 
-              {/* Qty */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{t('scanQtyLabel')}</Text>
-              <TextInput value={qty} onChangeText={setQty} keyboardType="numeric" style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 18, color: COLORS.text, marginBottom: 16 }} />
-
-              {/* Location */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{dir === 'out' ? t('scanFromLoc') : t('scanToLoc')}</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                {locations.length === 0 && <Text style={{ color: COLORS.subtext, fontStyle: 'italic' }}>{t('scanNoLocations')}</Text>}
-                {locations.map(l => (
-                  <Pressable key={l.id} onPress={() => setLocId(l.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: locId === l.id ? COLORS.teal : COLORS.border, backgroundColor: locId === l.id ? COLORS.tealSoft : COLORS.background }}>
-                    <Text style={{ color: locId === l.id ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{l.name}</Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Project (only for Out) */}
-              {dir === 'out' && (
-                <>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{t('scanProjLabel')}</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-                    <Pressable onPress={() => setProjId(null)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === null ? COLORS.teal : COLORS.border, backgroundColor: projId === null ? COLORS.tealSoft : COLORS.background }}>
-                      <Text style={{ color: projId === null ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{t('scanNoProject')}</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                  {(['out', 'in'] as const).map(d => (
+                    <Pressable key={d} onPress={() => setDir(d)} style={{ flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: dir === d ? COLORS.teal : COLORS.border, backgroundColor: dir === d ? COLORS.tealSoft : COLORS.background }}>
+                      <Text style={{ color: dir === d ? COLORS.teal : COLORS.subtext, fontWeight: '800' }}>{d === 'out' ? t('scanTake') : t('scanReceive')}</Text>
                     </Pressable>
-                    {projects.map(p => (
-                      <Pressable key={p.id} onPress={() => setProjId(p.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === p.id ? COLORS.teal : COLORS.border, backgroundColor: projId === p.id ? COLORS.tealSoft : COLORS.background }}>
-                        <Text style={{ color: projId === p.id ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{p.name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </>
-              )}
+                  ))}
+                </View>
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable onPress={record} disabled={saving || locId === null} style={{ flex: 1, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 15, alignItems: 'center', opacity: (saving || locId === null) ? 0.5 : 1 }}>
-                  <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{saving ? '…' : t('scanRecord')}</Text>
-                </Pressable>
-                <Pressable onPress={resume} style={{ flex: 1, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 15, alignItems: 'center' }}>
-                  <Text style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 15 }}>{t('scanAgain')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-      )}
+                <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{t('scanQtyLabel')}</Text>
+                <TextInput value={qty} onChangeText={setQty} keyboardType="numeric" style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 18, color: COLORS.text, marginBottom: 16 }} />
+
+                <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{dir === 'out' ? t('scanFromLoc') : t('scanToLoc')}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                  {locations.length === 0 && <Text style={{ color: COLORS.subtext, fontStyle: 'italic' }}>{t('scanNoLocations')}</Text>}
+                  {locations.map(l => (
+                    <Pressable key={l.id} onPress={() => setLocId(l.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: locId === l.id ? COLORS.teal : COLORS.border, backgroundColor: locId === l.id ? COLORS.tealSoft : COLORS.background }}>
+                      <Text style={{ color: locId === l.id ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{l.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {dir === 'out' && (
+                  <>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{t('scanProjLabel')}</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
+                      <Pressable onPress={() => setProjId(null)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === null ? COLORS.teal : COLORS.border, backgroundColor: projId === null ? COLORS.tealSoft : COLORS.background }}>
+                        <Text style={{ color: projId === null ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{t('scanNoProject')}</Text>
+                      </Pressable>
+                      {projects.map(p => (
+                        <Pressable key={p.id} onPress={() => setProjId(p.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === p.id ? COLORS.teal : COLORS.border, backgroundColor: projId === p.id ? COLORS.tealSoft : COLORS.background }}>
+                          <Text style={{ color: projId === p.id ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{p.name}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable onPress={record} disabled={saving || locId === null} style={{ flex: 1, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 15, alignItems: 'center', opacity: (saving || locId === null) ? 0.5 : 1 }}>
+                    <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>{saving ? '…' : t('scanRecord')}</Text>
+                  </Pressable>
+                  <Pressable onPress={dismiss} style={{ flex: 1, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 15, alignItems: 'center' }}>
+                    <Text style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 15 }}>{t('cancel')}</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
