@@ -45,6 +45,7 @@ export default function ProjectsScreen() {
       const { data, error } = await supabase
         .from('projects')
         .select('*')
+        .eq('status', 'active') // field app shows only active projects
         .order('created_at', { ascending: false })
 
       if (error) {
