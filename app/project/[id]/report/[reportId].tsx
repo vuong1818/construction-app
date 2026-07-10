@@ -200,14 +200,6 @@ export default function DailyReportDetailScreen() {
         />
 
         <DetailCard
-          icon="package-variant-closed"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          title={t('materialsUsed')}
-          value={report.materials_used || t('none')}
-        />
-
-        <DetailCard
           icon="weather-partly-cloudy"
           iconBg={COLORS.tealSoft}
           iconColor={COLORS.teal}

@@ -364,6 +364,30 @@ export default function ProjectDetailScreen() {
         </View>
 
         <SectionTitle
+          icon="help-circle-outline"
+          iconBg={COLORS.navySoft}
+          iconColor={COLORS.navy}
+          title={t('fieldRequests')}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="comment-question-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={t('rfisTitle')}
+            onPress={() => router.push(`/project/${id}/rfis`)}
+          />
+          <BigActionCard
+            icon="package-variant"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            title={t('matReqTitle')}
+            onPress={() => router.push(`/project/${id}/material-requests`)}
+          />
+        </View>
+
+        <SectionTitle
           icon="file-pdf-box"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}

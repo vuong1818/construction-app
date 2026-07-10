@@ -68,13 +68,11 @@ export default function NewReportScreen() {
     reportDate,
     workCompleted,
     issues,
-    materialsUsed,
     weather,
     saving,
     setReportDate,
     setWorkCompleted,
     setIssues,
-    setMaterialsUsed,
     setWeather,
     handleSave,
     canSave,
@@ -116,14 +114,6 @@ export default function NewReportScreen() {
             onChangeText={setIssues}
             multiline
             placeholder={t('issuesPlaceholder')}
-          />
-
-          <Field
-            label={t('materialsUsed')}
-            value={materialsUsed}
-            onChangeText={setMaterialsUsed}
-            multiline
-            placeholder={t('materialsPlaceholder')}
           />
 
           <Field
