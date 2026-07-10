@@ -1,48 +1,52 @@
 import { Ionicons } from '@expo/vector-icons'
-import React, { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, Text, View } from 'react-native'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native'
 import { distanceMeters, drivingDistanceMeters, readCurrentLocation } from '../lib/clockLocation'
 import { t, type LanguageCode } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 
-// Straight-line -> approximate driving distance. Roads wind, so real miles run
-// ~20-30% longer than the crow-flies distance between the two GPS stamps.
 const ROAD_FACTOR = 1.3
 const METERS_PER_MILE = 1609.344
 
 type Segment = {
   id: number
+  kind: 'commute_to' | 'commute_from' | 'transfer' | null
   started_at: string
   ended_at: string | null
   miles: number | null
+  start_lat: number | null
+  start_lng: number | null
+  project_id: number | null
 }
+type Project = { id: number; name: string }
 
 function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  } catch {
-    return ''
-  }
+  try { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) } catch { return '' }
 }
 
 /**
- * Travel / mileage tracker. Only shown while clocked in (travel time is already
- * paid; this logs miles for gas reimbursement). Tap Start to stamp the departure
- * point, Arrived to stamp the destination — miles come from the two points.
+ * Travel / mileage tracker — models the real field workflow:
+ *   • Travel to work (before clock-in): commute leg; auto-closes when you clock in.
+ *   • Transfer (while clocked in): logs site→site miles AND splits your time — travel
+ *     time counts toward the destination project.
+ *   • Travel home (after clock-out): commute leg; tap Arrived at home.
+ * Commute legs reimburse miles past the company threshold; transfers reimburse in full;
+ * only own-vehicle miles are paid.
  */
 export default function TravelCard({
-  activeEntryId,
-  userName,
-  language,
+  activeEntryId, projects, userName, language, onChanged,
 }: {
   activeEntryId: number | null
+  projects: Project[]
   userName: string | null
   language: LanguageCode
+  onChanged?: () => void
 }) {
   const [segments, setSegments] = useState<Segment[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
+  const closingCommute = useRef(false)
 
   const load = useCallback(async () => {
     try {
@@ -52,16 +56,12 @@ export default function TravelCard({
       const start = new Date(); start.setHours(0, 0, 0, 0)
       const { data } = await supabase
         .from('travel_segments')
-        .select('id, started_at, ended_at, miles')
+        .select('id, kind, started_at, ended_at, miles, start_lat, start_lng, project_id')
         .eq('user_id', uid)
         .gte('started_at', start.toISOString())
         .order('started_at', { ascending: true })
-      setSegments(data || [])
-    } catch (e) {
-      console.warn('travel load failed', e)
-    } finally {
-      setLoading(false)
-    }
+      setSegments((data as Segment[]) || [])
+    } catch (e) { console.warn('travel load failed', e) } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load, activeEntryId])
@@ -70,19 +70,26 @@ export default function TravelCard({
   const closed = segments.filter((s) => s.ended_at)
   const totalMiles = segments.reduce((sum, s) => sum + (Number(s.miles) || 0), 0)
 
-  function confirmStart() {
+  async function milesBetween(sLat: number, sLng: number, eLat: number, eLng: number): Promise<{ miles: number; source: string }> {
+    const driving = await drivingDistanceMeters(sLat, sLng, eLat, eLng)
+    if (driving != null) return { miles: Math.round((driving / METERS_PER_MILE) * 10) / 10, source: 'routing' }
+    const meters = distanceMeters(sLat, sLng, eLat, eLng)
+    return { miles: Math.round((meters / METERS_PER_MILE) * ROAD_FACTOR * 10) / 10, source: 'straight_line' }
+  }
+
+  function askVehicle(kind: 'commute_to' | 'commute_from' | 'transfer') {
     if (busy) return
     Alert.alert(
       t(language, 'personalVehicleQuestion'),
       t(language, 'personalVehicleNote'),
       [
-        { text: t(language, 'companyVehicle'), style: 'cancel', onPress: () => Alert.alert(t(language, 'travel'), t(language, 'companyVehicleNote')) },
-        { text: t(language, 'personalVehicle'), onPress: () => { startTravel() } },
+        { text: t(language, 'companyVehicle'), onPress: () => startSegment(kind, false) },
+        { text: t(language, 'personalVehicle'), onPress: () => startSegment(kind, true) },
       ],
     )
   }
 
-  async function startTravel() {
+  async function startSegment(kind: 'commute_to' | 'commute_from' | 'transfer', ownVehicle: boolean) {
     if (busy) return
     setBusy(true)
     try {
@@ -91,66 +98,79 @@ export default function TravelCard({
       if (!uid) throw new Error('Not signed in')
       const loc = await readCurrentLocation()
       const { error } = await supabase.from('travel_segments').insert({
-        user_id: uid,
-        user_name: userName,
-        time_entry_id: activeEntryId,
-        started_at: new Date().toISOString(),
-        start_lat: loc.lat,
-        start_lng: loc.lng,
+        user_id: uid, user_name: userName,
+        time_entry_id: kind === 'transfer' ? activeEntryId : null,
+        kind, own_vehicle: ownVehicle,
+        started_at: new Date().toISOString(), start_lat: loc.lat, start_lng: loc.lng,
       })
       if (error) throw error
       await load()
-    } catch (e: any) {
-      Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong'))
-    } finally {
-      setBusy(false)
-    }
+    } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) } finally { setBusy(false) }
   }
 
-  async function arriveTravel() {
+  // Close an open commute segment at arrival (manual, or auto on clock-in).
+  const closeCommute = useCallback(async (seg: Segment) => {
+    try {
+      const loc = await readCurrentLocation()
+      let miles: number | null = null, source = 'straight_line'
+      if (seg.start_lat != null && seg.start_lng != null) {
+        const r = await milesBetween(seg.start_lat, seg.start_lng, loc.lat, loc.lng); miles = r.miles; source = r.source
+      }
+      await supabase.from('travel_segments').update({
+        ended_at: new Date().toISOString(), end_lat: loc.lat, end_lng: loc.lng, miles, miles_source: source,
+      }).eq('id', seg.id)
+      await load()
+    } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) }
+  }, [load, language])
+
+  // Auto-close an open "travel to work" leg the moment the worker clocks in.
+  useEffect(() => {
+    if (!activeEntryId || !open || open.kind !== 'commute_to' || closingCommute.current) return
+    closingCommute.current = true
+    closeCommute(open).finally(() => { closingCommute.current = false })
+  }, [activeEntryId, open, closeCommute])
+
+  async function arrive() {
+    if (busy || !open) return
+    setBusy(true)
+    try { await closeCommute(open) } finally { setBusy(false) }
+  }
+
+  // Transfer: split time to the destination project — origin ends and destination begins
+  // at the moment Transfer was tapped, so travel time counts toward the new project.
+  async function completeTransfer(destProjectId: number) {
     if (busy || !open) return
     setBusy(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const uid = session?.user?.id
+      if (!uid) throw new Error('Not signed in')
       const loc = await readCurrentLocation()
-      const { data: seg } = await supabase
-        .from('travel_segments')
-        .select('start_lat, start_lng')
-        .eq('id', open.id)
-        .single()
-      let miles: number | null = null
-      let source = 'straight_line'
-      if (seg?.start_lat != null && seg?.start_lng != null) {
-        // Prefer real driving distance (Mapbox); fall back to straight-line x factor.
-        const driving = await drivingDistanceMeters(seg.start_lat, seg.start_lng, loc.lat, loc.lng)
-        if (driving != null) {
-          miles = Math.round((driving / METERS_PER_MILE) * 10) / 10
-          source = 'routing'
-        } else {
-          const meters = distanceMeters(seg.start_lat, seg.start_lng, loc.lat, loc.lng)
-          miles = Math.round((meters / METERS_PER_MILE) * ROAD_FACTOR * 10) / 10
-        }
+      let miles: number | null = null, source = 'straight_line'
+      if (open.start_lat != null && open.start_lng != null) {
+        const r = await milesBetween(open.start_lat, open.start_lng, loc.lat, loc.lng); miles = r.miles; source = r.source
       }
-      const { error } = await supabase
-        .from('travel_segments')
-        .update({
-          ended_at: new Date().toISOString(),
-          end_lat: loc.lat,
-          end_lng: loc.lng,
-          miles,
-          miles_source: source,
-        })
-        .eq('id', open.id)
-      if (error) throw error
+      const splitAt = open.started_at   // the transfer tap time
+      // 1. End the origin entry at the transfer tap.
+      if (activeEntryId) {
+        await supabase.from('time_entries').update({ clock_out_time: splitAt }).eq('id', activeEntryId)
+      }
+      // 2. Start the destination entry backdated to the transfer tap (travel time = destination).
+      await supabase.from('time_entries').insert({
+        project_id: destProjectId, user_id: uid, user_name: userName,
+        clock_in_time: splitAt, clock_in_lat: loc.lat, clock_in_lng: loc.lng,
+      })
+      // 3. Close the travel segment with miles + destination.
+      await supabase.from('travel_segments').update({
+        ended_at: new Date().toISOString(), end_lat: loc.lat, end_lng: loc.lng,
+        miles, miles_source: source, project_id: destProjectId,
+      }).eq('id', open.id)
       await load()
-    } catch (e: any) {
-      Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong'))
-    } finally {
-      setBusy(false)
-    }
+      onChanged?.()
+      Alert.alert(t(language, 'travel'), t(language, 'transferDone'))
+    } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) } finally { setBusy(false) }
   }
 
-  // Always visible on the home screen so the crew knows it's there; the Start
-  // button only enables while clocked in (travel time is paid on the clock).
   if (loading) return null
   const onClock = !!activeEntryId
 
@@ -160,63 +180,72 @@ export default function TravelCard({
         <Ionicons name="car-outline" size={22} color={COLORS.navy} />
         <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>{t(language, 'travel')}</Text>
         <View style={{ flex: 1 }} />
-        <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.navy }}>
-          {totalMiles.toFixed(1)} {t(language, 'milesToday')}
-        </Text>
+        <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.navy }}>{totalMiles.toFixed(1)} {t(language, 'milesToday')}</Text>
       </View>
 
-      <Text style={{ color: COLORS.subtext, marginBottom: 12, lineHeight: 20 }}>
-        {t(language, 'travelHint')}
-      </Text>
-
-      {!onClock ? (
-        <Pressable
-          disabled
-          style={{ backgroundColor: '#CBD5E1', borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-        >
-          <Ionicons name="navigate" size={20} color={COLORS.white} />
-          <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'startTravel')}</Text>
-        </Pressable>
+      {open && open.kind === 'transfer' ? (
+        // Transferring — pick the destination jobsite.
+        <View>
+          <Text style={{ color: COLORS.subtext, marginBottom: 10, lineHeight: 20 }}>{t(language, 'transferringNote')}</Text>
+          <Text style={{ color: COLORS.text, fontWeight: '700', marginBottom: 8 }}>{t(language, 'chooseDestination')}</Text>
+          <ScrollView style={{ maxHeight: 220 }}>
+            {projects.map((p) => (
+              <Pressable key={p.id} onPress={() => completeTransfer(p.id)} disabled={busy}
+                style={{ backgroundColor: busy ? '#E5E7EB' : COLORS.green, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flag" size={18} color={COLORS.white} />
+                <Text style={{ color: COLORS.white, fontSize: 15, fontWeight: '700', flex: 1 }} numberOfLines={1}>{p.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       ) : open ? (
-        <Pressable
-          onPress={arriveTravel}
-          disabled={busy}
-          style={{ backgroundColor: busy ? '#94A3B8' : COLORS.green, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-        >
-          {busy ? <ActivityIndicator color={COLORS.white} /> : <Ionicons name="flag" size={20} color={COLORS.white} />}
-          <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'arrived')}</Text>
-        </Pressable>
+        // Open commute leg — Arrived.
+        <View>
+          <Text style={{ color: COLORS.subtext, marginBottom: 10, lineHeight: 20 }}>
+            {open.kind === 'commute_to' ? t(language, 'confirmArriveWork') : `${t(language, 'travelingSince')} ${formatTime(open.started_at)}`}
+          </Text>
+          <Pressable onPress={arrive} disabled={busy}
+            style={{ backgroundColor: busy ? '#94A3B8' : COLORS.green, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+            {busy ? <ActivityIndicator color={COLORS.white} /> : <Ionicons name="flag" size={20} color={COLORS.white} />}
+            <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{open.kind === 'commute_from' ? t(language, 'arrivedHome') : t(language, 'arrived')}</Text>
+          </Pressable>
+        </View>
+      ) : onClock ? (
+        // Clocked in — offer a transfer.
+        <View>
+          <Text style={{ color: COLORS.subtext, marginBottom: 10, lineHeight: 20 }}>{t(language, 'travelHint')}</Text>
+          <Pressable onPress={() => askVehicle('transfer')} disabled={busy}
+            style={{ backgroundColor: busy ? '#94A3B8' : COLORS.navy, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+            <Ionicons name="swap-horizontal" size={20} color={COLORS.white} />
+            <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'transferSite')}</Text>
+          </Pressable>
+        </View>
       ) : (
-        <Pressable
-          onPress={confirmStart}
-          disabled={busy}
-          style={{ backgroundColor: busy ? '#94A3B8' : COLORS.navy, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}
-        >
-          {busy ? <ActivityIndicator color={COLORS.white} /> : <Ionicons name="navigate" size={20} color={COLORS.white} />}
-          <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'startTravel')}</Text>
-        </Pressable>
+        // Not clocked in — commute to work or home.
+        <View>
+          <Text style={{ color: COLORS.subtext, marginBottom: 10, lineHeight: 20 }}>{t(language, 'travelToWorkHint')}</Text>
+          <Pressable onPress={() => askVehicle('commute_to')} disabled={busy}
+            style={{ backgroundColor: busy ? '#94A3B8' : COLORS.navy, borderRadius: 16, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
+            <Ionicons name="navigate" size={20} color={COLORS.white} />
+            <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'travelToWork')}</Text>
+          </Pressable>
+          <Pressable onPress={() => askVehicle('commute_from')} disabled={busy}
+            style={{ backgroundColor: '#F1F5F9', borderRadius: 16, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+            <Ionicons name="home-outline" size={18} color={COLORS.navy} />
+            <Text style={{ color: COLORS.navy, fontSize: 15, fontWeight: '700' }}>{t(language, 'travelHome')}</Text>
+          </Pressable>
+        </View>
       )}
-
-      {!onClock ? (
-        <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
-          {t(language, 'travelClockInFirst')}
-        </Text>
-      ) : open ? (
-        <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 8, textAlign: 'center' }}>
-          {t(language, 'travelingSince')} {formatTime(open.started_at)}
-        </Text>
-      ) : null}
 
       {closed.length > 0 ? (
         <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 }}>
           {closed.map((s) => (
             <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
               <Text style={{ color: COLORS.subtext, fontSize: 13 }}>
+                {s.kind === 'commute_to' ? '🚗 ' : s.kind === 'commute_from' ? '🏠 ' : '🔄 '}
                 {formatTime(s.started_at)} → {formatTime(s.ended_at as string)}
               </Text>
-              <Text style={{ color: COLORS.text, fontSize: 13, fontWeight: '700' }}>
-                {(Number(s.miles) || 0).toFixed(1)} mi
-              </Text>
+              <Text style={{ color: COLORS.text, fontSize: 13, fontWeight: '700' }}>{(Number(s.miles) || 0).toFixed(1)} mi</Text>
             </View>
           ))}
         </View>

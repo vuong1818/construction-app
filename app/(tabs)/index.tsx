@@ -834,8 +834,10 @@ export default function HomeScreen() {
 
         <TravelCard
           activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
+          projects={projects.map(p => ({ id: p.id, name: p.name }))}
           userName={profile?.full_name ?? null}
           language={language}
+          onChanged={loadDashboard}
         />
 
         <View
