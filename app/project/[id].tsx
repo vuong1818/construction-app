@@ -309,6 +309,12 @@ export default function ProjectDetailScreen() {
             )}
           </View>
 
+          {project.reference_no ? (
+            <View style={{ alignSelf: 'flex-start', backgroundColor: '#EEF2FF', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 8 }}>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13, letterSpacing: 0.5 }}>{project.reference_no}</Text>
+            </View>
+          ) : null}
+
           <Text style={{ color: COLORS.text, marginBottom: 6 }}>
             {t('address')}: {formatProjectAddress(project) || t('noAddress')}
           </Text>

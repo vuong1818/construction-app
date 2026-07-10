@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 export type Project = {
   id: number
   name: string
+  reference_no: string | null
   address: string | null
   city: string | null
   state: string | null

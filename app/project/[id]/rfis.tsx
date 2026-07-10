@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
@@ -13,8 +14,11 @@ import { COLORS } from '../../../lib/theme'
 type Rfi = {
   id: number; subject: string; question: string | null; plan_ref: string | null
   status: 'open' | 'answered' | 'closed'; answer: string | null
+  rfi_no: string | null; photo_url: string | null
   asked_by: string | null; answered_by: string | null; answered_at: string | null; created_at: string
 }
+
+const PHOTO_BUCKET = 'rfi-photos'
 
 const STATUS: Record<string, { bg: string; fg: string; key: 'rfiStatusOpen' | 'rfiStatusAnswered' | 'rfiStatusClosed' }> = {
   open:     { bg: '#FEF3C7', fg: '#92400E', key: 'rfiStatusOpen' },
@@ -39,9 +43,79 @@ export default function RfisScreen() {
   const [planRef, setPlanRef] = useState('')
   const [saving, setSaving] = useState(false)
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({})
+  const [newPhotoUrl, setNewPhotoUrl] = useState('')
+  const [busyPhoto, setBusyPhoto] = useState(false)
   const [toast, setToast] = useState('')
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200) }
+
+  function canEdit(rfi: Rfi) {
+    return isManager || (rfi.asked_by === uid && rfi.status === 'open')
+  }
+
+  function storagePath(url: string | null) {
+    const marker = `/${PHOTO_BUCKET}/`
+    const i = (url || '').indexOf(marker)
+    return i === -1 ? null : (url as string).slice(i + marker.length)
+  }
+  async function deletePhotoObject(url: string | null) {
+    const p = storagePath(url)
+    if (p) await supabase.storage.from(PHOTO_BUCKET).remove([p]).catch(() => {})
+  }
+  // Pick from camera or library, then upload to the rfi-photos bucket → public URL.
+  async function pickAndUpload(): Promise<string | null> {
+    return new Promise((resolve) => {
+      Alert.alert('Add photo', undefined, [
+        { text: 'Take photo', onPress: async () => resolve(await runPicker('camera')) },
+        { text: 'Choose from library', onPress: async () => resolve(await runPicker('library')) },
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+      ])
+    })
+  }
+  async function runPicker(source: 'camera' | 'library'): Promise<string | null> {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!perm.granted) { flash('Permission denied'); return null }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images })
+    if (result.canceled || !result.assets?.length) return null
+    const asset = result.assets[0]
+    setBusyPhoto(true)
+    try {
+      const resp = await fetch(asset.uri)
+      const buf = await resp.arrayBuffer()
+      const ext = (asset.uri.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${projectId}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+      if (error) throw error
+      return supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl
+    } catch (e: any) {
+      flash('Upload failed: ' + e.message); return null
+    } finally { setBusyPhoto(false) }
+  }
+
+  async function addNewPhoto() {
+    const url = await pickAndUpload()
+    if (!url) return
+    if (newPhotoUrl) await deletePhotoObject(newPhotoUrl)
+    setNewPhotoUrl(url)
+  }
+  async function setRfiPhoto(rfi: Rfi) {
+    const url = await pickAndUpload()
+    if (!url) return
+    const { error } = await supabase.from('rfis').update({ photo_url: url, updated_at: new Date().toISOString() }).eq('id', rfi.id)
+    if (error) { flash(error.message); return }
+    if (rfi.photo_url) await deletePhotoObject(rfi.photo_url)
+    flash('Photo updated'); load()
+  }
+  async function removeRfiPhoto(rfi: Rfi) {
+    const { error } = await supabase.from('rfis').update({ photo_url: null, updated_at: new Date().toISOString() }).eq('id', rfi.id)
+    if (error) { flash(error.message); return }
+    if (rfi.photo_url) await deletePhotoObject(rfi.photo_url)
+    flash('Photo removed'); load()
+  }
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -70,11 +144,12 @@ export default function RfisScreen() {
     setSaving(true)
     const { error } = await supabase.from('rfis').insert({
       project_id: projectId, subject: subject.trim(),
-      question: question.trim() || null, plan_ref: planRef.trim() || null, asked_by: uid,
+      question: question.trim() || null, plan_ref: planRef.trim() || null,
+      photo_url: newPhotoUrl || null, asked_by: uid,
     })
     setSaving(false)
     if (error) { flash(error.message); return }
-    setSubject(''); setQuestion(''); setPlanRef(''); setShowForm(false)
+    setSubject(''); setQuestion(''); setPlanRef(''); setNewPhotoUrl(''); setShowForm(false)
     flash(t('rfiSubmitted')); load()
   }
 
@@ -128,6 +203,20 @@ export default function RfisScreen() {
             <Field label={t('rfiPlanRef')}>
               <TextInput style={inputStyle} value={planRef} onChangeText={setPlanRef} placeholder={t('rfiPlanRefPlaceholder')} placeholderTextColor={COLORS.subtext} />
             </Field>
+            <View style={{ marginBottom: 12 }}>
+              {newPhotoUrl ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Image source={{ uri: newPhotoUrl }} style={{ width: 72, height: 72, borderRadius: 8 }} />
+                  <SmallBtn label={busyPhoto ? '…' : 'Replace'} onPress={addNewPhoto} />
+                  <SmallBtn label="Remove" onPress={async () => { await deletePhotoObject(newPhotoUrl); setNewPhotoUrl('') }} />
+                </View>
+              ) : (
+                <Pressable onPress={addNewPhoto} disabled={busyPhoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
+                  <MaterialCommunityIcons name="camera-outline" size={18} color={COLORS.navy} />
+                  <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{busyPhoto ? '…' : 'Add photo'}</Text>
+                </Pressable>
+              )}
+            </View>
             <Pressable onPress={submit} disabled={saving} style={{ backgroundColor: COLORS.teal, borderRadius: 12, paddingVertical: 13, alignItems: 'center', opacity: saving ? 0.6 : 1 }}>
               <Text style={{ color: 'white', fontWeight: '800' }}>{saving ? '…' : t('rfiSubmit')}</Text>
             </Pressable>
@@ -147,10 +236,22 @@ export default function RfisScreen() {
                 <View style={{ backgroundColor: s.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
                   <Text style={{ color: s.fg, fontWeight: '800', fontSize: 11 }}>{t(s.key)}</Text>
                 </View>
+                {rfi.rfi_no ? (
+                  <View style={{ backgroundColor: '#EEF2FF', borderRadius: 5, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 11 }}>{rfi.rfi_no}</Text>
+                  </View>
+                ) : null}
                 <Text style={{ fontWeight: '800', color: COLORS.navy, fontSize: 16, flexShrink: 1 }}>{rfi.subject}</Text>
               </View>
               {rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
               {rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
+              {rfi.photo_url ? <Image source={{ uri: rfi.photo_url }} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
+              {canEdit(rfi) && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <SmallBtn label={busyPhoto ? '…' : (rfi.photo_url ? 'Replace photo' : '📷 Add photo')} onPress={() => setRfiPhoto(rfi)} />
+                  {rfi.photo_url ? <SmallBtn label="Remove photo" onPress={() => removeRfiPhoto(rfi)} /> : null}
+                </View>
+              )}
               <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>
                 {t('rfiAskedBy')} {names[rfi.asked_by || ''] || '—'} · {new Date(rfi.created_at).toLocaleDateString()}
               </Text>
