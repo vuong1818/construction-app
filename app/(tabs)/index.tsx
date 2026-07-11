@@ -6,6 +6,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -756,26 +757,22 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={() => router.push('/profile' as never)}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-end', marginTop: 10, marginBottom: 2, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border }}
-        >
-          <Ionicons name="person-circle-outline" size={16} color={COLORS.navy} />
-          <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13 }}>{t(language, 'profile')}</Text>
-        </Pressable>
-
         <View
           style={{
             backgroundColor: COLORS.navy,
             borderRadius: 28,
             padding: 22,
             marginBottom: 20,
+            marginTop: 10,
           }}
         >
           <Text style={{ color: COLORS.white, fontSize: 22, fontWeight: '700' }}>
             {displayName}
           </Text>
-          <Text style={{ color: '#D9F6FB', marginTop: 2 }}>{currentStatusText}</Text>
+          <Text style={{ color: '#D9F6FB', marginTop: 2 }}>
+            {currentStatusText}
+            {activeEntry ? ` · ${getProjectName(activeEntry.project_id)}` : ''}
+          </Text>
 
           {/* Pending sync chip — shows when one or more clock-ins were saved
               offline and haven't reached the server yet. Tap to force a
@@ -825,11 +822,6 @@ export default function HomeScreen() {
           <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800' }}>
             {`${formatHours(weeklyTotalHours)} ${t(language, 'hrs')}`}
           </Text>
-          {profile?.wage ? (
-            <Text style={{ color: '#19B6D2', fontSize: 20, fontWeight: '700', marginTop: 4 }}>
-              {`$${(weeklyTotalHours * profile.wage).toFixed(2)} ${t(language, 'earned')}`}
-            </Text>
-          ) : null}
         </View>
 
         <TravelCard
@@ -839,44 +831,6 @@ export default function HomeScreen() {
           language={language}
           onChanged={loadDashboard}
         />
-
-        <View
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 24,
-            padding: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            marginBottom: 20,
-            marginTop: 16,
-          }}
-        >
-          <Text
-            style={{
-              color: safetyCompleted() ? COLORS.green : COLORS.red,
-              fontSize: 20,
-              fontWeight: '800',
-              marginBottom: 14,
-            }}
-          >
-            {t(language, 'weeklySafetyReminder')}
-          </Text>
-
-          <Pressable
-            onPress={() => router.push('/safety')}
-            style={{
-              alignSelf: 'flex-start',
-              backgroundColor: COLORS.navy,
-              borderRadius: 16,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-            }}
-          >
-            <Text style={{ color: COLORS.white, fontWeight: '800' }}>
-              {t(language, 'openSafetyScreen')}
-            </Text>
-          </Pressable>
-        </View>
 
         <Pressable
           onPress={() => router.push('/my-schedule' as any)}
@@ -914,8 +868,9 @@ export default function HomeScreen() {
           <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
         </Pressable>
 
+        {/* Request Time Off — moved here from Profile (a card like Tools & Equipment) */}
         <Pressable
-          onPress={() => router.push('/timesheet' as any)}
+          onPress={() => router.push('/request-time-off' as any)}
           style={{
             backgroundColor: COLORS.card,
             borderRadius: 24,
@@ -937,12 +892,47 @@ export default function HomeScreen() {
               alignItems: 'center',
             }}
           >
-            <MaterialCommunityIcons name="clock-time-eight-outline" size={30} color={COLORS.navy} />
+            <MaterialCommunityIcons name="calendar-remove-outline" size={30} color={COLORS.navy} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>My Timesheet</Text>
+            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'requestTimeOff')}</Text>
             <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
-              Day, pay period, custom — with map snapshots
+              {t(language, 'requestTimeOffSub')}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
+        </Pressable>
+
+        {/* Tools & Equipment — moved here from Profile */}
+        <Pressable
+          onPress={() => router.push('/equipment' as any)}
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 24,
+            paddingVertical: 18,
+            paddingHorizontal: 18,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 14,
+          }}
+        >
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 18,
+              backgroundColor: COLORS.tealSoft,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="hammer-wrench" size={30} color={COLORS.teal} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'toolsEquipment')}</Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
+              {t(language, 'toolsEquipmentSub')}
             </Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
@@ -982,11 +972,13 @@ export default function HomeScreen() {
             onPress={() => router.push('/safety')}
             style={{
               flex: 1,
-              backgroundColor: COLORS.card,
+              backgroundColor: safetyCompleted() ? COLORS.greenSoft : '#FDECEA',
               borderRadius: 24,
               paddingVertical: 22,
               paddingHorizontal: 16,
               alignItems: 'center',
+              borderWidth: 2,
+              borderColor: safetyCompleted() ? COLORS.green : COLORS.red,
             }}
           >
             <View
@@ -994,16 +986,19 @@ export default function HomeScreen() {
                 width: 86,
                 height: 86,
                 borderRadius: 24,
-                backgroundColor: COLORS.navySoft,
+                backgroundColor: safetyCompleted() ? COLORS.green : COLORS.red,
                 justifyContent: 'center',
                 alignItems: 'center',
                 marginBottom: 12,
               }}
             >
-              <MaterialCommunityIcons name="shield-check-outline" size={38} color={COLORS.navy} />
+              <MaterialCommunityIcons name={safetyCompleted() ? 'shield-check' : 'shield-alert'} size={38} color={COLORS.white} />
             </View>
             <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '700' }}>
               {t(language, 'safety')}
+            </Text>
+            <Text style={{ color: safetyCompleted() ? COLORS.green : COLORS.red, fontSize: 12, fontWeight: '800', marginTop: 2 }}>
+              {safetyCompleted() ? t(language, 'safetySigned') : t(language, 'safetyNotSigned')}
             </Text>
           </Pressable>
         </View>
@@ -1037,6 +1032,16 @@ export default function HomeScreen() {
             <Text style={{ color: '#A8C8E8', fontSize: 13 }}>{t(language, 'smartToolsTagline')}</Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.teal} />
+        </Pressable>
+
+        {/* User guide → SiteOfficeIQ */}
+        <Pressable
+          onPress={() => Linking.openURL('https://www.siteofficeiq.com/guide')}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 18, marginTop: 6 }}
+        >
+          <MaterialCommunityIcons name="book-open-variant" size={18} color={COLORS.subtext} />
+          <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 14 }}>{t(language, 'userGuide')}</Text>
+          <Ionicons name="open-outline" size={16} color={COLORS.subtext} />
         </Pressable>
       </ScrollView>
 

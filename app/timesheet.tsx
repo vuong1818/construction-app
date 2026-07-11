@@ -175,8 +175,9 @@ export default function TimesheetScreen() {
   // Pay summary for the selected range (mirrors the web payroll math).
   const pay = useMemo(() => {
     const labor = totals.hours * wage
-    const gas = entries.reduce((s, e) => s + (Number((e as any).gas_amount) || 0), 0)
     const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
+    // Gas is now driven entirely by the travel/mileage function (commute over the
+    // threshold + site-to-site transfers), not a manual gas_amount field.
     let commuteMiles = 0, transferMiles = 0
     for (const ts of travel) {
       if (ts.own_vehicle === false) continue
@@ -184,8 +185,8 @@ export default function TimesheetScreen() {
       if (ts.kind === 'commute_to' || ts.kind === 'commute_from') commuteMiles += Math.max(0, m - mileageThreshold)
       else transferMiles += m
     }
-    const mileage = (commuteMiles + transferMiles) * mileageRate
-    return { labor, gas, receipts, mileage, total: labor + gas + receipts + mileage }
+    const gas = (commuteMiles + transferMiles) * mileageRate
+    return { labor, gas, receipts, total: labor + gas + receipts }
   }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
 
   const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -299,9 +300,8 @@ export default function TimesheetScreen() {
           <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 0.5, marginBottom: 10 }}>MY PAY — {range.label}</Text>
           {[
             { label: 'Labor', sub: wage > 0 ? `${formatHours(totals.hours)} h @ $${wage.toFixed(2)}/h` : 'wage not set', value: pay.labor },
-            { label: 'Gas', value: pay.gas },
+            { label: 'Gas', sub: 'mileage / travel', value: pay.gas },
             { label: 'Receipts', value: pay.receipts },
-            { label: 'Mileage / travel', value: pay.mileage },
           ].map(row => (
             <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
               <View>

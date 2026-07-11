@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import React, { useState } from 'react'
 import {
@@ -20,6 +21,7 @@ export default function ChangePassword() {
   const { t } = useLanguage()
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
+  const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function submit() {
@@ -66,7 +68,7 @@ export default function ChangePassword() {
               style={inputStyle}
               placeholder={t('newPassword')}
               placeholderTextColor={COLORS.subtext}
-              secureTextEntry
+              secureTextEntry={!show}
               autoCapitalize="none"
               autoCorrect={false}
               value={pw}
@@ -76,12 +78,18 @@ export default function ChangePassword() {
               style={inputStyle}
               placeholder={t('confirmNewPassword')}
               placeholderTextColor={COLORS.subtext}
-              secureTextEntry
+              secureTextEntry={!show}
               autoCapitalize="none"
               autoCorrect={false}
               value={pw2}
               onChangeText={setPw2}
             />
+
+            {/* Show/hide so the worker can verify before committing. */}
+            <Pressable onPress={() => setShow(s => !s)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 6, marginBottom: 6 }}>
+              <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={20} color={COLORS.navy} />
+              <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{show ? t('hidePassword') : t('showPassword')}</Text>
+            </Pressable>
 
             <Pressable
               onPress={submit}
