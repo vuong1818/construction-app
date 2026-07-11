@@ -34,9 +34,12 @@ type Entry = {
   clock_out_offsite_reason: string | null
   clock_in_offsite_note: string | null
   clock_out_offsite_note: string | null
+  gas_amount: number | null
+  receipts_amount: number | null
 }
 
 type Project = { id: number; name: string }
+type TravelSeg = { miles: number | null; kind: string | null; own_vehicle: boolean | null }
 
 type Mode = 'day' | 'period' | 'custom'
 
@@ -82,6 +85,10 @@ export default function TimesheetScreen() {
   const [projects, setProjects] = useState<Record<number, Project>>({})
   const [loading, setLoading] = useState(true)
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null)
+  const [wage, setWage] = useState(0)
+  const [mileageRate, setMileageRate] = useState(0)
+  const [mileageThreshold, setMileageThreshold] = useState(0)
+  const [travel, setTravel] = useState<TravelSeg[]>([])
 
   // Resolve the active range based on the current mode.
   const range = useMemo(() => {
@@ -122,6 +129,20 @@ export default function TimesheetScreen() {
     const list = (rows || []) as Entry[]
     setEntries(list)
 
+    // Pay inputs: own wage, company mileage rate + threshold, and travel this range.
+    const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
+      supabase.from('profiles').select('wage').eq('id', user.id).maybeSingle(),
+      supabase.from('company_settings').select('mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
+      supabase.from('travel_segments').select('miles, kind, own_vehicle')
+        .eq('user_id', user.id)
+        .gte('started_at', range.start.toISOString())
+        .lte('started_at', range.end.toISOString()),
+    ])
+    setWage(Number((prof as any)?.wage || 0))
+    setMileageRate(Number((cs as any)?.mileage_rate || 0))
+    setMileageThreshold(Number((cs as any)?.mileage_threshold_miles || 0))
+    setTravel((ts as TravelSeg[]) || [])
+
     const ids = Array.from(new Set(list.map(e => e.project_id).filter((x): x is number => x != null)))
     if (ids.length > 0) {
       const { data: ps } = await supabase.from('projects').select('id, name').in('id', ids)
@@ -150,6 +171,24 @@ export default function TimesheetScreen() {
     const hours = totalMs / 3_600_000
     return { hours, openCount }
   }, [entries])
+
+  // Pay summary for the selected range (mirrors the web payroll math).
+  const pay = useMemo(() => {
+    const labor = totals.hours * wage
+    const gas = entries.reduce((s, e) => s + (Number((e as any).gas_amount) || 0), 0)
+    const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
+    let commuteMiles = 0, transferMiles = 0
+    for (const ts of travel) {
+      if (ts.own_vehicle === false) continue
+      const m = Number(ts.miles) || 0
+      if (ts.kind === 'commute_to' || ts.kind === 'commute_from') commuteMiles += Math.max(0, m - mileageThreshold)
+      else transferMiles += m
+    }
+    const mileage = (commuteMiles + transferMiles) * mileageRate
+    return { labor, gas, receipts, mileage, total: labor + gas + receipts + mileage }
+  }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
+
+  const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   function shiftDay(delta: number) {
     const next = new Date(day)
@@ -253,6 +292,33 @@ export default function TimesheetScreen() {
             </Text>
           </View>
           <MaterialCommunityIcons name="clock-outline" size={56} color="rgba(255,255,255,0.15)" />
+        </View>
+
+        {/* Pay summary */}
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 18 }}>
+          <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 0.5, marginBottom: 10 }}>MY PAY — {range.label}</Text>
+          {[
+            { label: 'Labor', sub: wage > 0 ? `${formatHours(totals.hours)} h @ $${wage.toFixed(2)}/h` : 'wage not set', value: pay.labor },
+            { label: 'Gas', value: pay.gas },
+            { label: 'Receipts', value: pay.receipts },
+            { label: 'Mileage / travel', value: pay.mileage },
+          ].map(row => (
+            <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+              <View>
+                <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '700' }}>{row.label}</Text>
+                {row.sub ? <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption }}>{row.sub}</Text> : null}
+              </View>
+              <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '800' }}>{money(row.value)}</Text>
+            </View>
+          ))}
+          <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 8 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: COLORS.navy, fontSize: TYPE.body, fontWeight: '900' }}>Total</Text>
+            <Text style={{ color: COLORS.green, fontSize: 20, fontWeight: '900' }}>{money(pay.total)}</Text>
+          </View>
+          <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, marginTop: 8 }}>
+            Estimate based on your logged time and travel. Final pay is confirmed by your manager.
+          </Text>
         </View>
 
         {/* Entries */}

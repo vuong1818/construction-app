@@ -280,6 +280,15 @@ export default function ManagerSummaryScreen() {
         />
 
         <ManagerCard
+          title={t('crewStatus')}
+          subtitle={t('crewStatusSubtitle')}
+          icon="map-marker-radius-outline"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          onPress={() => router.push('/manager/crew-status' as any)}
+        />
+
+        <ManagerCard
           title={t('projectsAndPlans')}
           subtitle={t('projectsAndPlansSubtitle')}
           icon="briefcase-outline"

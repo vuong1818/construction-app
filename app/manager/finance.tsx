@@ -36,6 +36,7 @@ export default function ManagerFinanceScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [payApps, setPayApps] = useState<PayApp[]>([])
   const [payAppLines, setPayAppLines] = useState<PayAppLine[]>([])
+  const [selProj, setSelProj] = useState<number | null>(null)  // null = all projects
 
   const load = useCallback(async () => {
     setErrorMessage('')
@@ -122,7 +123,9 @@ export default function ManagerFinanceScreen() {
     }
   })
 
-  const totals = rows.reduce(
+  const visible = selProj ? rows.filter(r => r.project.id === selProj) : rows
+
+  const totals = visible.reduce(
     (acc, r) => {
       acc.contract += r.contract
       acc.changeOrders += r.changeOrders
@@ -172,6 +175,21 @@ export default function ManagerFinanceScreen() {
           </Text>
         </View>
 
+        {/* Project chooser */}
+        {projects.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+            {[{ id: null as number | null, name: t('allProjects') || 'All projects' }, ...projects].map(p => {
+              const active = selProj === p.id
+              return (
+                <Pressable key={String(p.id)} onPress={() => setSelProj(p.id)}
+                  style={{ paddingHorizontal: 14, paddingVertical: 9, borderRadius: 100, backgroundColor: active ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: active ? COLORS.navy : COLORS.border }}>
+                  <Text style={{ color: active ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 13 }} numberOfLines={1}>{p.name}</Text>
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+        )}
+
         {/* Top totals */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
           <Tile label={t('contract')}       value={fmtMoney(totals.contract)}      bg={COLORS.blueSoft}   color={COLORS.blue} />
@@ -183,12 +201,12 @@ export default function ManagerFinanceScreen() {
           <Tile label={t('net')}            value={fmtMoney(totals.net)}           bg={totals.net >= 0 ? COLORS.greenSoft : COLORS.redSoft} color={totals.net >= 0 ? COLORS.green : COLORS.red} />
         </View>
 
-        {rows.length === 0 ? (
+        {visible.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, padding: 24, alignItems: 'center' }}>
             <Text style={{ color: COLORS.subtext }}>{t('noProjectsYet')}</Text>
           </View>
         ) : (
-          rows.map(r => (
+          visible.map(r => (
             <Pressable
               key={r.project.id}
               onPress={() => router.push(`/project/${r.project.id}`)}
