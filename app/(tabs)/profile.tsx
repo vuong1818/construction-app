@@ -31,6 +31,9 @@ export default function Profile() {
   const [homeState, setHomeState] = useState('')
   const [homeZip, setHomeZip] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showInfo, setShowInfo] = useState(false)
+  const [showMileage, setShowMileage] = useState(false)
+  const [mileage, setMileage] = useState<{ id: number; kind: string | null; started_at: string; miles: number | null }[]>([])
 
   useEffect(() => {
     (async () => {
@@ -49,6 +52,15 @@ export default function Profile() {
         setHomeState(prof.home_state || '')
         setHomeZip(prof.home_zip || '')
       }
+      // Recent mileage history (last ~60 days of completed travel legs).
+      const since = new Date(); since.setDate(since.getDate() - 60)
+      const { data: segs } = await supabase.from('travel_segments')
+        .select('id, kind, started_at, miles')
+        .eq('user_id', user.id)
+        .not('ended_at', 'is', null)
+        .gte('started_at', since.toISOString())
+        .order('started_at', { ascending: false })
+      setMileage((segs as any) || [])
       setLoading(false)
     })()
   }, [])
@@ -102,9 +114,15 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={22} color="#D9F6FB" />
           </Pressable>
 
-          {/* My information */}
-          <View style={card}>
-            <Text style={{ fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 14 }}>{t('myInformation')}</Text>
+          {/* My information — collapsible tab (tap to expand) */}
+          <Pressable onPress={() => setShowInfo(v => !v)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: showInfo ? 0 : 16, borderBottomLeftRadius: showInfo ? 0 : 20, borderBottomRightRadius: showInfo ? 0 : 20 }}>
+            <Ionicons name="person-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('myInformation')}</Text>
+            <Ionicons name={showInfo ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.subtext} />
+          </Pressable>
+
+          {showInfo && (
+          <View style={{ ...card, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderTopWidth: 0 }}>
             <Text style={lbl}>{t('firstNameLabel')}</Text>
             <TextInput style={inputStyle} value={firstName} onChangeText={setFirstName} />
             <Text style={lbl}>{t('lastNameLabel')}</Text>
@@ -138,6 +156,39 @@ export default function Profile() {
               {saving ? <ActivityIndicator color={COLORS.white} /> : <Text style={{ color: COLORS.white, fontWeight: '700', fontSize: 15 }}>{t('saveChanges')}</Text>}
             </Pressable>
           </View>
+          )}
+
+          {/* Mileage history — collapsible tab */}
+          <Pressable onPress={() => setShowMileage(v => !v)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: showMileage ? 0 : 16, borderBottomLeftRadius: showMileage ? 0 : 20, borderBottomRightRadius: showMileage ? 0 : 20 }}>
+            <Ionicons name="car-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('mileageHistory')}</Text>
+            <Ionicons name={showMileage ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.subtext} />
+          </Pressable>
+
+          {showMileage && (
+            <View style={{ ...card, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderTopWidth: 0 }}>
+              {mileage.length === 0 ? (
+                <Text style={{ color: COLORS.subtext, textAlign: 'center', paddingVertical: 10 }}>{t('mileageHistoryEmpty')}</Text>
+              ) : mileage.map(s => (
+                <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
+                  <View>
+                    <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 13 }}>
+                      {s.kind === 'commute_to' ? '🚗 ' : s.kind === 'commute_from' ? '🏠 ' : '🔄 '}
+                      {new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                    <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{new Date(s.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
+                  </View>
+                  <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{(Number(s.miles) || 0).toFixed(1)} mi</Text>
+                </View>
+              ))}
+              {mileage.length > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10 }}>
+                  <Text style={{ color: COLORS.text, fontWeight: '800' }}>{t('total')}</Text>
+                  <Text style={{ color: COLORS.green, fontWeight: '900' }}>{mileage.reduce((a, s) => a + (Number(s.miles) || 0), 0).toFixed(1)} mi</Text>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Change password */}
           <Pressable onPress={() => router.push('/change-password' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>

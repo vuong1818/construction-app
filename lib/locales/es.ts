@@ -182,8 +182,11 @@ const es: Record<TranslationKey, string> = {
   invalidProject: 'Proyecto no válido.',
 
   // ── Mi horario ──────────────────────────────────────────────────────
-  mySchedule: 'Mi Horario',
-  myScheduleSubtitle: 'Tus asignaciones agrupadas por semana. Toca para actualizar el estado.',
+  mySchedule: 'Mis Tareas',
+  myScheduleSubtitle: 'Tareas asignadas a ti en todos los proyectos. Toca para actualizar el estado.',
+  mileageHistory: 'Historial de millas',
+  mileageHistoryEmpty: 'Sin viajes en los últimos 60 días.',
+  total: 'Total',
   myScheduleEmptyUpcoming: 'No tienes asignaciones próximas.',
   myScheduleEmptyOverdue: 'Nada atrasado. 🎉',
   myScheduleEmptyCompleted: 'Aún no hay elementos completados.',

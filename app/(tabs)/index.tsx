@@ -781,6 +781,16 @@ export default function HomeScreen() {
             {activeEntry ? ` · ${getProjectName(activeEntry.project_id)}` : ''}
           </Text>
 
+          {/* Safety gate notice — shown here (not on the Safety screen) only while the
+              worker still owes an acknowledgement. */}
+          {!safetyCompleted() && (
+            <View style={{ backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 14, padding: 12, marginTop: 12, borderWidth: 1, borderColor: 'rgba(248,113,113,0.5)' }}>
+              <Text style={{ color: '#FECACA', fontWeight: '700', lineHeight: 19 }}>
+                {t(language, 'workersClockInBlockedNotice')}
+              </Text>
+            </View>
+          )}
+
           {/* Pending sync chip — shows when one or more clock-ins were saved
               offline and haven't reached the server yet. Tap to force a
               drain attempt instead of waiting for the connectivity event. */}
@@ -867,7 +877,7 @@ export default function HomeScreen() {
               alignItems: 'center',
             }}
           >
-            <MaterialCommunityIcons name="calendar-check-outline" size={30} color={COLORS.teal} />
+            <MaterialCommunityIcons name="format-list-checks" size={30} color={COLORS.teal} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>

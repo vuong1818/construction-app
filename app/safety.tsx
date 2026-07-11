@@ -157,14 +157,6 @@ export default function SafetyScreen() {
         </View>
 
         <Text style={styles.statusText}>{complianceText}</Text>
-
-        {isWorker && (
-          <View style={styles.clockInWarningBox}>
-            <Text style={styles.clockInWarningText}>
-              {t('workersClockInBlockedNotice')}
-            </Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.section}>

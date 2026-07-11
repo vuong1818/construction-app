@@ -190,8 +190,11 @@ const en = {
   invalidProject: 'Invalid project.',
 
   // ── My Schedule ─────────────────────────────────────────────────────
-  mySchedule: 'My Schedule',
-  myScheduleSubtitle: 'Your assignments grouped by week. Tap to update status.',
+  mySchedule: 'My Tasks',
+  myScheduleSubtitle: 'Tasks assigned to you across all projects. Tap to update status.',
+  mileageHistory: 'Mileage History',
+  mileageHistoryEmpty: 'No travel logged in the last 60 days.',
+  total: 'Total',
   myScheduleEmptyUpcoming: 'No upcoming items assigned to you.',
   myScheduleEmptyOverdue: 'Nothing overdue. 🎉',
   myScheduleEmptyCompleted: 'No completed items yet.',

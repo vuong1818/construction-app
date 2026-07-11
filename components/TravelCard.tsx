@@ -87,7 +87,6 @@ export default function TravelCard({
   useEffect(() => { load() }, [load, activeEntryId])
 
   const open = segments.find((s) => !s.ended_at) || null
-  const closed = segments.filter((s) => s.ended_at)
   const totalMiles = segments.reduce((sum, s) => sum + (Number(s.miles) || 0), 0)
 
   // Tell the parent whether a travel leg is in progress (so it can hide the clock button).
@@ -316,19 +315,6 @@ export default function TravelCard({
         </View>
       )}
 
-      {closed.length > 0 ? (
-        <View style={{ marginTop: 14, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 }}>
-          {closed.map((s) => (
-            <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}>
-              <Text style={{ color: COLORS.subtext, fontSize: 13 }}>
-                {s.kind === 'commute_to' ? '🚗 ' : s.kind === 'commute_from' ? '🏠 ' : '🔄 '}
-                {formatTime(s.started_at)} → {formatTime(s.ended_at as string)}
-              </Text>
-              <Text style={{ color: COLORS.text, fontSize: 13, fontWeight: '700' }}>{(Number(s.miles) || 0).toFixed(1)} mi</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
     </View>
   )
 }
