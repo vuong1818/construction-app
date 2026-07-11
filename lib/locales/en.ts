@@ -495,6 +495,7 @@ const en = {
   vehicleCompany: 'Company vehicle',
   stillTraveling: 'Yes, still traveling',
   travelTimeoutWarning: 'Travel stops soon unless you confirm you are still traveling.',
+  travelSafetyBlocked: 'Sign this week\'s safety documents to start.',
   arrivedHome: 'Arrived home',
   arrivedAtSite: 'Arrived — choose site',
   chooseDestination: 'Which jobsite did you arrive at?',

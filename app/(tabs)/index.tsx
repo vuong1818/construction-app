@@ -824,13 +824,19 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <TravelCard
-          activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
-          projects={projects.map(p => ({ id: p.id, name: p.name }))}
-          userName={profile?.full_name ?? null}
-          language={language}
-          onChanged={loadDashboard}
-        />
+        {/* Travel is the clock mechanism for field crew (worker/supervisor). Everyone can
+            still use the normal clock button above. */}
+        {['worker', 'supervisor'].includes(profile?.role ?? '') && (
+          <TravelCard
+            activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
+            projects={projects.map(p => ({ id: p.id, name: p.name }))}
+            userName={profile?.full_name ?? null}
+            language={language}
+            safetyOk={safetyCompleted()}
+            onRequestClockIn={(destProjectId) => { if (destProjectId) setSelectedProjectId(destProjectId); setClockModalVisible(true) }}
+            onChanged={loadDashboard}
+          />
+        )}
 
         <Pressable
           onPress={() => router.push('/my-schedule' as any)}

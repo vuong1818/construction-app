@@ -487,6 +487,7 @@ const es: Record<TranslationKey, string> = {
   vehicleCompany: 'Vehículo de la empresa',
   stillTraveling: 'Sí, sigo viajando',
   travelTimeoutWarning: 'El viaje se detendrá pronto a menos que confirmes que sigues viajando.',
+  travelSafetyBlocked: 'Firma los documentos de seguridad de esta semana para empezar.',
   arrivedHome: 'Llegué a casa',
   arrivedAtSite: 'Llegué — elegir sitio',
   chooseDestination: '¿A qué obra llegaste?',
