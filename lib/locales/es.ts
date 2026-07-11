@@ -418,6 +418,8 @@ const es: Record<TranslationKey, string> = {
   noPermissionManagerDashboard: 'No tienes permiso para ver el panel de gerencia.',
   managerDashboard: 'Panel de gerencia',
   managerDashboardIntro: 'Administra trabajadores, revisa el tiempo semanal, mantén planos, actualiza reportes, configura la empresa y gestiona seguridad.',
+  supervisorDashboard: 'Supervisor',
+  supervisorDashboardIntro: 'Administra el tiempo y la cuadrilla, proyectos, tareas, reportes e inspecciones de las obras que supervisas.',
   timeAndPayroll: 'Tiempo y nómina',
   timeAndPayrollSubtitle: 'Elige una semana laboral, revisa totales de trabajadores y modifica horas, gasolina y recibos.',
   projectsAndPlans: 'Proyectos y planos',

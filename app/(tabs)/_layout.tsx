@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 
 export default function TabsLayout() {
   const [isManager, setIsManager] = useState(false)
+  const [isSupervisor, setIsSupervisor] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -21,7 +22,8 @@ export default function TabsLayout() {
         .eq('id', user.id)
         .maybeSingle()
       if (!active) return
-      setIsManager(['manager', 'owner'].includes(String(prof?.role)))
+      setIsManager(['manager', 'owner', 'supervisor'].includes(String(prof?.role)))
+      setIsSupervisor(String(prof?.role) === 'supervisor')
       setLoaded(true)
     }
     loadRole()
@@ -67,7 +69,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Manager',
+          title: isSupervisor ? 'Supervise' : 'Manager',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="account-group-outline" size={size} color={color} />
           ),

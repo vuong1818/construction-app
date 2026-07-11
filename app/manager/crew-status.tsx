@@ -43,7 +43,7 @@ export default function CrewStatusScreen() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { router.replace('/'); return }
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-    if (!['manager', 'owner'].includes((me as any)?.role)) { setNotAllowed(true); setLoading(false); return }
+    if (!['manager', 'owner', 'supervisor'].includes((me as any)?.role)) { setNotAllowed(true); setLoading(false); return }
 
     const { data } = await supabase
       .from('time_entries')

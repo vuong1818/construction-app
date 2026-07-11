@@ -426,6 +426,8 @@ const en = {
   noPermissionManagerDashboard: 'You do not have permission to view the manager dashboard.',
   managerDashboard: 'Manager Dashboard',
   managerDashboardIntro: 'Manage workers, review weekly time, maintain plans, update reports, configure company settings, and manage safety.',
+  supervisorDashboard: 'Supervisor',
+  supervisorDashboardIntro: 'Manage time and crew, projects, tasks, reports, and inspections for the jobs you supervise.',
   timeAndPayroll: 'Time and Payroll',
   timeAndPayrollSubtitle: 'Choose a work week, review worker totals, and modify hours, gas, and receipts.',
   projectsAndPlans: 'Projects & Plans',

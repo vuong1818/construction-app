@@ -159,7 +159,9 @@ export default function ManagerSummaryScreen() {
     )
   }
 
-  if (userRole !== 'manager') {
+  const isSupervisor = userRole === 'supervisor'
+
+  if (!['manager', 'owner', 'supervisor'].includes(userRole)) {
     return (
       <SafeAreaView
         style={{
@@ -257,7 +259,7 @@ export default function ManagerSummaryScreen() {
               marginBottom: 6,
             }}
           >
-            {t('managerDashboard')}
+            {isSupervisor ? t('supervisorDashboard') : t('managerDashboard')}
           </Text>
 
           <Text
@@ -266,19 +268,24 @@ export default function ManagerSummaryScreen() {
               lineHeight: 22,
             }}
           >
-            {t('managerDashboardIntro')}
+            {isSupervisor ? t('supervisorDashboardIntro') : t('managerDashboardIntro')}
           </Text>
         </View>
 
-        <ManagerCard
-          title={t('timeAndPayroll')}
-          subtitle={t('timeAndPayrollSubtitle')}
-          icon="clock-outline"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          onPress={() => router.push('/manager/time-clock')}
-        />
+        {/* Time & Payroll shows pay $ (wages, labor) → owner/manager only, never supervisor. */}
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('timeAndPayroll')}
+            subtitle={t('timeAndPayrollSubtitle')}
+            icon="clock-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            onPress={() => router.push('/manager/time-clock')}
+          />
+        )}
 
+        {/* Crew status is read-only (who's clocked in + location, no $); RLS scopes a
+            supervisor to their assigned projects' crew. */}
         <ManagerCard
           title={t('crewStatus')}
           subtitle={t('crewStatusSubtitle')}
@@ -288,68 +295,82 @@ export default function ManagerSummaryScreen() {
           onPress={() => router.push('/manager/crew-status' as any)}
         />
 
-        <ManagerCard
-          title={t('projectsAndPlans')}
-          subtitle={t('projectsAndPlansSubtitle')}
-          icon="briefcase-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/plans')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('projectsAndPlans')}
+            subtitle={t('projectsAndPlansSubtitle')}
+            icon="briefcase-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            onPress={() => router.push('/manager/plans')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('tasks')}
-          subtitle={t('tasksSubtitle')}
-          icon="format-list-checks"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          onPress={() => router.push('/manager/tasks')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('tasks')}
+            subtitle={t('tasksSubtitle')}
+            icon="format-list-checks"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            onPress={() => router.push('/manager/tasks')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('finance')}
-          subtitle={t('financeSubtitle')}
-          icon="cash-multiple"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/finance')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('finance')}
+            subtitle={t('financeSubtitle')}
+            icon="cash-multiple"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            onPress={() => router.push('/manager/finance')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('reports')}
-          subtitle={t('reportsSubtitle')}
-          icon="clipboard-text-outline"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          onPress={() => router.push('/manager/reports')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('reports')}
+            subtitle={t('reportsSubtitle')}
+            icon="clipboard-text-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            onPress={() => router.push('/manager/reports')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('inspections')}
-          subtitle={t('inspectionsSubtitle')}
-          icon="clipboard-check-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/inspections')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('inspections')}
+            subtitle={t('inspectionsSubtitle')}
+            icon="clipboard-check-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            onPress={() => router.push('/manager/inspections')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('safety')}
-          subtitle={t('safetySubtitle')}
-          icon="shield-check-outline"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          onPress={() => router.push('/manager/safety')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('safety')}
+            subtitle={t('safetySubtitle')}
+            icon="shield-check-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            onPress={() => router.push('/manager/safety')}
+          />
+        )}
 
-        <ManagerCard
-          title={t('settings')}
-          subtitle={t('settingsSubtitle')}
-          icon="cog-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          onPress={() => router.push('/manager/settings')}
-        />
+        {!isSupervisor && (
+          <ManagerCard
+            title={t('settings')}
+            subtitle={t('settingsSubtitle')}
+            icon="cog-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            onPress={() => router.push('/manager/settings')}
+          />
+        )}
       </ScrollView>
     </SafeAreaView>
   )
