@@ -14,10 +14,10 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import DatePickerField from '../components/DatePickerField'
-import { useLanguage } from '../lib/i18n'
-import { supabase } from '../lib/supabase'
-import { COLORS } from '../lib/theme'
+import DatePickerField from '../../components/DatePickerField'
+import { useLanguage } from '../../lib/i18n'
+import { supabase } from '../../lib/supabase'
+import { COLORS } from '../../lib/theme'
 
 type TimeOff = { id: number; start_date: string; end_date: string; reason: string | null; status: string }
 
@@ -141,12 +141,24 @@ export default function Profile() {
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ marginRight: 10 }}>
-              <Ionicons name="chevron-back" size={26} color={COLORS.navy} />
-            </Pressable>
-            <Text style={{ fontSize: 24, fontWeight: '800', color: COLORS.text }}>{t('myProfile')}</Text>
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ fontSize: 26, fontWeight: '800', color: COLORS.text }}>{t('profileTab')}</Text>
           </View>
+
+          {/* My pay & timesheet — prominent */}
+          <Pressable
+            onPress={() => router.push('/timesheet' as never)}
+            style={{ backgroundColor: COLORS.navy, borderRadius: 20, padding: 18, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 14 }}
+          >
+            <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="cash-outline" size={28} color={COLORS.white} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.white, fontSize: 18, fontWeight: '800' }}>{t('myPayTimesheet')}</Text>
+              <Text style={{ color: '#D9F6FB', fontSize: 13, marginTop: 3, lineHeight: 18 }}>{t('myPayTimesheetSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color="#D9F6FB" />
+          </Pressable>
 
           {/* My information */}
           <View style={card}>
