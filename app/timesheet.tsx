@@ -39,7 +39,7 @@ type Entry = {
 }
 
 type Project = { id: number; name: string }
-type TravelSeg = { miles: number | null; kind: string | null; own_vehicle: boolean | null }
+type TravelSeg = { miles: number | null; kind: string | null; own_vehicle: boolean | null; out_of_state: boolean | null }
 
 type Mode = 'day' | 'period' | 'custom'
 
@@ -133,7 +133,7 @@ export default function TimesheetScreen() {
     const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
       supabase.from('profiles').select('wage').eq('id', user.id).maybeSingle(),
       supabase.from('company_settings').select('mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
-      supabase.from('travel_segments').select('miles, kind, own_vehicle')
+      supabase.from('travel_segments').select('miles, kind, own_vehicle, out_of_state')
         .eq('user_id', user.id)
         .gte('started_at', range.start.toISOString())
         .lte('started_at', range.end.toISOString()),
@@ -178,14 +178,16 @@ export default function TimesheetScreen() {
     const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
     // Gas is now driven entirely by the travel/mileage function (commute over the
     // threshold + site-to-site transfers), not a manual gas_amount field.
-    let commuteMiles = 0, transferMiles = 0
+    // In-state commute legs reimburse miles OVER the threshold; out-of-state legs and
+    // transfers reimburse in full. Own-vehicle only.
+    let payMiles = 0
     for (const ts of travel) {
       if (ts.own_vehicle === false) continue
       const m = Number(ts.miles) || 0
-      if (ts.kind === 'commute_to' || ts.kind === 'commute_from') commuteMiles += Math.max(0, m - mileageThreshold)
-      else transferMiles += m
+      const isCommute = ts.kind === 'commute_to' || ts.kind === 'commute_from'
+      payMiles += (isCommute && !ts.out_of_state) ? Math.max(0, m - mileageThreshold) : m
     }
-    const gas = (commuteMiles + transferMiles) * mileageRate
+    const gas = payMiles * mileageRate
     return { labor, gas, receipts, total: labor + gas + receipts }
   }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
 

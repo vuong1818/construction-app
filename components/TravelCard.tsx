@@ -28,17 +28,19 @@ function formatTime(iso: string): string {
 }
 
 /**
- * Travel = the clock-in/clock-out mechanism for worker/supervisor.
- *   Clocked out → "Start Travel to Work" (safety-gated: RED blocked / GREEN ok) with a
- *   Personal/Company vehicle toggle → "Tap When Arrived" → opens the clock-in screen.
- *   Clocked in → "Leave Work" or "Transfer Site". Transfer auto-clocks-out, picks the new
- *   project, then "Tap When Arrived" clocks in at the new site. Leave Work auto-clocks-out
- *   then "Tap When Arrived" at home. Miles over the threshold (commute) or in full
- *   (transfer) reimburse as gas; only own-vehicle miles pay. A leg with no arrival tap
- *   within the configured window auto-stops with a flag.
+ * Travel = the clock-in/clock-out mechanism (available to everyone; using it hides the
+ * normal clock button).
+ *   Clocked out → "Start Travel to Work" (safety-gated RED/GREEN) + Personal/Company vehicle
+ *   → "Tap When Arrived" → opens the clock-in screen (pick site, geofence check).
+ *   Clocked in → "Leave Work" | "Transfer Site". Transfer auto-clocks-out A and immediately
+ *   clocks into B (so the drive is PAID at B); "Tap When Arrived" then logs the transfer
+ *   miles. Leave Work auto-clocks-out then "Tap When Arrived" at home.
+ * Mileage: in-state commute legs reimburse miles OVER the threshold; out-of-state legs and
+ * transfers reimburse in FULL; own-vehicle only → gas. In-state legs with no arrival tap
+ * within the window auto-stop with a flag; out-of-state legs have no cutoff.
  */
 export default function TravelCard({
-  activeEntryId, projects, userName, language, safetyOk, onRequestClockIn, onChanged,
+  activeEntryId, projects, userName, language, safetyOk, onRequestClockIn, onOpenLegChange, onChanged,
 }: {
   activeEntryId: number | null
   projects: Project[]
@@ -46,12 +48,13 @@ export default function TravelCard({
   language: LanguageCode
   safetyOk: boolean
   onRequestClockIn: (destProjectId?: number) => void
+  onOpenLegChange?: (hasOpen: boolean) => void
   onChanged?: () => void
 }) {
   const [segments, setSegments] = useState<Segment[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [ownVehicle, setOwnVehicle] = useState(true)          // personal is the default
+  const [ownVehicle, setOwnVehicle] = useState(true)
   const [transferPicking, setTransferPicking] = useState(false)
   const [homeState, setHomeState] = useState<string | null>(null)
   const [hrsIn, setHrsIn] = useState(1)
@@ -87,6 +90,9 @@ export default function TravelCard({
   const closed = segments.filter((s) => s.ended_at)
   const totalMiles = segments.reduce((sum, s) => sum + (Number(s.miles) || 0), 0)
 
+  // Tell the parent whether a travel leg is in progress (so it can hide the clock button).
+  useEffect(() => { onOpenLegChange?.(!!open) }, [open, onOpenLegChange])
+
   async function milesBetween(sLat: number, sLng: number, eLat: number, eLng: number): Promise<{ miles: number; source: string }> {
     const driving = await drivingDistanceMeters(sLat, sLng, eLat, eLng)
     if (driving != null) return { miles: Math.round((driving / METERS_PER_MILE) * 10) / 10, source: 'routing' }
@@ -94,8 +100,6 @@ export default function TravelCard({
     return { miles: Math.round((meters / METERS_PER_MILE) * ROAD_FACTOR * 10) / 10, source: 'straight_line' }
   }
 
-  // Best-effort out-of-state at leg start: start GPS state vs the known destination state
-  // (dest project for a transfer, home for a leave-work leg; unknown for commute-to).
   async function computeOutOfState(startLat: number, startLng: number, destState: string | null): Promise<boolean> {
     if (!destState) return false
     try {
@@ -104,7 +108,33 @@ export default function TravelCard({
     } catch { return false }
   }
 
-  async function startLeg(kind: Kind, opts: { destProjectId?: number | null; destState?: string | null; clockOutEntryId?: number | null } = {}) {
+  async function projectState(projectId: number): Promise<string | null> {
+    try {
+      const { data } = await supabase.from('projects').select('state').eq('id', projectId).maybeSingle()
+      return normalizeState((data as any)?.state) || null
+    } catch { return null }
+  }
+
+  // Start "Travel to Work" (commute_to) — travel first, clock in on arrival.
+  async function startCommuteTo() {
+    if (busy || !safetyOk) return
+    setBusy(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const uid = session?.user?.id
+      if (!uid) throw new Error('Not signed in')
+      const loc = await readCurrentLocation()
+      const { error } = await supabase.from('travel_segments').insert({
+        user_id: uid, user_name: userName, kind: 'commute_to', own_vehicle: ownVehicle, out_of_state: false,
+        started_at: new Date().toISOString(), start_lat: loc.lat, start_lng: loc.lng,
+      })
+      if (error) throw error
+      await load()
+    } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) } finally { setBusy(false) }
+  }
+
+  // Leave Work — auto clock-out, then travel home; arrival taps closes with miles.
+  async function leaveWork() {
     if (busy) return
     setBusy(true)
     try {
@@ -112,20 +142,44 @@ export default function TravelCard({
       const uid = session?.user?.id
       if (!uid) throw new Error('Not signed in')
       const loc = await readCurrentLocation()
-      const outOfState = await computeOutOfState(loc.lat, loc.lng, opts.destState ?? null)
-      // Auto clock-out the current shift (transfer / leave-work) at the tap moment.
-      if (opts.clockOutEntryId) {
-        await supabase.from('time_entries').update({ clock_out_time: new Date().toISOString() }).eq('id', opts.clockOutEntryId)
-      }
+      const oos = await computeOutOfState(loc.lat, loc.lng, homeState)
+      if (activeEntryId) await supabase.from('time_entries').update({ clock_out_time: new Date().toISOString() }).eq('id', activeEntryId)
       const { error } = await supabase.from('travel_segments').insert({
-        user_id: uid, user_name: userName,
-        kind, own_vehicle: ownVehicle, out_of_state: outOfState,
-        project_id: opts.destProjectId ?? null,
+        user_id: uid, user_name: userName, kind: 'commute_from', own_vehicle: ownVehicle, out_of_state: oos,
         started_at: new Date().toISOString(), start_lat: loc.lat, start_lng: loc.lng,
       })
       if (error) throw error
-      await load()
-      if (opts.clockOutEntryId) onChanged?.()
+      await load(); onChanged?.()
+    } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) } finally { setBusy(false) }
+  }
+
+  // Transfer — auto clock-out A and immediately clock into B (paid drive), then the leg
+  // logs the transfer miles when the worker taps arrived at B.
+  async function pickTransfer(destId: number) {
+    if (busy) return
+    setBusy(true)
+    setTransferPicking(false)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const uid = session?.user?.id
+      if (!uid) throw new Error('Not signed in')
+      const loc = await readCurrentLocation()
+      const destState = await projectState(destId)
+      const oos = await computeOutOfState(loc.lat, loc.lng, destState)
+      const now = new Date().toISOString()
+      // 1. Clock out the current shift at the transfer tap.
+      if (activeEntryId) await supabase.from('time_entries').update({ clock_out_time: now }).eq('id', activeEntryId)
+      // 2. Clock into the new project NOW — the drive counts as worked time at the destination.
+      await supabase.from('time_entries').insert({
+        project_id: destId, user_id: uid, user_name: userName,
+        clock_in_time: now, clock_in_lat: loc.lat, clock_in_lng: loc.lng,
+      })
+      // 3. Open the transfer leg (miles logged when arrived is tapped).
+      await supabase.from('travel_segments').insert({
+        user_id: uid, user_name: userName, kind: 'transfer', own_vehicle: ownVehicle, out_of_state: oos,
+        project_id: destId, started_at: now, start_lat: loc.lat, start_lng: loc.lng,
+      })
+      await load(); onChanged?.()
     } catch (e: any) { Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) } finally { setBusy(false) }
   }
 
@@ -144,20 +198,20 @@ export default function TravelCard({
     } catch (e: any) { if (!flagged) Alert.alert(t(language, 'error'), e?.message || t(language, 'somethingWrong')) }
   }, [load, language])
 
-  // When the worker clocks in after arriving (commute_to / transfer), close the open leg
-  // so its miles are captured start → clock-in location.
+  // A commute_to leg closes when the worker clocks in on arrival. (Transfer legs are
+  // already clocked in — they close on the arrival tap, below.)
   useEffect(() => {
-    if (!activeEntryId || !open || closing.current) return
-    if (open.kind !== 'commute_to' && open.kind !== 'transfer') return
+    if (!activeEntryId || !open || closing.current || open.kind !== 'commute_to') return
     closing.current = true
     closeLeg(open).finally(() => { closing.current = false })
   }, [activeEntryId, open, closeLeg])
 
-  // Timeout: warn at the window, auto-stop 5 min later with a flag.
+  // Timeout — in-state legs only. Warn at the window, auto-stop 5 min later with a flag.
   const openHours = open && !open.ended_at ? (Date.now() - new Date(open.started_at).getTime()) / 3_600_000 : 0
   const windowHrs = open?.out_of_state ? hrsOut : hrsIn
-  const overdueWarn = !!open && openHours >= windowHrs && ackOpenId !== open?.id
-  const overdueStop = !!open && openHours >= windowHrs + 5 / 60 && ackOpenId !== open?.id
+  const cutoffApplies = !!open && !open.out_of_state
+  const overdueWarn = cutoffApplies && openHours >= windowHrs && ackOpenId !== open?.id
+  const overdueStop = cutoffApplies && openHours >= windowHrs + 5 / 60 && ackOpenId !== open?.id
 
   useEffect(() => {
     if (overdueStop && open && !autoFlagging.current) {
@@ -168,13 +222,9 @@ export default function TravelCard({
 
   async function arrive() {
     if (busy || !open) return
-    if (open.kind === 'commute_to' || open.kind === 'transfer') {
-      // Open the clock-in screen; the leg closes when the shift starts.
-      onRequestClockIn(open.project_id ?? undefined)
-      return
-    }
+    if (open.kind === 'commute_to') { onRequestClockIn(); return }   // open clock-in screen
     setBusy(true)
-    try { await closeLeg(open) } finally { setBusy(false) }
+    try { await closeLeg(open) } finally { setBusy(false) }           // transfer / home: just log miles
   }
 
   if (loading) return null
@@ -189,7 +239,6 @@ export default function TravelCard({
         <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.navy }}>{totalMiles.toFixed(1)} {t(language, 'milesToday')}</Text>
       </View>
 
-      {/* Vehicle toggle — shown before starting a leg. */}
       {!open && !transferPicking && (
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           {([['personal', true], ['company', false]] as const).map(([labelKey, val]) => {
@@ -207,7 +256,6 @@ export default function TravelCard({
         </View>
       )}
 
-      {/* Overdue "still traveling?" warning */}
       {overdueWarn && open && (
         <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: 12 }}>
           <Text style={{ color: '#92400E', fontWeight: '800', marginBottom: 8 }}>{t(language, 'travelTimeoutWarning')}</Text>
@@ -218,12 +266,11 @@ export default function TravelCard({
       )}
 
       {transferPicking ? (
-        // Transfer — pick the destination jobsite (clocks out here, travels, clocks in there).
         <View>
           <Text style={{ color: COLORS.text, fontWeight: '700', marginBottom: 8 }}>{t(language, 'chooseDestination')}</Text>
           <ScrollView style={{ maxHeight: 220 }}>
             {projects.map((p) => (
-              <Pressable key={p.id} onPress={() => { setTransferPicking(false); startLeg('transfer', { destProjectId: p.id, destState: null, clockOutEntryId: activeEntryId }) }} disabled={busy}
+              <Pressable key={p.id} onPress={() => pickTransfer(p.id)} disabled={busy}
                 style={{ backgroundColor: busy ? '#E5E7EB' : COLORS.navy, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name="flag" size={18} color={COLORS.white} />
                 <Text style={{ color: COLORS.white, fontSize: 15, fontWeight: '700', flex: 1 }} numberOfLines={1}>{p.name}</Text>
@@ -235,7 +282,6 @@ export default function TravelCard({
           </Pressable>
         </View>
       ) : open ? (
-        // Traveling — Tap When Arrived (opens clock-in for commute/transfer; closes for home).
         <View>
           <Text style={{ color: COLORS.subtext, marginBottom: 10, lineHeight: 20 }}>
             {open.kind === 'commute_from' ? `${t(language, 'travelingSince')} ${formatTime(open.started_at)}` : t(language, 'confirmArriveWork')}
@@ -247,9 +293,8 @@ export default function TravelCard({
           </Pressable>
         </View>
       ) : onClock ? (
-        // Clocked in — Leave Work or Transfer Site.
         <View style={{ gap: 8 }}>
-          <Pressable onPress={() => startLeg('commute_from', { destState: homeState, clockOutEntryId: activeEntryId })} disabled={busy}
+          <Pressable onPress={leaveWork} disabled={busy}
             style={{ backgroundColor: busy ? '#94A3B8' : COLORS.navy, borderRadius: 16, paddingVertical: 15, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
             <Ionicons name="home-outline" size={18} color={COLORS.white} />
             <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'leaveWork')}</Text>
@@ -261,9 +306,8 @@ export default function TravelCard({
           </Pressable>
         </View>
       ) : (
-        // Clocked out — Start Travel to Work (safety-gated RED/GREEN).
         <View>
-          <Pressable onPress={() => safetyOk && startLeg('commute_to')} disabled={busy || !safetyOk}
+          <Pressable onPress={startCommuteTo} disabled={busy || !safetyOk}
             style={{ backgroundColor: !safetyOk ? COLORS.red : busy ? '#94A3B8' : COLORS.green, borderRadius: 16, paddingVertical: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
             <Ionicons name={safetyOk ? 'navigate' : 'lock-closed'} size={20} color={COLORS.white} />
             <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '700' }}>{t(language, 'startTravelWork')}</Text>

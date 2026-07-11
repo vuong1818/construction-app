@@ -104,6 +104,9 @@ export default function HomeScreen() {
   const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
   const [pendingSync, setPendingSync] = useState(0)
   const [clockOutReviewVisible, setClockOutReviewVisible] = useState(false)
+  // True while a travel leg is in progress — hides the manual clock button so the
+  // worker finishes via the Travel flow (Tap When Arrived / Leave Work).
+  const [travelLegOpen, setTravelLegOpen] = useState(false)
   const offsiteReasons = useClockInReasons()
 
   useEffect(() => {
@@ -726,19 +729,23 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => setClockModalVisible(true)}
-            style={{
-              width: 74,
-              height: 74,
-              borderRadius: 22,
-              backgroundColor: safetyCompleted() ? COLORS.red : '#94A3B8',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="time-outline" size={30} color={COLORS.white} />
-          </Pressable>
+          {/* Manual clock button — available to everyone, hidden while a travel leg is
+              in progress (the worker finishes via the Travel flow). */}
+          {!travelLegOpen && (
+            <Pressable
+              onPress={() => setClockModalVisible(true)}
+              style={{
+                width: 74,
+                height: 74,
+                borderRadius: 22,
+                backgroundColor: safetyCompleted() ? COLORS.red : '#94A3B8',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="time-outline" size={30} color={COLORS.white} />
+            </Pressable>
+          )}
 
           <Pressable
             onPress={handleLogout}
@@ -824,19 +831,18 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Travel is the clock mechanism for field crew (worker/supervisor). Everyone can
-            still use the normal clock button above. */}
-        {['worker', 'supervisor'].includes(profile?.role ?? '') && (
-          <TravelCard
-            activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
-            projects={projects.map(p => ({ id: p.id, name: p.name }))}
-            userName={profile?.full_name ?? null}
-            language={language}
-            safetyOk={safetyCompleted()}
-            onRequestClockIn={(destProjectId) => { if (destProjectId) setSelectedProjectId(destProjectId); setClockModalVisible(true) }}
-            onChanged={loadDashboard}
-          />
-        )}
+        {/* Travel is available to everyone (e.g., office visiting a jobsite). Using it
+            hides the manual clock button; both are otherwise available. */}
+        <TravelCard
+          activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
+          projects={projects.map(p => ({ id: p.id, name: p.name }))}
+          userName={profile?.full_name ?? null}
+          language={language}
+          safetyOk={safetyCompleted()}
+          onRequestClockIn={(destProjectId) => { if (destProjectId) setSelectedProjectId(destProjectId); setClockModalVisible(true) }}
+          onOpenLegChange={setTravelLegOpen}
+          onChanged={loadDashboard}
+        />
 
         <Pressable
           onPress={() => router.push('/my-schedule' as any)}
