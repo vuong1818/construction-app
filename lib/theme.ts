@@ -1,6 +1,6 @@
 export const COLORS = {
-  // Page + surface
-  background: '#D6E8FF',
+  // Page + surface — soft neutral so the navy + orange brand reads cleanly.
+  background: '#EEF2F7',
   card: '#FFFFFF',
   border: '#E2E8F0',
   white: '#FFFFFF',
@@ -11,11 +11,13 @@ export const COLORS = {
   inputBg: 'rgba(255,255,255,0.95)',
   cardBg:  'rgba(255,255,255,0.18)',
 
-  // Brand
-  navy: '#16356B',
-  navySoft: '#EAF0F8',
-  teal: '#19B6D2',
-  tealSoft: '#E7F9FC',
+  // Brand — matched to the SiteOfficeIQ logo: navy + orange.
+  // `teal` is the app's primary accent slot; it now carries the logo orange so the
+  // whole app reads navy + orange (the logo has no teal).
+  navy: '#0D1B3E',
+  navySoft: '#E8ECF3',
+  teal: '#F07000',
+  tealSoft: '#FFF1E5',
 
   // Text — bumped subtext slightly darker so 13–15px reads in sun.
   text: '#0F172A',
@@ -30,9 +32,9 @@ export const COLORS = {
   greenSoft: '#ECFDF5',
   amber: '#E65100',
   amberSoft: '#FFF3E0',
-  // Aliases for orange — files that already say COLORS.orange map here.
-  orange: '#E65100',
-  orangeSoft: '#FFF3E0',
+  // Aliases for orange — files that already say COLORS.orange map here. Logo orange.
+  orange: '#F07000',
+  orangeSoft: '#FFF1E5',
 
   // Yellow / amount accents used on smart-tools and expense screens.
   yellow: '#F9A825',
