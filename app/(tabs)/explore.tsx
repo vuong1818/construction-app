@@ -241,7 +241,7 @@ export default function ManagerSummaryScreen() {
               source={
                 logoUrl
                   ? { uri: logoUrl }
-                  : require('../../assets/images/company-logo.png')
+                  : require('../../assets/images/siteofficeiq-logo.png')
               }
               style={{
                 width: 58,

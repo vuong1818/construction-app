@@ -250,7 +250,7 @@ export default function SignInScreen() {
                     source={
                       logoUrl
                         ? { uri: logoUrl }
-                        : require('../assets/images/company-logo.png')
+                        : require('../assets/images/siteofficeiq-logo.png')
                     }
                     style={{
                       width: 118,
