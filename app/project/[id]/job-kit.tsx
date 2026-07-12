@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
@@ -13,7 +13,7 @@ import { COLORS } from '../../../lib/theme'
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
 type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; sort_order: number | null }
-type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null }
+type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null }
 
 export default function JobKitScreen() {
@@ -56,7 +56,7 @@ export default function JobKitScreen() {
 
     const stepIds = stepList.map(s => s.id)
     if (stepIds.length) {
-      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty').in('step_id', stepIds).order('sort_order')
+      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes').in('step_id', stepIds).order('sort_order')
       const taskList = (tk as Task[]) || []
       setTasks(taskList)
       const taskIds = taskList.map(x => x.id)
@@ -78,6 +78,13 @@ export default function JobKitScreen() {
       ? await supabase.from('project_playbook_checks').delete().eq('project_playbook_id', kitId).eq('item_type', 'step_check').eq('item_id', taskId)
       : await supabase.from('project_playbook_checks').insert({ project_playbook_id: kitId, item_type: 'step_check', item_id: taskId, checked_by: uid })
     if (error) load()
+  }
+
+  async function saveTaskNote(task: Task, note: string) {
+    if (note === (task.notes || '')) return
+    const { error } = await supabase.rpc('set_task_note', { p_task_id: task.id, p_note: note })
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, notes: note } : x))
   }
 
   async function toggleTool(tool: Tool) {
@@ -164,9 +171,20 @@ export default function JobKitScreen() {
                     {st.length === 0 ? (
                       <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
                     ) : st.map(task => (
-                      <CheckRow key={task.id} checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
-                        title={task.description || task.label || 'Task'}
-                        sub={task.qty ? `${t('jkNeed')} ${Number(task.qty).toLocaleString('en-US')}` : undefined} />
+                      <View key={task.id}>
+                        <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
+                          title={task.description || task.label || 'Task'}
+                          sub={task.qty ? `${t('jkNeed')} ${Number(task.qty).toLocaleString('en-US')}` : undefined} />
+                        <TextInput
+                          key={`note-${task.id}-${task.notes || ''}`}
+                          defaultValue={task.notes || ''}
+                          placeholder={t('addNote')}
+                          placeholderTextColor={COLORS.border}
+                          multiline
+                          onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
+                          style={{ marginTop: -2, marginBottom: 8, marginLeft: 38, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
+                        />
+                      </View>
                     ))}
                   </Section>
                 )
