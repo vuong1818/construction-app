@@ -171,6 +171,7 @@ const es: Record<TranslationKey, string> = {
   managerSuffix: ' (gerencia)',
   clearNote: 'Borrar nota',
   addNoteForManager: 'Agrega una nota para la gerencia…',
+  addNote: 'Agrega una nota…',
   optionalNotes: 'Notas opcionales',
   taskTitleRequired: 'El título de la tarea es obligatorio.',
   invalidDateOrBlank: 'Usa el formato AAAA-MM-DD o déjalo en blanco.',

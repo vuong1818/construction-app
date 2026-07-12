@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Pressable, ScrollView, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
@@ -19,6 +19,7 @@ type Task = {
   stepTitle: string
   projectName: string
   done: boolean
+  notes: string
 }
 
 export default function MyTasksScreen() {
@@ -40,7 +41,7 @@ export default function MyTasksScreen() {
       setUid(me)
 
       const { data: raw } = await supabase.from('project_playbook_step_checks')
-        .select('id, step_id, label, description').eq('assigned_to', me)
+        .select('id, step_id, label, description, notes').eq('assigned_to', me)
       const rows = raw || []
       const stepIds = [...new Set(rows.map((r: any) => r.step_id))]
       if (stepIds.length === 0) { setTasks([]); setLoading(false); return }
@@ -69,6 +70,7 @@ export default function MyTasksScreen() {
           title: r.description || r.label || 'Task',
           kitTitle: kit.title || 'Kit', stepTitle: step.title || 'Step',
           projectName: projMap[kit.project_id] || '—', done: doneSet.has(r.id),
+          notes: r.notes || '',
         }
       })
       setTasks(built)
@@ -95,6 +97,13 @@ export default function MyTasksScreen() {
       await load()
     } catch (e: any) { Alert.alert(t('saveFailed'), e?.message || '') }
     finally { setSavingId(null) }
+  }
+
+  async function saveNote(task: Task, note: string) {
+    if (note === (task.notes || '')) return
+    const { error } = await supabase.rpc('set_task_note', { p_task_id: task.id, p_note: note })
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, notes: note } : x))
   }
 
   if (loading) {
@@ -158,6 +167,15 @@ export default function MyTasksScreen() {
             <View style={{ flex: 1 }}>
               <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15, textDecorationLine: task.done ? 'line-through' : 'none' }}>{task.title}</Text>
               <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>{task.projectName} · {task.kitTitle} · {task.stepTitle}</Text>
+              <TextInput
+                key={`note-${task.id}-${task.notes}`}
+                defaultValue={task.notes}
+                placeholder={t('addNote')}
+                placeholderTextColor={COLORS.muted}
+                multiline
+                onEndEditing={e => saveNote(task, e.nativeEvent.text.trim())}
+                style={{ marginTop: 8, backgroundColor: COLORS.background, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 38 }}
+              />
             </View>
           </View>
         ))}

@@ -179,6 +179,7 @@ const en = {
   managerSuffix: ' (manager)',
   clearNote: 'Clear note',
   addNoteForManager: 'Add a note for the manager…',
+  addNote: 'Add a note…',
   optionalNotes: 'Optional notes',
   taskTitleRequired: 'Task title is required.',
   invalidDateOrBlank: 'Use YYYY-MM-DD format, or leave blank.',
