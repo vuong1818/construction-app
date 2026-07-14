@@ -308,12 +308,12 @@ export default function ManagerSummaryScreen() {
 
         {!isSupervisor && (
           <ManagerCard
-            title={t('tasks')}
-            subtitle={t('tasksSubtitle')}
-            icon="format-list-checks"
+            title={t('jobKits')}
+            subtitle={t('jobKitsSubtitle')}
+            icon="toolbox-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            onPress={() => router.push('/manager/tasks')}
+            onPress={() => router.push('/manager/job-kits')}
           />
         )}
 

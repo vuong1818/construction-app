@@ -33,7 +33,24 @@ type Report = {
   project_name: string | null
 }
 
+type Rfi = {
+  id: number
+  project_id: number | null
+  subject: string | null
+  question: string | null
+  status: 'open' | 'answered' | 'closed' | string | null
+  rfi_no: string | null
+  created_at: string
+  project_name: string | null
+}
+
 type Project = { id: number; name: string }
+
+const RFI_STATUS: Record<string, { bg: string; fg: string }> = {
+  open:     { bg: '#FEF3C7', fg: '#92400E' },
+  answered: { bg: '#DCFCE7', fg: '#166534' },
+  closed:   { bg: '#E5E7EB', fg: '#374151' },
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtDate(iso: string | null): string {
@@ -91,23 +108,51 @@ function ReportModal({ report, visible, onClose }: { report: Report | null; visi
   )
 }
 
+// ─── Collapsible section header ───────────────────────────────────────────────
+function SectionHeader({ title, count, open, onToggle }: { title: string; count: number; open: boolean; onToggle: () => void }) {
+  return (
+    <Pressable onPress={onToggle} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginTop: 4 }}>
+      <Text style={{ color: COLORS.subtext, fontSize: 15, width: 16 }}>{open ? '▾' : '▸'}</Text>
+      <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 16, flex: 1 }}>{title}</Text>
+      <View style={{ backgroundColor: COLORS.navySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 }}>
+        <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 13 }}>{count}</Text>
+      </View>
+    </Pressable>
+  )
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ManagerReportsScreen() {
   const { t } = useLanguage()
   const [reports, setReports]         = useState<Report[]>([])
+  const [rfis, setRfis]               = useState<Rfi[]>([])
   const [projects, setProjects]       = useState<Project[]>([])
   const [loading, setLoading]         = useState(true)
   const [refreshing, setRefreshing]   = useState(false)
   const [filterProject, setFilterProject] = useState<number | null>(null)
   const [showFilter, setShowFilter]   = useState(false)
   const [selected, setSelected]       = useState<Report | null>(null)
+  const [rfisOpen, setRfisOpen]       = useState(true)
+  const [reportsOpen, setReportsOpen] = useState(true)
 
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
     setLoading(true)
-    await Promise.all([loadReports(), loadProjects()])
+    await Promise.all([loadReports(), loadRfis(), loadProjects()])
     setLoading(false)
+  }
+
+  async function loadRfis() {
+    const { data, error } = await supabase
+      .from('rfis')
+      .select('id, project_id, subject, question, status, rfi_no, created_at, projects ( name )')
+      .order('created_at', { ascending: false })
+    if (error) { console.error('loadRfis:', error); setRfis([]); return }
+    setRfis(((data as any[]) || []).map(r => ({
+      id: r.id, project_id: r.project_id, subject: r.subject, question: r.question,
+      status: r.status, rfi_no: r.rfi_no, created_at: r.created_at, project_name: r.projects?.name || null,
+    })))
   }
 
   async function onRefresh() {
@@ -185,6 +230,9 @@ export default function ManagerReportsScreen() {
   const filtered = filterProject !== null
     ? reports.filter(r => r.project_id === filterProject)
     : reports
+  const filteredRfis = filterProject !== null
+    ? rfis.filter(r => r.project_id === filterProject)
+    : rfis
 
   const activeProjectName = filterProject !== null
     ? projects.find(p => p.id === filterProject)?.name
@@ -240,8 +288,34 @@ export default function ManagerReportsScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {filtered.length === 0 ? (
-          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginTop: 20 }}>
+        {/* ── RFIs (collapsible) ── */}
+        <SectionHeader title={t('rfisTitle')} count={filteredRfis.length} open={rfisOpen} onToggle={() => setRfisOpen(v => !v)} />
+        {rfisOpen && (filteredRfis.length === 0 ? (
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 }}>
+            <Text style={{ color: COLORS.subtext }}>{t('noRfisYet')}</Text>
+          </View>
+        ) : filteredRfis.map(rfi => {
+          const s = RFI_STATUS[rfi.status || 'open'] || RFI_STATUS.open
+          return (
+            <View key={rfi.id} style={{ backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                <View style={{ backgroundColor: s.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+                  <Text style={{ color: s.fg, fontWeight: '800', fontSize: 11 }}>{(rfi.status || 'open').toUpperCase()}</Text>
+                </View>
+                {rfi.rfi_no ? <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700' }}>#{rfi.rfi_no}</Text> : null}
+                <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: 14, flexShrink: 1 }}>{rfi.subject || t('rfiFallback')}</Text>
+              </View>
+              <Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700' }}>{rfi.project_name || t('unknownProjectLabel')}</Text>
+              {rfi.question ? <Text style={{ color: COLORS.text, fontSize: 13, lineHeight: 18, marginTop: 4 }} numberOfLines={2}>{rfi.question}</Text> : null}
+              <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 4 }}>{fmtDate(rfi.created_at)}</Text>
+            </View>
+          )
+        }))}
+
+        {/* ── Daily Reports (collapsible) ── */}
+        <SectionHeader title={t('dailyReports')} count={filtered.length} open={reportsOpen} onToggle={() => setReportsOpen(v => !v)} />
+        {reportsOpen && (filtered.length === 0 ? (
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginTop: 4 }}>
             <Text style={{ fontSize: 40, marginBottom: 10 }}>📋</Text>
             <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, marginBottom: 6 }}>{t('noReportsTitle')}</Text>
             <Text style={{ color: COLORS.subtext, textAlign: 'center' }}>
@@ -312,7 +386,7 @@ export default function ManagerReportsScreen() {
               </View>
             </View>
           ))
-        )}
+        ))}
       </ScrollView>
 
       {/* ── Project Filter Modal ── */}

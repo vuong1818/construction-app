@@ -440,6 +440,8 @@ const en = {
   projectsAndPlans: 'Projects & Plans',
   projectsAndPlansSubtitle: 'Create projects, upload and delete PDF plans, manage project status.',
   tasksSubtitle: 'All open tasks across active projects, sorted by overdue first.',
+  jobKits: 'Job Kits',
+  jobKitsSubtitle: 'Open a project to build and manage its job kit.',
   financeSubtitle: 'Per-project contract, change orders, expenses, and net totals.',
   reports: 'Reports',
   reportsSubtitle: 'Browse reports by project and modify or delete daily reports.',
@@ -1840,6 +1842,8 @@ const en = {
   // Field Requests — RFIs + Material Requests
   fieldRequests: 'Field Requests',
   rfisTitle: 'RFIs',
+  noRfisYet: 'No RFIs yet.',
+  rfiFallback: 'RFI',
   rfisSubtitle: 'Ask the office to clarify something',
   rfiNew: 'New RFI',
   rfiSubject: 'Subject',

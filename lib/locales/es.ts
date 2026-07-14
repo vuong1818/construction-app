@@ -432,6 +432,8 @@ const es: Record<TranslationKey, string> = {
   projectsAndPlans: 'Proyectos y planos',
   projectsAndPlansSubtitle: 'Crea proyectos, sube y elimina planos en PDF, administra el estado del proyecto.',
   tasksSubtitle: 'Todas las tareas abiertas en proyectos activos, ordenadas por atrasadas primero.',
+  jobKits: 'Kits de trabajo',
+  jobKitsSubtitle: 'Abre un proyecto para crear y gestionar su kit de trabajo.',
   financeSubtitle: 'Contrato, órdenes de cambio, gastos y totales netos por proyecto.',
   reports: 'Reportes',
   reportsSubtitle: 'Explora reportes por proyecto y modifica o elimina reportes diarios.',
@@ -1831,6 +1833,8 @@ const es: Record<TranslationKey, string> = {
   // Field Requests — RFIs + Material Requests
   fieldRequests: 'Solicitudes de campo',
   rfisTitle: 'RFIs',
+  noRfisYet: 'Aún no hay RFIs.',
+  rfiFallback: 'RFI',
   rfisSubtitle: 'Pide a la oficina que aclare algo',
   rfiNew: 'Nueva RFI',
   rfiSubject: 'Asunto',
