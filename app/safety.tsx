@@ -200,6 +200,34 @@ export default function SafetyScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.requirementCard}>
+          <View style={styles.requirementRow}>
+            <View style={styles.requirementTextWrap}>
+              <Text style={styles.requirementTitle}>{t('safetyManual')}</Text>
+              <Text style={styles.requirementSubtitle}>{t('safetyManualSubtitle')}</Text>
+            </View>
+            <View
+              style={[
+                styles.pill,
+                manualSigned ? styles.pillComplete : styles.pillIncomplete,
+              ]}
+            >
+              <Text style={styles.pillText}>
+                {manualSigned ? t('completed') : t('required')}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.primaryButton, manualSigned && styles.secondaryButton]}
+            onPress={() => router.push('/safety-manual')}
+          >
+            <Text style={[styles.primaryButtonText, manualSigned && styles.secondaryButtonText]}>
+              {manualSigned ? t('openSafetyManual') : t('readSignManual')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -376,6 +404,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '800',
+  },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#1f6feb',
+  },
+  secondaryButtonText: {
+    color: '#1f6feb',
   },
   resourceTabsRow: {
     flexDirection: 'row',

@@ -361,6 +361,7 @@ const en = {
   requiredSafetyActions: 'Required Safety Actions',
   safetyManual: 'Safety Manual',
   safetyManualSubtitle: 'Review and sign the company safety manual.',
+  readSignManual: 'Read & Sign Manual',
   weeklySafetyMeeting: 'Weekly Safety Meeting',
   weeklySafetyMeetingSubtitle: 'Review the current weekly topic and sign attendance.',
   completed: 'Completed',
