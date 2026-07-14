@@ -9,7 +9,12 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 
 **Backend note.** DB schema/RLS lives in the web repo (`nguyenmep-website/supabase/migrations`), not here. If a mobile change needs a schema change, make the migration in the web repo (its own autopilot rules apply) and apply it before shipping the mobile code that depends on it.
 
+**Testing before TestFlight (preferred flow).** The user wants to test each change before it reaches TestFlight. Do NOT `--auto-submit`. Instead:
+1. For iteration, favor the dev-client loop: `npx expo start --dev-client` (the user has a development build installed) or `eas update --branch <channel>` for JS-only OTA changes — no rebuild, instant on-device.
+2. When a real build is needed, build WITHOUT auto-submit (e.g. `eas build -p ios --profile production` or `--profile preview` for an internal-distribution test build).
+3. Submit to TestFlight (`eas submit -p ios --latest`) ONLY after the user has tested and says to ship.
+
 **Still pause and confirm for:**
 - `git push --force` / `--force-with-lease`
-- EAS builds / TestFlight submissions (`eas build`, `eas submit`) — these are outside the repo and cost build minutes; confirm first unless the user asked for a build in the same request.
+- EAS builds / TestFlight submissions (`eas build`, `eas submit`) — outside the repo, cost build minutes; confirm first unless the user asked for a build in the same request. Never auto-submit to TestFlight without explicit approval.
 - Anything outside the repo (App Store Connect, key/credential changes, dashboard changes)
