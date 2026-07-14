@@ -638,6 +638,10 @@ const en = {
   geofenceRadius: 'Geofence radius (miles)',
   saveChanges: 'Save Changes',
   locationSet: 'Location set',
+  useMyLocation: 'Use My Location',
+  locating: 'Getting location…',
+  locationError: 'Could not get location',
+  cityExample: 'e.g. Dallas',
   geocodingFailed: 'Geocoding failed',
   couldNotFindAddress: 'Could not find that address.',
   missingName: 'Missing name',
@@ -705,6 +709,7 @@ const en = {
   statusActive: 'Active',
   statusBidding: 'Bidding',
   statusOnHold: 'On Hold',
+  statusNotAwarded: 'Not Awarded',
   statusCompletedLabel: 'Completed',
 
   // ── Manager workers ───────────────────────────────────────────────────

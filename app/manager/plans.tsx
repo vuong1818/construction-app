@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
+import * as Location from 'expo-location'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { COLORS } from '../../lib/theme'
@@ -60,8 +61,9 @@ const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; labelKey: Tra
   mep:           { bg: '#EDE7F6', color: '#4527A0', labelKey: null,              fallback: 'MEP' },
 }
 
-const STATUS_KEYS = ['statusActive', 'statusBidding', 'statusOnHold', 'statusCompletedLabel'] as const
-const STATUS_VALUES = ['Active', 'Bidding', 'On Hold', 'Completed']
+const STATUS_KEYS = ['statusActive', 'statusBidding', 'statusCompletedLabel', 'statusNotAwarded'] as const
+// DB values — MUST match the projects_status_check constraint (bidding/active/completed/not_awarded).
+const STATUS_VALUES = ['active', 'bidding', 'completed', 'not_awarded']
 
 function statusColor(status: string | null) {
   switch ((status || '').toLowerCase()) {
@@ -92,6 +94,11 @@ export default function ManagerPlansScreen() {
   const [saving, setSaving]           = useState(false)
   const [name, setName]               = useState('')
   const [address, setAddress]         = useState('')
+  const [city, setCity]               = useState('')
+  const [stateField, setStateField]   = useState('')
+  const [zip, setZip]                 = useState('')
+  const [coords, setCoords]           = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating]       = useState(false)
   const [statusIdx, setStatusIdx]     = useState(0)
   const [description, setDescription] = useState('')
 
@@ -256,9 +263,37 @@ export default function ManagerPlansScreen() {
   }
 
   // ── Create Project ─────────────────────────────────────────────────────────
+  // Capture the device's GPS position for the jobsite, and reverse-geocode it to
+  // pre-fill the street / city / state / zip (all editable afterward).
+  async function useMyLocation() {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') { Alert.alert(t('permissionNeeded'), t('allowLocation')); return }
+      setLocating(true)
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+      setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      try {
+        const geo = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+        const g = geo?.[0]
+        if (g) {
+          const street = [g.streetNumber, g.street].filter(Boolean).join(' ')
+          if (street) setAddress(street)
+          if (g.city) setCity(g.city)
+          if (g.region) setStateField(g.region)
+          if (g.postalCode) setZip(g.postalCode)
+        }
+      } catch { /* reverse-geocode is best-effort; coords are already set */ }
+    } catch (e: any) {
+      Alert.alert(t('locationError'), e?.message || '')
+    } finally {
+      setLocating(false)
+    }
+  }
+
   function openCreate() {
     setName('')
     setAddress('')
+    setCity(''); setStateField(''); setZip(''); setCoords(null)
     setStatusIdx(0)
     setDescription('')
     setShowCreate(true)
@@ -278,6 +313,11 @@ export default function ManagerPlansScreen() {
         .insert({
           name: name.trim(),
           address: address.trim() || null,
+          city: city.trim() || null,
+          state: stateField.trim() || null,
+          zip: zip.trim() || null,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
           status: STATUS_VALUES[statusIdx],
           description: description.trim() || null,
         })
@@ -511,6 +551,42 @@ export default function ManagerPlansScreen() {
                 placeholderTextColor={COLORS.subtext}
                 style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.text, marginBottom: 16 }}
               />
+
+              {/* Use My Location */}
+              <Pressable
+                onPress={useMyLocation}
+                disabled={locating}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.navySoft, borderWidth: 1, borderColor: COLORS.navy, borderRadius: 12, paddingVertical: 12, marginBottom: coords ? 6 : 16 }}
+              >
+                {locating ? <ActivityIndicator size="small" color={COLORS.navy} /> : null}
+                <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 14 }}>
+                  {locating ? t('locating') : `📍 ${t('useMyLocation')}`}
+                </Text>
+              </Pressable>
+              {coords ? (
+                <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 16 }}>
+                  {t('locationSet')}: {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
+                </Text>
+              ) : null}
+
+              {/* City / State / Zip */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                <View style={{ flex: 2 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{t('cityLabel')}</Text>
+                  <TextInput value={city} onChangeText={setCity} placeholder={t('cityExample')} placeholderTextColor={COLORS.subtext}
+                    style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: COLORS.text }} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{t('stateLabel')}</Text>
+                  <TextInput value={stateField} onChangeText={setStateField} placeholder="TX" placeholderTextColor={COLORS.subtext} autoCapitalize="characters" maxLength={20}
+                    style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: COLORS.text }} />
+                </View>
+                <View style={{ flex: 1.2 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{t('zipLabel')}</Text>
+                  <TextInput value={zip} onChangeText={setZip} placeholder="75001" placeholderTextColor={COLORS.subtext} keyboardType="number-pad" maxLength={10}
+                    style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, color: COLORS.text }} />
+                </View>
+              </View>
 
               {/* Status */}
               <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>

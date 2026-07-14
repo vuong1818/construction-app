@@ -630,6 +630,10 @@ const es: Record<TranslationKey, string> = {
   geofenceRadius: 'Radio de geocerca (millas)',
   saveChanges: 'Guardar cambios',
   locationSet: 'Ubicación establecida',
+  useMyLocation: 'Usar mi ubicación',
+  locating: 'Obteniendo ubicación…',
+  locationError: 'No se pudo obtener la ubicación',
+  cityExample: 'ej. Dallas',
   geocodingFailed: 'Falló la geocodificación',
   couldNotFindAddress: 'No se pudo encontrar esa dirección.',
   missingName: 'Falta nombre',
@@ -697,6 +701,7 @@ const es: Record<TranslationKey, string> = {
   statusActive: 'Activo',
   statusBidding: 'En licitación',
   statusOnHold: 'En espera',
+  statusNotAwarded: 'No adjudicado',
   statusCompletedLabel: 'Completado',
 
   // ── Manager workers ───────────────────────────────────────────────────
