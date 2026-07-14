@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 
-type Item = { id: number; name: string; unit: string | null; qty_on_hand: number | null }
+type Item = { id: number; name: string; unit: string | null; qty_on_hand: number | null; photo_url: string | null }
 type Loc = { id: number; name: string; kind: string }
 type Proj = { id: number; name: string }
 
@@ -49,7 +49,7 @@ export default function InventoryScan() {
     if (!scanRef.current) return
     scanRef.current = false
     const { data: found } = await supabase
-      .from('inventory_items').select('id, name, unit, qty_on_hand').eq('barcode', data).limit(1).maybeSingle()
+      .from('inventory_items').select('id, name, unit, qty_on_hand, photo_url').eq('barcode', data).limit(1).maybeSingle()
     if (found) { setDir('out'); setQty('1'); setResult({ item: found as Item }) }
     else setResult({ notFound: data })
   }
@@ -124,8 +124,15 @@ export default function InventoryScan() {
               </View>
             ) : item ? (
               <ScrollView contentContainerStyle={{ padding: 22 }}>
-                <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 22 }}>{item.name}</Text>
-                <Text style={{ color: COLORS.subtext, marginTop: 2, marginBottom: 18 }}>{Number(item.qty_on_hand || 0).toLocaleString('en-US')} {item.unit || ''} {t('scanOnHand')}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+                  {item.photo_url
+                    ? <Image source={{ uri: item.photo_url }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: COLORS.background }} />
+                    : <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="cube-outline" size={30} color={COLORS.border} /></View>}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 22 }}>{item.name}</Text>
+                    <Text style={{ color: COLORS.subtext, marginTop: 2 }}>{Number(item.qty_on_hand || 0).toLocaleString('en-US')} {item.unit || ''} {t('scanOnHand')}</Text>
+                  </View>
+                </View>
 
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
                   {(['out', 'in'] as const).map(d => (

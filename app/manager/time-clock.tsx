@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
+import { isManagerRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
@@ -568,7 +569,7 @@ export default function ManagerTimeClockScreen() {
     )
   }
 
-  if (userRole !== 'manager') {
+  if (!isManagerRole(userRole)) {
     return (
       <SafeAreaView
         style={{

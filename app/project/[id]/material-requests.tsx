@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
+import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 
@@ -41,7 +42,16 @@ export default function MaterialRequestsScreen() {
   const [rows, setRows] = useState<Req[]>([])
   const [names, setNames] = useState<Record<string, string>>({})
   const [uid, setUid] = useState<string | null>(null)
-  const [isManager, setIsManager] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
+  const [isManager, setIsManager] = useState(false)   // can manage status/edit any (manager/owner/warehouse)
+
+  // Edit an existing (submitted) request.
+  const [editing, setEditing] = useState<Req | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editQty, setEditQty] = useState('1')
+  const [editUnit, setEditUnit] = useState('EA')
+  const [editNote, setEditNote] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   // Draft request being built.
   const [building, setBuilding] = useState(false)
@@ -68,8 +78,9 @@ export default function MaterialRequestsScreen() {
     setUid(myId)
     if (myId) {
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
-      const role = (prof as any)?.role
-      setIsManager(role === 'manager' || role === 'owner' || role === 'warehouse')
+      const r = (prof as any)?.role
+      setRole(r)
+      setIsManager(r === 'manager' || r === 'owner' || r === 'warehouse')
     }
     const { data } = await supabase.from('material_requests').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
     const list = (data as Req[]) || []
@@ -169,6 +180,43 @@ export default function MaterialRequestsScreen() {
     load()
   }
 
+  // Manager/owner/warehouse can edit any request; the requester can edit their own while still 'requested'.
+  const canEdit = (req: Req) => isManager || (req.requested_by === uid && req.status === 'requested')
+  // Delete is manager/owner only (matches the material_requests delete RLS).
+  const canDelete = isManagerRole(role)
+
+  function openEdit(req: Req) {
+    setEditing(req)
+    setEditName(req.item_name || '')
+    setEditQty(String(req.qty ?? '1'))
+    setEditUnit(req.unit || 'EA')
+    setEditNote(req.note || '')
+  }
+  async function saveEdit() {
+    if (!editing) return
+    const name = editName.trim()
+    const n = Number(editQty)
+    if (!name) { flash(t('matReqNeedItem')); return }
+    if (!n || n <= 0) { flash(t('matReqQtyRequired')); return }
+    setSavingEdit(true)
+    const { error } = await supabase.from('material_requests')
+      .update({ item_name: name, qty: n, unit: editUnit.trim() || 'EA', note: editNote.trim() || null, updated_at: new Date().toISOString() })
+      .eq('id', editing.id)
+    setSavingEdit(false)
+    if (error) { flash(error.message); return }
+    setEditing(null); flash(t('matReqSaved')); load()
+  }
+  function deleteReq(req: Req) {
+    Alert.alert(t('matReqDeleteTitle'), t('matReqDeleteMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('material_requests').delete().eq('id', req.id)
+        if (error) { flash(error.message); return }
+        flash(t('matReqDeleted')); load()
+      } },
+    ])
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
@@ -255,6 +303,13 @@ export default function MaterialRequestsScreen() {
                   {req.status === 'requested' && <SmallBtn label={t('matReqMarkOrdered')} onPress={() => setStatus(req, 'ordered')} />}
                   <SmallBtn label={t('matReqFulfill')} color="#166534" onPress={() => setStatus(req, 'fulfilled')} />
                   <SmallBtn label={t('matReqCancel')} color="#B91C1C" onPress={() => setStatus(req, 'cancelled')} />
+                </View>
+              )}
+
+              {(canEdit(req) || canDelete) && (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  {canEdit(req) && <SmallBtn label={t('edit')} onPress={() => openEdit(req)} />}
+                  {canDelete && <SmallBtn label={t('delete')} color="#B91C1C" onPress={() => deleteReq(req)} />}
                 </View>
               )}
             </View>
@@ -361,6 +416,41 @@ export default function MaterialRequestsScreen() {
 
               <Pressable onPress={addToDraft} style={{ marginTop: 18, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}>
                 <Text style={{ color: 'white', fontWeight: '800' }}>{t('matReqAddToList')}</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit request modal */}
+      <Modal visible={!!editing} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '90%' }}>
+            <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.navy }}>{t('matReqEditTitle')}</Text>
+                <Pressable onPress={() => setEditing(null)}><Ionicons name="close" size={26} color={COLORS.subtext} /></Pressable>
+              </View>
+
+              <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginBottom: 5 }}>{t('matReqMaterial')}</Text>
+              <TextInput style={inputStyle} value={editName} onChangeText={setEditName} placeholder={t('matReqMaterialPlaceholder')} placeholderTextColor={COLORS.subtext} />
+
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginBottom: 5 }}>{t('matReqQty')}</Text>
+                  <TextInput style={inputStyle} value={editQty} onChangeText={setEditQty} keyboardType="numeric" placeholderTextColor={COLORS.subtext} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginBottom: 5 }}>{t('matReqUnit')}</Text>
+                  <TextInput style={inputStyle} value={editUnit} onChangeText={setEditUnit} placeholderTextColor={COLORS.subtext} />
+                </View>
+              </View>
+
+              <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginTop: 12, marginBottom: 5 }}>{t('matReqNote')}</Text>
+              <TextInput style={[inputStyle, { minHeight: 60, textAlignVertical: 'top' }]} value={editNote} onChangeText={setEditNote} placeholder={t('matReqNotePlaceholder')} placeholderTextColor={COLORS.subtext} multiline />
+
+              <Pressable onPress={saveEdit} disabled={savingEdit} style={{ marginTop: 18, backgroundColor: COLORS.teal, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: savingEdit ? 0.5 : 1 }}>
+                <Text style={{ color: 'white', fontWeight: '800' }}>{savingEdit ? '…' : t('matReqSaveChanges')}</Text>
               </Pressable>
             </ScrollView>
           </View>

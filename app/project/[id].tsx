@@ -182,8 +182,6 @@ export default function ProjectDetailScreen() {
     setReportsModalVisible,
     setPhotosModalVisible,
     setDocumentsModalVisible,
-    pickPhotoFromLibrary,
-    takePhotoWithCamera,
     uploadDocument,
     handleOpenPlan,
     handleDeletePlan,
@@ -370,10 +368,10 @@ export default function ProjectDetailScreen() {
         </View>
 
         <SectionTitle
-          icon="help-circle-outline"
+          icon="clipboard-text-outline"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title={t('fieldRequests')}
+          title={t('reports')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -385,28 +383,35 @@ export default function ProjectDetailScreen() {
             onPress={() => router.push(`/project/${id}/rfis`)}
           />
           <BigActionCard
-            icon="package-variant"
+            icon="clipboard-plus-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            title={t('matReqTitle')}
-            onPress={() => router.push(`/project/${id}/material-requests`)}
+            title={t('createReport')}
+            onPress={() => router.push(`/project/${id}/new-report`)}
+          />
+          <BigActionCard
+            icon="clipboard-search-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={t('viewReports')}
+            onPress={openReportsViewer}
           />
         </View>
 
         <SectionTitle
-          icon="file-pdf-box"
+          icon="package-variant"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title={t('plans')}
+          title={t('matReqTitle')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
-            icon="file-eye-outline"
+            icon="package-variant"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={t('viewPlans')}
-            onPress={openPlansViewer}
+            title={t('matReqTitle')}
+            onPress={() => router.push(`/project/${id}/material-requests`)}
           />
         </View>
 
@@ -419,31 +424,18 @@ export default function ProjectDetailScreen() {
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
-            icon="file-document-outline"
+            icon="file-pdf-box"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={t('viewDocuments')}
-            onPress={openDocumentsViewer}
+            title={t('viewPlans')}
+            onPress={openPlansViewer}
           />
           <BigActionCard
-            icon="file-upload-outline"
+            icon="file-document-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
-            title={uploading ? t('workingEllipsis') : t('uploadDocument')}
-            onPress={() => {
-              const buttons: any[] = [
-                { text: t('docTypeSubmittal'),    onPress: () => uploadDocument('submittal') },
-                { text: t('docTypeChangeOrder'),  onPress: () => uploadDocument('change_order') },
-                { text: t('docTypeRequirements'), onPress: () => uploadDocument('requirements') },
-              ]
-              if (isManager) {
-                buttons.push({ text: t('docTypeAdmin'), onPress: () => uploadDocument('admin') })
-              }
-              buttons.push({ text: t('docTypeOther'), onPress: () => uploadDocument('other') })
-              buttons.push({ text: t('cancel'), style: 'cancel' })
-              Alert.alert(t('documentType'), t('documentTypePrompt'), buttons)
-            }}
-            disabled={uploading}
+            title={t('viewDocuments')}
+            onPress={openDocumentsViewer}
           />
         </View>
 
@@ -455,22 +447,6 @@ export default function ProjectDetailScreen() {
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="image-plus"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={uploading ? t('workingEllipsis') : t('uploadPhoto')}
-            onPress={pickPhotoFromLibrary}
-            disabled={uploading}
-          />
-          <BigActionCard
-            icon="camera-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={uploading ? t('workingEllipsis') : t('takePhoto')}
-            onPress={takePhotoWithCamera}
-            disabled={uploading}
-          />
           <BigActionCard
             icon="image-search-outline"
             iconBg={COLORS.tealSoft}
@@ -494,30 +470,6 @@ export default function ProjectDetailScreen() {
             iconColor={COLORS.teal}
             title={isManager ? `${t('view')} / ${t('add')} ${t('expenses')}` : t('myExpenses')}
             onPress={() => router.push(`/project/${id}/expenses`)}
-          />
-        </View>
-
-        <SectionTitle
-          icon="clipboard-text-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          title={t('dailyReport')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="clipboard-plus-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('createReport')}
-            onPress={() => router.push(`/project/${id}/new-report`)}
-          />
-          <BigActionCard
-            icon="clipboard-search-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={t('viewReports')}
-            onPress={openReportsViewer}
           />
         </View>
 
@@ -671,6 +623,27 @@ export default function ProjectDetailScreen() {
             <Text style={{ fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 16 }}>
               {t('documents')}
             </Text>
+
+            <Pressable
+              onPress={() => {
+                const buttons: any[] = [
+                  { text: t('docTypeSubmittal'),    onPress: () => uploadDocument('submittal') },
+                  { text: t('docTypeChangeOrder'),  onPress: () => uploadDocument('change_order') },
+                  { text: t('docTypeRequirements'), onPress: () => uploadDocument('requirements') },
+                ]
+                if (isManager) {
+                  buttons.push({ text: t('docTypeAdmin'), onPress: () => uploadDocument('admin') })
+                }
+                buttons.push({ text: t('docTypeOther'), onPress: () => uploadDocument('other') })
+                buttons.push({ text: t('cancel'), style: 'cancel' })
+                Alert.alert(t('documentType'), t('documentTypePrompt'), buttons)
+              }}
+              disabled={uploading}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.tealSoft, borderRadius: 12, paddingVertical: 12, marginBottom: 14, opacity: uploading ? 0.5 : 1 }}
+            >
+              <MaterialCommunityIcons name="file-upload-outline" size={20} color={COLORS.teal} />
+              <Text style={{ color: COLORS.teal, fontWeight: '800' }}>{uploading ? t('workingEllipsis') : t('uploadDocument')}</Text>
+            </Pressable>
 
             <ScrollView>
               {documents.map((doc) => (

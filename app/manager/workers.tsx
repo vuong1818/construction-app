@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../lib/i18n'
+import { isManagerRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
@@ -518,7 +519,7 @@ export default function WorkersManagerScreen() {
     )
   }
 
-  if (userRole !== 'manager') {
+  if (!isManagerRole(userRole)) {
     return (
       <SafeAreaView
         style={{

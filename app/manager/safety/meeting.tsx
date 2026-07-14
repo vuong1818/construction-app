@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { WebView } from 'react-native-webview'
 import { useLanguage } from '../../../lib/i18n'
+import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 
@@ -250,7 +251,7 @@ export default function ManagerSafetyMeetingScreen() {
     )
   }
 
-  if (userRole !== 'manager') {
+  if (!isManagerRole(userRole)) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>

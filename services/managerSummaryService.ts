@@ -1,3 +1,4 @@
+import { isManagerRole } from '../lib/roles'
 import { supabase } from '../lib/supabase'
 import { calculateHours, getWorkWeekRange } from '../lib/time'
 
@@ -60,7 +61,7 @@ export async function loadManagerSummaryData(): Promise<ManagerSummaryData> {
   const userRole = profileData?.role || 'worker'
   const { weekStart, weekEnd } = getWorkWeekRange()
 
-  if (userRole !== 'manager') {
+  if (!isManagerRole(userRole)) {
     return {
       userRole,
       projects: [],

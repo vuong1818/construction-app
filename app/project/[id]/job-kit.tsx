@@ -1,11 +1,15 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
+import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+
+const JOBKIT_BUCKET = 'jobkit-photos'
 
 // A Job Kit is a per-project scope: Steps → Tasks (with materials + labor) + Tools.
 // The crew checks off TASKS as they complete them; the materials list is the aggregated
@@ -15,6 +19,7 @@ type Tool = { id: number; project_playbook_id: number; name: string; qty: number
 type Step = { id: number; project_playbook_id: number; title: string | null; sort_order: number | null }
 type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null }
+type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 
 export default function JobKitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -27,12 +32,21 @@ export default function JobKitScreen() {
   const [steps, setSteps] = useState<Step[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [taskMats, setTaskMats] = useState<TaskMat[]>([])
+  const [taskPhotos, setTaskPhotos] = useState<Map<number, TaskPhoto[]>>(new Map())
   const [checks, setChecks] = useState<Set<string>>(new Set())
   const [uid, setUid] = useState<string | null>(null)
+  const [busyPhotoTask, setBusyPhotoTask] = useState<number | null>(null)
+  const [isManager, setIsManager] = useState(false)
+  const [editMode, setEditMode] = useState(false)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
-    setUid(session?.user?.id || null)
+    const myId = session?.user?.id || null
+    setUid(myId)
+    if (myId) {
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
+      setIsManager(isManagerRole((prof as any)?.role))
+    }
 
     const { data: k } = await supabase
       .from('project_playbooks').select('id, title, scope_of_work, module_type')
@@ -61,10 +75,16 @@ export default function JobKitScreen() {
       setTasks(taskList)
       const taskIds = taskList.map(x => x.id)
       if (taskIds.length) {
-        const { data: tm } = await supabase.from('task_materials').select('task_id, description, unit, qty').in('task_id', taskIds)
+        const [{ data: tm }, { data: ph }] = await Promise.all([
+          supabase.from('task_materials').select('task_id, description, unit, qty').in('task_id', taskIds),
+          supabase.from('project_playbook_task_photos').select('id, step_check_id, photo_url, storage_path, uploaded_by').in('step_check_id', taskIds).order('created_at'),
+        ])
         setTaskMats((tm as TaskMat[]) || [])
-      } else setTaskMats([])
-    } else { setTasks([]); setTaskMats([]) }
+        const pm = new Map<number, TaskPhoto[]>()
+        ;((ph as TaskPhoto[]) || []).forEach(p => pm.set(p.step_check_id, [...(pm.get(p.step_check_id) || []), p]))
+        setTaskPhotos(pm)
+      } else { setTaskMats([]); setTaskPhotos(new Map()) }
+    } else { setTasks([]); setTaskMats([]); setTaskPhotos(new Map()) }
     setLoading(false)
   }, [projectId])
 
@@ -78,6 +98,59 @@ export default function JobKitScreen() {
       ? await supabase.from('project_playbook_checks').delete().eq('project_playbook_id', kitId).eq('item_type', 'step_check').eq('item_id', taskId)
       : await supabase.from('project_playbook_checks').insert({ project_playbook_id: kitId, item_type: 'step_check', item_id: taskId, checked_by: uid })
     if (error) load()
+  }
+
+  // ── Task photos: pick from camera/library → jobkit-photos bucket → row (mirrors to project photo pot) ──
+  async function runPicker(source: 'camera' | 'library'): Promise<{ url: string; path: string } | null> {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (!perm.granted) { Alert.alert(t('permissionNeeded'), source === 'camera' ? t('allowCamera') : t('allowPhotos')); return null }
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images })
+    if (result.canceled || !result.assets?.length) return null
+    const asset = result.assets[0]
+    const resp = await fetch(asset.uri)
+    const buf = await resp.arrayBuffer()
+    const ext = (asset.uri.split('.').pop() || 'jpg').toLowerCase()
+    const path = `${projectId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from(JOBKIT_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+    if (error) throw error
+    return { url: supabase.storage.from(JOBKIT_BUCKET).getPublicUrl(path).data.publicUrl, path }
+  }
+  async function addTaskPhoto(taskId: number) {
+    Alert.alert(t('jkAddPhoto'), undefined, [
+      { text: t('takePhoto'), onPress: () => doAddTaskPhoto(taskId, 'camera') },
+      { text: t('chooseFromLibrary'), onPress: () => doAddTaskPhoto(taskId, 'library') },
+      { text: t('cancel'), style: 'cancel' },
+    ])
+  }
+  async function doAddTaskPhoto(taskId: number, source: 'camera' | 'library') {
+    setBusyPhotoTask(taskId)
+    try {
+      const up = await runPicker(source)
+      if (!up) return
+      const { data, error } = await supabase.from('project_playbook_task_photos')
+        .insert({ step_check_id: taskId, photo_url: up.url, storage_path: up.path, uploaded_by: uid })
+        .select('id, step_check_id, photo_url, storage_path, uploaded_by').single()
+      if (error) throw error
+      setTaskPhotos(prev => { const m = new Map(prev); m.set(taskId, [...(m.get(taskId) || []), data as TaskPhoto]); return m })
+    } catch (e: any) {
+      Alert.alert(t('uploadFailed'), e.message || String(e))
+    } finally { setBusyPhotoTask(null) }
+  }
+  function confirmRemovePhoto(photo: TaskPhoto) {
+    Alert.alert(t('jkRemovePhoto'), undefined, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('remove'), style: 'destructive', onPress: () => removeTaskPhoto(photo) },
+    ])
+  }
+  async function removeTaskPhoto(photo: TaskPhoto) {
+    const { error } = await supabase.from('project_playbook_task_photos').delete().eq('id', photo.id)
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    if (photo.storage_path) await supabase.storage.from(JOBKIT_BUCKET).remove([photo.storage_path]).catch(() => {})
+    setTaskPhotos(prev => { const m = new Map(prev); m.set(photo.step_check_id, (m.get(photo.step_check_id) || []).filter(p => p.id !== photo.id)); return m })
   }
 
   async function saveTaskNote(task: Task, note: string) {
@@ -95,6 +168,80 @@ export default function JobKitScreen() {
       ? await supabase.rpc('checkin_kit_tool', { p_tool_id: tool.id })
       : await supabase.rpc('checkout_kit_tool', { p_tool_id: tool.id })
     if (error) load()
+  }
+
+  // ── Manager editing: add/edit/delete kits, steps, tasks ─────────────────────
+  const nextSort = (arr: { sort_order: number | null }[]) => (arr.length ? Math.max(...arr.map(x => x.sort_order || 0)) + 1 : 0)
+
+  async function addKit() {
+    const { data, error } = await supabase.from('project_playbooks')
+      .insert({ project_id: projectId, title: t('jkNewKit') }).select('id, title, scope_of_work, module_type').single()
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setKits(prev => [data as Kit, ...prev])
+  }
+  async function updateKit(kitId: number, patch: Partial<Kit>) {
+    setKits(prev => prev.map(k => k.id === kitId ? { ...k, ...patch } : k))
+    const { error } = await supabase.from('project_playbooks').update(patch).eq('id', kitId)
+    if (error) Alert.alert(t('saveFailed'), error.message)
+  }
+  function deleteKit(kit: Kit) {
+    Alert.alert(t('jkDeleteKit'), t('jkDeleteKitMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('project_playbooks').delete().eq('id', kit.id)
+        if (error) { Alert.alert(t('saveFailed'), error.message); return }
+        load()
+      } },
+    ])
+  }
+  async function addStep(kitId: number) {
+    const siblings = steps.filter(s => s.project_playbook_id === kitId)
+    const { data, error } = await supabase.from('project_playbook_steps')
+      .insert({ project_playbook_id: kitId, title: '', sort_order: nextSort(siblings) }).select('id, project_playbook_id, title, sort_order').single()
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setSteps(prev => [...prev, data as Step])
+  }
+  async function updateStep(stepId: number, title: string) {
+    setSteps(prev => prev.map(s => s.id === stepId ? { ...s, title } : s))
+    const { error } = await supabase.from('project_playbook_steps').update({ title }).eq('id', stepId)
+    if (error) Alert.alert(t('saveFailed'), error.message)
+  }
+  function deleteStep(step: Step) {
+    Alert.alert(t('jkDeleteStep'), t('jkDeleteStepMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('project_playbook_steps').delete().eq('id', step.id)
+        if (error) { Alert.alert(t('saveFailed'), error.message); return }
+        setSteps(prev => prev.filter(s => s.id !== step.id))
+        setTasks(prev => prev.filter(x => x.step_id !== step.id))
+      } },
+    ])
+  }
+  async function addTask(stepId: number) {
+    const siblings = tasks.filter(x => x.step_id === stepId)
+    const sort_order = siblings.length ? Math.max(...siblings.map((_, i) => i)) + 1 : 0
+    const { data, error } = await supabase.from('project_playbook_step_checks')
+      .insert({ step_id: stepId, label: '', sort_order }).select('id, step_id, label, description, qty, notes').single()
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setTasks(prev => [...prev, data as Task])
+  }
+  // Edit the field that supplies the visible title (description if present, else label).
+  async function updateTaskTitle(task: Task, text: string) {
+    const field = task.description != null && task.description !== '' ? 'description' : 'label'
+    if (text === ((task as any)[field] || '')) return
+    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, [field]: text } : x))
+    const { error } = await supabase.from('project_playbook_step_checks').update({ [field]: text }).eq('id', task.id)
+    if (error) Alert.alert(t('saveFailed'), error.message)
+  }
+  function deleteTask(task: Task) {
+    Alert.alert(t('jkDeleteTask'), t('jkDeleteTaskMsg'), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('delete'), style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('project_playbook_step_checks').delete().eq('id', task.id)
+        if (error) { Alert.alert(t('saveFailed'), error.message); return }
+        setTasks(prev => prev.filter(x => x.id !== task.id))
+      } },
+    ])
   }
 
   const progress = useMemo(() => {
@@ -117,6 +264,12 @@ export default function JobKitScreen() {
         <MaterialCommunityIcons name="package-variant-closed" size={54} color={COLORS.border} />
         <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, marginTop: 12 }}>{t('noJobKitTitle')}</Text>
         <Text style={{ color: COLORS.subtext, textAlign: 'center', marginTop: 6, lineHeight: 20 }}>{t('noJobKitMsg')}</Text>
+        {isManager && (
+          <Pressable onPress={addKit} style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.navy, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22 }}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={20} color="white" />
+            <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
+          </Pressable>
+        )}
       </SafeAreaView>
     )
   }
@@ -135,6 +288,13 @@ export default function JobKitScreen() {
           <Text style={{ marginTop: 8, fontWeight: '800', color: allDone ? '#2E7D32' : COLORS.navy }}>
             {allDone ? t('jkAllReady') : `${progress.done} / ${progress.total} ${t('jkPacked')}`}
           </Text>
+          {isManager && (
+            <Pressable onPress={() => setEditMode(v => !v)}
+              style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: editMode ? COLORS.teal : COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: editMode ? COLORS.teal : COLORS.border }}>
+              <MaterialCommunityIcons name={editMode ? 'check' : 'pencil-outline'} size={18} color={editMode ? 'white' : COLORS.navy} />
+              <Text style={{ color: editMode ? 'white' : COLORS.navy, fontWeight: '800' }}>{editMode ? t('jkDoneEditing') : t('jkEdit')}</Text>
+            </Pressable>
+          )}
         </View>
 
         {kits.map(kit => {
@@ -155,6 +315,77 @@ export default function JobKitScreen() {
           const mats = Object.values(matAgg)
           return (
             <View key={kit.id} style={{ marginBottom: 20 }}>
+              {editMode && isManager ? (
+                /* ── EDIT MODE: kit / steps / tasks ── */
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      defaultValue={kit.title || ''}
+                      placeholder={t('jkKitTitle')}
+                      placeholderTextColor={COLORS.border}
+                      onEndEditing={e => updateKit(kit.id, { title: e.nativeEvent.text.trim() || null })}
+                      style={{ flex: 1, fontSize: 18, fontWeight: '900', color: COLORS.navy, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 10 }}
+                    />
+                    <Pressable onPress={() => deleteKit(kit)} hitSlop={8} style={{ padding: 8 }}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={22} color="#B91C1C" />
+                    </Pressable>
+                  </View>
+                  <TextInput
+                    defaultValue={kit.scope_of_work || ''}
+                    placeholder={t('jkScope')}
+                    placeholderTextColor={COLORS.border}
+                    multiline
+                    onEndEditing={e => updateKit(kit.id, { scope_of_work: e.nativeEvent.text.trim() || null })}
+                    style={{ marginTop: 8, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, paddingVertical: 10, color: COLORS.text, minHeight: 44, textAlignVertical: 'top' }}
+                  />
+
+                  {ks.map((step, i) => {
+                    const st = kitTasks.filter(x => x.step_id === step.id)
+                    return (
+                      <View key={step.id} style={{ marginTop: 14 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Text style={{ fontWeight: '900', color: COLORS.teal }}>{i + 1}.</Text>
+                          <TextInput
+                            defaultValue={step.title || ''}
+                            placeholder={t('jkStepTitle')}
+                            placeholderTextColor={COLORS.border}
+                            onEndEditing={e => updateStep(step.id, e.nativeEvent.text.trim())}
+                            style={{ flex: 1, fontWeight: '700', color: COLORS.navy, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8 }}
+                          />
+                          <Pressable onPress={() => deleteStep(step)} hitSlop={8} style={{ padding: 6 }}>
+                            <MaterialCommunityIcons name="trash-can-outline" size={20} color="#B91C1C" />
+                          </Pressable>
+                        </View>
+                        {st.map(task => (
+                          <View key={task.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginLeft: 20 }}>
+                            <MaterialCommunityIcons name="checkbox-blank-circle-outline" size={18} color={COLORS.border} />
+                            <TextInput
+                              defaultValue={task.description || task.label || ''}
+                              placeholder={t('jkTaskTitle')}
+                              placeholderTextColor={COLORS.border}
+                              onEndEditing={e => updateTaskTitle(task, e.nativeEvent.text.trim())}
+                              style={{ flex: 1, color: COLORS.text, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 7 }}
+                            />
+                            <Pressable onPress={() => deleteTask(task)} hitSlop={8} style={{ padding: 6 }}>
+                              <MaterialCommunityIcons name="trash-can-outline" size={18} color="#B91C1C" />
+                            </Pressable>
+                          </View>
+                        ))}
+                        <Pressable onPress={() => addTask(step.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6, marginLeft: 20 }}>
+                          <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.teal} />
+                          <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>{t('jkAddTask')}</Text>
+                        </Pressable>
+                      </View>
+                    )
+                  })}
+
+                  <Pressable onPress={() => addStep(kit.id)} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, borderWidth: 1, borderColor: COLORS.teal, borderRadius: 12, paddingVertical: 10 }}>
+                    <MaterialCommunityIcons name="plus-circle-outline" size={18} color={COLORS.teal} />
+                    <Text style={{ color: COLORS.teal, fontWeight: '800' }}>{t('jkAddStep')}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+              <>
               <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
               {kit.scope_of_work ? (
                 <View style={{ backgroundColor: COLORS.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: COLORS.border, marginTop: 8 }}>
@@ -184,6 +415,14 @@ export default function JobKitScreen() {
                           onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
                           style={{ marginTop: -2, marginBottom: 8, marginLeft: 38, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
                         />
+                        <TaskPhotos
+                          photos={taskPhotos.get(task.id) || []}
+                          busy={busyPhotoTask === task.id}
+                          canRemove={(p) => p.uploaded_by === uid}
+                          onAdd={() => addTaskPhoto(task.id)}
+                          onRemove={confirmRemovePhoto}
+                          addLabel={t('jkAddPhoto')}
+                        />
                       </View>
                     ))}
                   </Section>
@@ -212,9 +451,18 @@ export default function JobKitScreen() {
                   ))}
                 </Section>
               )}
+              </>
+              )}
             </View>
           )
         })}
+
+        {editMode && isManager && (
+          <Pressable onPress={addKit} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.navy, borderRadius: 14, paddingVertical: 14, marginTop: 4 }}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={20} color="white" />
+            <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -228,6 +476,30 @@ function Section({ icon, label, children }: { icon: string; label: string; child
         <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Text>
       </View>
       {children}
+    </View>
+  )
+}
+
+function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel }: {
+  photos: TaskPhoto[]; busy: boolean; canRemove: (p: TaskPhoto) => boolean
+  onAdd: () => void; onRemove: (p: TaskPhoto) => void; addLabel: string
+}) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 38, marginBottom: 10 }}>
+      {photos.map(p => (
+        <Pressable key={p.id} onLongPress={() => canRemove(p) && onRemove(p)} style={{ position: 'relative' }}>
+          <Image source={{ uri: p.photo_url }} style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
+          {canRemove(p) && (
+            <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#B71C1C', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
+              <MaterialCommunityIcons name="close" size={13} color="white" />
+            </View>
+          )}
+        </Pressable>
+      ))}
+      <Pressable onPress={onAdd} disabled={busy} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, height: 40, opacity: busy ? 0.5 : 1 }}>
+        {busy ? <ActivityIndicator size="small" color={COLORS.teal} /> : <MaterialCommunityIcons name="camera-plus-outline" size={20} color={COLORS.teal} />}
+        <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 13 }}>{addLabel}</Text>
+      </Pressable>
     </View>
   )
 }

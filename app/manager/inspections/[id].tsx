@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../../../components/DatePickerField'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
+import { isManagerRole } from '../../../lib/roles'
 import {
   CIVIL_INSPECTIONS,
   COMMERCIAL_RESIDENTIAL_INSPECTIONS,
@@ -212,7 +213,7 @@ export default function ProjectInspectionsScreen() {
     )
   }
 
-  if (userRole !== 'manager') {
+  if (!isManagerRole(userRole)) {
     return (
       <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
         <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
