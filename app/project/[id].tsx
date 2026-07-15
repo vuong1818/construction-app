@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -209,6 +210,20 @@ export default function ProjectDetailScreen() {
     })()
   }, [])
 
+  // Open Google Maps directions to the jobsite — prefers precise lat/long, else the
+  // address. Errors out when the project has neither.
+  function openProjectMap() {
+    const lat = (project as any)?.latitude
+    const lng = (project as any)?.longitude
+    const addr = formatProjectAddress(project)
+    let destination: string | null = null
+    if (lat != null && lng != null) destination = `${lat},${lng}`
+    else if (addr.trim()) destination = addr.trim()
+    if (!destination) { Alert.alert(t('mapNoAddressTitle'), t('mapNoAddressMsg')); return }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`
+    Linking.openURL(url).catch(() => Alert.alert(t('mapNoAddressTitle'), t('couldNotOpen')))
+  }
+
   // Photo viewer state — pinch-to-zoom + swipe via react-native-image-viewing.
   const [photoIndex, setPhotoIndex] = useState(0)
   const [captionEditing, setCaptionEditing] = useState(false)
@@ -324,6 +339,23 @@ export default function ProjectDetailScreen() {
           <Text style={{ color: COLORS.subtext }}>
             {project.description || t('noDescription')}
           </Text>
+        </View>
+
+        <SectionTitle
+          icon="map-marker-outline"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          title={t('mapTitle')}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="map-marker-radius-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={t('openInMaps')}
+            onPress={openProjectMap}
+          />
         </View>
 
         <SectionTitle
