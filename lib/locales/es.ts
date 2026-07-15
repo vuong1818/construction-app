@@ -928,6 +928,8 @@ const es: Record<TranslationKey, string> = {
   jkScope: 'Alcance del Trabajo',
   jkSteps: 'Pasos',
   jkAddPhoto: 'Agregar foto',
+  exportStepPdf: 'Exportar PDF',
+  couldNotOpen: 'No se pudo abrir el documento',
   jkRemovePhoto: '¿Quitar foto?',
   jkEdit: 'Editar',
   jkDoneEditing: 'Listo',

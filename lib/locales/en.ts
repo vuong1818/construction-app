@@ -936,6 +936,8 @@ const en = {
   jkScope: 'Scope of Work',
   jkSteps: 'Steps',
   jkAddPhoto: 'Add photo',
+  exportStepPdf: 'Export PDF',
+  couldNotOpen: 'Could not open the document',
   jkRemovePhoto: 'Remove photo?',
   jkEdit: 'Edit',
   jkDoneEditing: 'Done',

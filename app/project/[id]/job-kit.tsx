@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
@@ -151,6 +151,16 @@ export default function JobKitScreen() {
     if (error) { Alert.alert(t('saveFailed'), error.message); return }
     if (photo.storage_path) await supabase.storage.from(JOBKIT_BUCKET).remove([photo.storage_path]).catch(() => {})
     setTaskPhotos(prev => { const m = new Map(prev); m.set(photo.step_check_id, (m.get(photo.step_check_id) || []).filter(p => p.id !== photo.id)); return m })
+  }
+
+  // Export a step (its tasks + photos) as a print-ready PDF — opens the server
+  // doc endpoint in the browser, where the OS "Save as PDF" / share sheet takes over.
+  async function exportStep(stepId: number) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
+    const url = `https://nguyenmep.com/api/portal/step-doc?token=${encodeURIComponent(token)}&step=${stepId}`
+    Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
 
   async function saveTaskNote(task: Task, note: string) {
@@ -399,6 +409,10 @@ export default function JobKitScreen() {
                 const st = kitTasks.filter(x => x.step_id === step.id)
                 return (
                   <Section key={step.id} icon="format-list-numbered" label={`${i + 1}. ${step.title || t('jkSteps')}`}>
+                    <Pressable onPress={() => exportStep(step.id)} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
+                      <MaterialCommunityIcons name="file-pdf-box" size={16} color={COLORS.teal} />
+                      <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12 }}>{t('exportStepPdf')}</Text>
+                    </Pressable>
                     {st.length === 0 ? (
                       <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
                     ) : st.map(task => (
