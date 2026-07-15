@@ -354,6 +354,7 @@ const es: Record<TranslationKey, string> = {
   safetyManual: 'Manual de Seguridad',
   safetyManualSubtitle: 'Revisa y firma el manual de seguridad de la empresa.',
   readSignManual: 'Leer y firmar manual',
+  viewSafetyManual: 'Ver manual de seguridad',
   weeklySafetyMeeting: 'Reunión Semanal de Seguridad',
   weeklySafetyMeetingSubtitle: 'Revisa el tema semanal y firma la asistencia.',
   completed: 'Completado',

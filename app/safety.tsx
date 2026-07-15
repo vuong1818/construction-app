@@ -35,6 +35,7 @@ export default function SafetyScreen() {
   const [manualSigned, setManualSigned] = useState(false);
   const [meetingSigned, setMeetingSigned] = useState(false);
   const [currentTopic, setCurrentTopic] = useState<WeeklyTopic | null>(null);
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
 
   const isWorker = profile?.role === 'worker';
   const fullyCompliant = manualSigned && meetingSigned;
@@ -99,6 +100,20 @@ export default function SafetyScreen() {
         setCurrentTopic((topicData as WeeklyTopic) || null);
         topicId = topicData?.id || null;
       } catch (e) { console.warn('Topic load skipped:', e); }
+
+      // Company safety manual PDF (own org's, else the SiteOfficeIQ preset) — view only.
+      try {
+        const { data: manualDoc } = await supabase
+          .from('safety_documents')
+          .select('pdf_url')
+          .eq('document_type', 'company_safety_manual')
+          .eq('is_active', true)
+          .order('is_preset', { ascending: true })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setManualUrl((manualDoc as any)?.pdf_url || null);
+      } catch (e) { console.warn('Manual URL load skipped:', e); }
 
       // Check meeting signed — by worker_id + week_start (+ topic_id if available)
       try {
@@ -201,37 +216,19 @@ export default function SafetyScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.requirementCard}>
-          <View style={styles.requirementRow}>
-            <View style={styles.requirementTextWrap}>
-              <Text style={styles.requirementTitle}>{t('safetyManual')}</Text>
-              <Text style={styles.requirementSubtitle}>{t('safetyManualSubtitle')}</Text>
-            </View>
-            <View
-              style={[
-                styles.pill,
-                manualSigned ? styles.pillComplete : styles.pillIncomplete,
-              ]}
-            >
-              <Text style={styles.pillText}>
-                {manualSigned ? t('completed') : t('required')}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.primaryButton, manualSigned && styles.secondaryButton]}
-            onPress={() => router.push('/safety-manual')}
-          >
-            <Text style={[styles.primaryButtonText, manualSigned && styles.secondaryButtonText]}>
-              {manualSigned ? t('openSafetyManual') : t('readSignManual')}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('safetyResources')}</Text>
+
+        {manualUrl ? (
+          <TouchableOpacity
+            style={styles.manualResource}
+            onPress={() => router.push({ pathname: '/safety-document-viewer', params: { title: t('safetyManual'), pdfUrl: manualUrl } })}
+          >
+            <Text style={styles.manualResourceText}>📖  {t('viewSafetyManual')}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.resourceTabsRow}>
           <TouchableOpacity
@@ -405,13 +402,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#1f6feb',
+  manualResource: {
+    backgroundColor: '#1f6feb',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  secondaryButtonText: {
-    color: '#1f6feb',
+  manualResourceText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
   },
   resourceTabsRow: {
     flexDirection: 'row',
