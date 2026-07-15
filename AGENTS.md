@@ -4,8 +4,10 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 
 1. **Type-check first** — run `npx tsc --noEmit` and make sure the files you changed introduce no new errors (the repo has some pre-existing errors in unrelated files; don't let those block you, but don't add new ones in your files).
 2. **Then commit + push** — `git add` only the files you changed (no `-A`/`.`), commit with a brief lowercase message in the existing style plus the standard `Co-Authored-By: Claude` line, then `git push origin main`.
+3. **Then publish an OTA update (JS-only changes)** — standing authorization from the user (2026-07-15): after each mobile change ships, run `npx eas update --channel production --message "<recap>" --non-interactive` so the live TestFlight build picks it up (runtime 1.0.0). This is JS-only delivery — it reaches existing builds without a rebuild.
+   - **Skip OTA and note a rebuild is needed** when the change is NOT JS-only: a new/updated native dependency, an `app.json` plugin/native-config change, or a `runtimeVersion` bump. OTA can't deliver native changes.
 
-**Don't push mid-task.** Wait for a logical unit (feature, fix, related set of changes) to be complete and type-checking clean, then push the whole thing as one commit.
+**Don't push mid-task.** Wait for a logical unit (feature, fix, related set of changes) to be complete and type-checking clean, then push + OTA the whole thing as one commit.
 
 **Backend note.** DB schema/RLS lives in the web repo (`nguyenmep-website/supabase/migrations`), not here. If a mobile change needs a schema change, make the migration in the web repo (its own autopilot rules apply) and apply it before shipping the mobile code that depends on it.
 
