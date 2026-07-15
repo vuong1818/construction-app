@@ -45,6 +45,7 @@ type ManualDoc = {
   id: number
   title: string | null
   pdf_url: string | null
+  is_preset?: boolean | null
 }
 
 type ManualAck = {
@@ -272,11 +273,14 @@ export default function ManagerSafetyScreen() {
   }
 
   async function loadManual() {
+    // Prefer the org's OWN manual (is_preset=false first); fall back to the
+    // global SiteOfficeIQ preset template when the tenant hasn't uploaded one.
     const { data } = await supabase
       .from('safety_documents')
-      .select('id, title, pdf_url')
+      .select('id, title, pdf_url, is_preset')
       .eq('document_type', 'company_safety_manual')
       .eq('is_active', true)
+      .order('is_preset', { ascending: true })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -535,7 +539,7 @@ export default function ManagerSafetyScreen() {
           {manual ? (
             <View style={{ backgroundColor: C.greenSoft, borderRadius: 14, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: C.green, fontWeight: '800', fontSize: 14 }}>{t('manualActive')}</Text>
+                <Text style={{ color: C.green, fontWeight: '800', fontSize: 14 }}>{manual.is_preset ? t('manualPresetLabel') : t('manualActive')}</Text>
                 <Text style={{ color: C.text, fontSize: 13, fontWeight: '600', marginTop: 2 }} numberOfLines={1}>{manual.title || t('safetyManual')}</Text>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -545,10 +549,12 @@ export default function ManagerSafetyScreen() {
                     <Text style={{ color: C.white, fontWeight: '800', fontSize: 12 }}>{t('view')}</Text>
                   </Pressable>
                 ) : null}
-                <Pressable onPress={deleteManual} disabled={deleting}
-                  style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{deleting ? '...' : t('delete')}</Text>
-                </Pressable>
+                {!manual.is_preset ? (
+                  <Pressable onPress={deleteManual} disabled={deleting}
+                    style={{ backgroundColor: C.redSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <Text style={{ color: C.red, fontWeight: '800', fontSize: 12 }}>{deleting ? '...' : t('delete')}</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           ) : (

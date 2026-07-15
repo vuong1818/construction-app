@@ -877,6 +877,7 @@ const es: Record<TranslationKey, string> = {
   safetyManualSection: 'Manual de Seguridad',
   currentCompanySafetyManual: 'Manual de seguridad actual de la empresa',
   manualActive: 'Manual Activo',
+  manualPresetLabel: 'Plantilla predeterminada (SiteOfficeIQ)',
   noManualUploaded: 'Sin Manual Cargado',
   uploadPdfWorkersSign: 'Carga un PDF para que los trabajadores lo lean y firmen.',
   uploadingDots: 'Cargando...',

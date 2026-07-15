@@ -885,6 +885,7 @@ const en = {
   safetyManualSection: 'Safety Manual',
   currentCompanySafetyManual: 'Current company safety manual',
   manualActive: 'Manual Active',
+  manualPresetLabel: 'Default Template (SiteOfficeIQ)',
   noManualUploaded: 'No Manual Uploaded',
   uploadPdfWorkersSign: 'Upload a PDF so workers can read and sign it.',
   uploadingDots: 'Uploading...',
