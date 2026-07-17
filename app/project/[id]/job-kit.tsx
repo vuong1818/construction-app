@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
@@ -20,6 +20,8 @@ type Step = { id: number; project_playbook_id: number; title: string | null; sor
 type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
+// Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
+type Template = { id: number; title: string | null; module_type: string | null }
 
 export default function JobKitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -38,14 +40,23 @@ export default function JobKitScreen() {
   const [busyPhotoTask, setBusyPhotoTask] = useState<number | null>(null)
   const [isManager, setIsManager] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [pickerVisible, setPickerVisible] = useState(false)
+  const [addingTpl, setAddingTpl] = useState(false)
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     const myId = session?.user?.id || null
     setUid(myId)
+    let mgr = false
     if (myId) {
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
-      setIsManager(isManagerRole((prof as any)?.role))
+      mgr = isManagerRole((prof as any)?.role)
+      setIsManager(mgr)
+    }
+    if (mgr) {
+      const { data: tpl } = await supabase.from('playbooks').select('id, title, module_type').order('title')
+      setTemplates((tpl as Template[]) || [])
     }
 
     const { data: k } = await supabase
@@ -189,6 +200,15 @@ export default function JobKitScreen() {
     if (error) { Alert.alert(t('saveFailed'), error.message); return }
     setKits(prev => [data as Kit, ...prev])
   }
+  // Deep-copy an org template's full tree (steps/tasks/materials/tools) onto this project.
+  async function addFromTemplate(playbookId: number) {
+    setAddingTpl(true)
+    const { error } = await supabase.rpc('add_playbook_to_project', { p_project_id: projectId, p_playbook_id: playbookId })
+    setAddingTpl(false)
+    if (error) { Alert.alert(t('saveFailed'), error.message); return }
+    setPickerVisible(false)
+    load()
+  }
   async function updateKit(kitId: number, patch: Partial<Kit>) {
     setKits(prev => prev.map(k => k.id === kitId ? { ...k, ...patch } : k))
     const { error } = await supabase.from('project_playbooks').update(patch).eq('id', kitId)
@@ -259,6 +279,37 @@ export default function JobKitScreen() {
     return { done: keys.filter(k => checks.has(k)).length, total: keys.length }
   }, [tasks, tools, checks])
 
+  // Bottom-sheet list of org templates; tapping one instantiates it onto the project.
+  const templatePicker = (
+    <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => setPickerVisible(false)}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.4)', justifyContent: 'flex-end' }}>
+        <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '70%' }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.navy, marginBottom: 14 }}>{t('jkChooseTemplate')}</Text>
+          {templates.length === 0 ? (
+            <Text style={{ color: COLORS.subtext, paddingVertical: 12 }}>{t('jkNoTemplates')}</Text>
+          ) : (
+            <ScrollView>
+              {templates.map(tpl => (
+                <Pressable key={tpl.id} disabled={addingTpl} onPress={() => addFromTemplate(tpl.id)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.background, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, opacity: addingTpl ? 0.5 : 1 }}>
+                  <MaterialCommunityIcons name="package-variant-closed" size={22} color={COLORS.teal} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: COLORS.navy, fontWeight: '800' }} numberOfLines={1}>{tpl.title || t('jobKit')}</Text>
+                    {tpl.module_type ? <Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700' }}>{tpl.module_type}</Text> : null}
+                  </View>
+                  <MaterialCommunityIcons name="plus-circle" size={22} color={COLORS.teal} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          <Pressable onPress={() => setPickerVisible(false)} disabled={addingTpl} style={{ alignItems: 'center', paddingVertical: 14 }}>
+            <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{addingTpl ? t('jkAdding') : t('close')}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  )
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center' }}>
@@ -280,6 +331,13 @@ export default function JobKitScreen() {
             <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
           </Pressable>
         )}
+        {isManager && templates.length > 0 && (
+          <Pressable onPress={() => setPickerVisible(true)} style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.teal, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22 }}>
+            <MaterialCommunityIcons name="folder-plus-outline" size={20} color={COLORS.teal} />
+            <Text style={{ color: COLORS.teal, fontWeight: '800' }}>{t('jkAddFromTemplate')}</Text>
+          </Pressable>
+        )}
+        {templatePicker}
       </SafeAreaView>
     )
   }
@@ -303,6 +361,13 @@ export default function JobKitScreen() {
               style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: editMode ? COLORS.teal : COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: editMode ? COLORS.teal : COLORS.border }}>
               <MaterialCommunityIcons name={editMode ? 'check' : 'pencil-outline'} size={18} color={editMode ? 'white' : COLORS.navy} />
               <Text style={{ color: editMode ? 'white' : COLORS.navy, fontWeight: '800' }}>{editMode ? t('jkDoneEditing') : t('jkEdit')}</Text>
+            </Pressable>
+          )}
+          {isManager && templates.length > 0 && (
+            <Pressable onPress={() => setPickerVisible(true)}
+              style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border }}>
+              <MaterialCommunityIcons name="folder-plus-outline" size={18} color={COLORS.navy} />
+              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('jkAddFromTemplate')}</Text>
             </Pressable>
           )}
         </View>
@@ -478,6 +543,7 @@ export default function JobKitScreen() {
           </Pressable>
         )}
       </ScrollView>
+      {templatePicker}
     </SafeAreaView>
   )
 }
