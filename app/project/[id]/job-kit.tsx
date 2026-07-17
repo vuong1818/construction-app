@@ -255,12 +255,12 @@ export default function JobKitScreen() {
     if (error) { Alert.alert(t('saveFailed'), error.message); return }
     setTasks(prev => [...prev, data as Task])
   }
-  // Edit the field that supplies the visible title (description if present, else label).
+  // The task name lives in both `description` (canonical) and the legacy `label` column; keep them
+  // in sync so no reader ever falls back to a stale "New task" placeholder.
   async function updateTaskTitle(task: Task, text: string) {
-    const field = task.description != null && task.description !== '' ? 'description' : 'label'
-    if (text === ((task as any)[field] || '')) return
-    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, [field]: text } : x))
-    const { error } = await supabase.from('project_playbook_step_checks').update({ [field]: text }).eq('id', task.id)
+    if (text === (task.description || '') && text === (task.label || '')) return
+    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, description: text, label: text } : x))
+    const { error } = await supabase.from('project_playbook_step_checks').update({ description: text, label: text }).eq('id', task.id)
     if (error) Alert.alert(t('saveFailed'), error.message)
   }
   function deleteTask(task: Task) {
