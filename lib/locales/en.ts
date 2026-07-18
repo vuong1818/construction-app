@@ -949,6 +949,7 @@ const en = {
   jkAddTask: 'Add task',
   jkNewKit: 'New job kit',
   jkAddFromTemplate: 'Add from template',
+  jkReport: 'Report',
   jkChooseTemplate: 'Choose a job kit template',
   jkNoTemplates: 'No templates yet. Create one on the web portal.',
   jkAdding: 'Adding…',

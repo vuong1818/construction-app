@@ -174,6 +174,16 @@ export default function JobKitScreen() {
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
 
+  // Export the whole job kit (jobsite header + every step, task, note, photo, materials
+  // + tools) as one print-ready report — opens in the browser's Save-as-PDF / share sheet.
+  async function exportKitReport(kitId: number) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
+    const url = `https://nguyenmep.com/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}`
+    Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
+  }
+
   async function saveTaskNote(task: Task, note: string) {
     if (note === (task.notes || '')) return
     const { error } = await supabase.rpc('set_task_note', { p_task_id: task.id, p_note: note })
@@ -461,7 +471,13 @@ export default function JobKitScreen() {
                 </View>
               ) : (
               <>
-              <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ flex: 1, fontSize: 18, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
+                <Pressable onPress={() => exportKitReport(kit.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.navy, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <MaterialCommunityIcons name="file-document-outline" size={16} color="white" />
+                  <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>{t('jkReport')}</Text>
+                </Pressable>
+              </View>
               {kit.scope_of_work ? (
                 <View style={{ backgroundColor: COLORS.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: COLORS.border, marginTop: 8 }}>
                   <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('jkScope')}</Text>
@@ -497,7 +513,7 @@ export default function JobKitScreen() {
                         <TaskPhotos
                           photos={taskPhotos.get(task.id) || []}
                           busy={busyPhotoTask === task.id}
-                          canRemove={(p) => p.uploaded_by === uid}
+                          canRemove={(p) => isManager || p.uploaded_by === uid}
                           onAdd={() => addTaskPhoto(task.id)}
                           onRemove={confirmRemovePhoto}
                           addLabel={t('jkAddPhoto')}

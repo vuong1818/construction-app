@@ -941,6 +941,7 @@ const es: Record<TranslationKey, string> = {
   jkAddTask: 'Agregar tarea',
   jkNewKit: 'Nuevo kit de trabajo',
   jkAddFromTemplate: 'Agregar desde plantilla',
+  jkReport: 'Informe',
   jkChooseTemplate: 'Elige una plantilla de kit',
   jkNoTemplates: 'No hay plantillas todavía. Crea una en el portal web.',
   jkAdding: 'Agregando…',
