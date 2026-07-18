@@ -950,6 +950,8 @@ const en = {
   jkNewKit: 'New job kit',
   jkAddFromTemplate: 'Add from template',
   jkReport: 'Report',
+  jkReportChoose: 'Print the whole job kit, or just one phase?',
+  jkWholeKit: 'Whole job kit',
   jkCollapseAll: 'Collapse all',
   jkExpandAll: 'Expand all',
   jkChooseTemplate: 'Choose a job kit template',

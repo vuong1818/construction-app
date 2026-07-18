@@ -10,13 +10,15 @@ import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 
 const JOBKIT_BUCKET = 'jobkit-photos'
+// Install phases a step can be tagged with (matches the web editor + report route).
+const PHASE_ORDER = ['Underground', 'Rough-in', 'Trim', 'Cutover', 'Final']
 
 // A Job Kit is a per-project scope: Steps → Tasks (with materials + labor) + Tools.
 // The crew checks off TASKS as they complete them; the materials list is the aggregated
 // pull list from every task. Tools route through inventory check-out.
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
 type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
-type Step = { id: number; project_playbook_id: number; title: string | null; sort_order: number | null }
+type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
 type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
@@ -75,7 +77,7 @@ export default function JobKitScreen() {
     const ids = kitList.map(x => x.id)
     const [{ data: tl }, { data: sp }, { data: ck }] = await Promise.all([
       supabase.from('project_playbook_tools').select('id, project_playbook_id, name, qty, unit, equipment_id').in('project_playbook_id', ids).order('sort_order'),
-      supabase.from('project_playbook_steps').select('id, project_playbook_id, title, sort_order').in('project_playbook_id', ids).order('sort_order'),
+      supabase.from('project_playbook_steps').select('id, project_playbook_id, title, category, sort_order').in('project_playbook_id', ids).order('sort_order'),
       supabase.from('project_playbook_checks').select('item_type, item_id').in('project_playbook_id', ids),
     ])
     setTools((tl as Tool[]) || [])
@@ -178,14 +180,26 @@ export default function JobKitScreen() {
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
 
-  // Export the whole job kit (jobsite header + every step, task, note, photo, materials
-  // + tools) as one print-ready report — opens in the browser's Save-as-PDF / share sheet.
-  async function exportKitReport(kitId: number) {
+  // Export the job kit report (jobsite header + steps/tasks/notes/photos + materials
+  // + tools). Pass a phase (step category) to print just that phase's steps. Opens in
+  // the browser's Save-as-PDF / share sheet.
+  async function exportKitReport(kitId: number, phase?: string) {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
-    const url = `https://nguyenmep.com/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}`
+    const q = phase ? `&phase=${encodeURIComponent(phase)}` : ''
+    const url = `https://nguyenmep.com/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${q}`
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
+  }
+  // Offer the whole kit or a single phase (the phases present on this kit's steps).
+  function chooseKitReport(kitId: number) {
+    const present = PHASE_ORDER.filter(p => steps.some(s => s.project_playbook_id === kitId && s.category === p))
+    if (!present.length) { exportKitReport(kitId); return }
+    Alert.alert(t('jkReport'), t('jkReportChoose'), [
+      { text: t('jkWholeKit'), onPress: () => exportKitReport(kitId) },
+      ...present.map(p => ({ text: p, onPress: () => exportKitReport(kitId, p) })),
+      { text: t('cancel'), style: 'cancel' as const },
+    ])
   }
 
   async function saveTaskNote(task: Task, note: string) {
@@ -477,7 +491,7 @@ export default function JobKitScreen() {
               <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ flex: 1, fontSize: 18, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
-                <Pressable onPress={() => exportKitReport(kit.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.navy, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                <Pressable onPress={() => chooseKitReport(kit.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.navy, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
                   <MaterialCommunityIcons name="file-document-outline" size={16} color="white" />
                   <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>{t('jkReport')}</Text>
                 </Pressable>
