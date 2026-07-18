@@ -942,6 +942,8 @@ const es: Record<TranslationKey, string> = {
   jkNewKit: 'Nuevo kit de trabajo',
   jkAddFromTemplate: 'Agregar desde plantilla',
   jkReport: 'Informe',
+  jkCollapseAll: 'Contraer todo',
+  jkExpandAll: 'Expandir todo',
   jkChooseTemplate: 'Elige una plantilla de kit',
   jkNoTemplates: 'No hay plantillas todavía. Crea una en el portal web.',
   jkAdding: 'Agregando…',

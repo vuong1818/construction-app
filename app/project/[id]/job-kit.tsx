@@ -43,6 +43,10 @@ export default function JobKitScreen() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [pickerVisible, setPickerVisible] = useState(false)
   const [addingTpl, setAddingTpl] = useState(false)
+  // Steps collapsed to a one-line summary so a long kit can be scanned at a glance.
+  const [collapsedSteps, setCollapsedSteps] = useState<Set<number>>(new Set())
+  const toggleStepCollapsed = (stepId: number) =>
+    setCollapsedSteps(prev => { const n = new Set(prev); n.has(stepId) ? n.delete(stepId) : n.add(stepId); return n })
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -485,42 +489,67 @@ export default function JobKitScreen() {
                 </View>
               ) : null}
 
-              {/* Steps → Tasks */}
+              {/* Collapse / expand all steps for a quick overview of a long kit */}
+              {ks.length > 1 && (
+                <Pressable
+                  onPress={() => setCollapsedSteps(prev => (ks.every(s => prev.has(s.id)) ? new Set() : new Set(ks.map(s => s.id))))}
+                  style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 12, marginBottom: 2, paddingVertical: 4 }}>
+                  <MaterialCommunityIcons name={ks.every(s => collapsedSteps.has(s.id)) ? 'unfold-more-horizontal' : 'unfold-less-horizontal'} size={16} color={COLORS.teal} />
+                  <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12 }}>{ks.every(s => collapsedSteps.has(s.id)) ? t('jkExpandAll') : t('jkCollapseAll')}</Text>
+                </Pressable>
+              )}
+
+              {/* Steps → Tasks (each step collapses to a one-line summary) */}
               {ks.map((step, i) => {
                 const st = kitTasks.filter(x => x.step_id === step.id)
+                const doneCount = st.filter(x => checks.has(`step_check:${x.id}`)).length
+                const collapsed = collapsedSteps.has(step.id)
                 return (
-                  <Section key={step.id} icon="format-list-numbered" label={`${i + 1}. ${step.title || t('jkSteps')}`}>
-                    <Pressable onPress={() => exportStep(step.id)} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
-                      <MaterialCommunityIcons name="file-pdf-box" size={16} color={COLORS.teal} />
-                      <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12 }}>{t('exportStepPdf')}</Text>
+                  <View key={step.id} style={{ marginTop: 14 }}>
+                    <Pressable onPress={() => toggleStepCollapsed(step.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: collapsed ? 0 : 8 }}>
+                      <MaterialCommunityIcons name={collapsed ? 'chevron-right' : 'chevron-down'} size={20} color={COLORS.teal} />
+                      <Text style={{ flex: 1, fontSize: 12, fontWeight: '800', color: COLORS.subtext, textTransform: 'uppercase', letterSpacing: 0.5 }} numberOfLines={collapsed ? 1 : undefined}>
+                        {`${i + 1}. ${step.title || t('jkSteps')}`}
+                      </Text>
+                      {st.length > 0 && (
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: doneCount === st.length ? COLORS.teal : COLORS.subtext }}>{doneCount}/{st.length}</Text>
+                      )}
                     </Pressable>
-                    {st.length === 0 ? (
-                      <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
-                    ) : st.map(task => (
-                      <View key={task.id}>
-                        <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
-                          title={task.description || task.label || 'Task'}
-                          sub={task.qty ? `${t('jkNeed')} ${Number(task.qty).toLocaleString('en-US')}` : undefined} />
-                        <TextInput
-                          key={`note-${task.id}-${task.notes || ''}`}
-                          defaultValue={task.notes || ''}
-                          placeholder={t('addNote')}
-                          placeholderTextColor={COLORS.border}
-                          multiline
-                          onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
-                          style={{ marginTop: -2, marginBottom: 8, marginLeft: 38, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
-                        />
-                        <TaskPhotos
-                          photos={taskPhotos.get(task.id) || []}
-                          busy={busyPhotoTask === task.id}
-                          canRemove={(p) => isManager || p.uploaded_by === uid}
-                          onAdd={() => addTaskPhoto(task.id)}
-                          onRemove={confirmRemovePhoto}
-                          addLabel={t('jkAddPhoto')}
-                        />
-                      </View>
-                    ))}
-                  </Section>
+                    {!collapsed && (
+                      <>
+                        <Pressable onPress={() => exportStep(step.id)} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
+                          <MaterialCommunityIcons name="file-pdf-box" size={16} color={COLORS.teal} />
+                          <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12 }}>{t('exportStepPdf')}</Text>
+                        </Pressable>
+                        {st.length === 0 ? (
+                          <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
+                        ) : st.map(task => (
+                          <View key={task.id}>
+                            <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
+                              title={task.description || task.label || 'Task'}
+                              sub={task.qty ? `${t('jkNeed')} ${Number(task.qty).toLocaleString('en-US')}` : undefined} />
+                            <TextInput
+                              key={`note-${task.id}-${task.notes || ''}`}
+                              defaultValue={task.notes || ''}
+                              placeholder={t('addNote')}
+                              placeholderTextColor={COLORS.border}
+                              multiline
+                              onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
+                              style={{ marginTop: -2, marginBottom: 8, marginLeft: 38, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
+                            />
+                            <TaskPhotos
+                              photos={taskPhotos.get(task.id) || []}
+                              busy={busyPhotoTask === task.id}
+                              canRemove={(p) => isManager || p.uploaded_by === uid}
+                              onAdd={() => addTaskPhoto(task.id)}
+                              onRemove={confirmRemovePhoto}
+                              addLabel={t('jkAddPhoto')}
+                            />
+                          </View>
+                        ))}
+                      </>
+                    )}
+                  </View>
                 )
               })}
 

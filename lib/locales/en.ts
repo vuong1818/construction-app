@@ -950,6 +950,8 @@ const en = {
   jkNewKit: 'New job kit',
   jkAddFromTemplate: 'Add from template',
   jkReport: 'Report',
+  jkCollapseAll: 'Collapse all',
+  jkExpandAll: 'Expand all',
   jkChooseTemplate: 'Choose a job kit template',
   jkNoTemplates: 'No templates yet. Create one on the web portal.',
   jkAdding: 'Adding…',
