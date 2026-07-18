@@ -403,19 +403,24 @@ export default function JobKitScreen() {
         {kits.map(kit => {
           const kt = tools.filter(x => x.project_playbook_id === kit.id)
           const ks = steps.filter(x => x.project_playbook_id === kit.id)
-          // Aggregate this kit's MATERIAL lines (labor lines excluded) into a pull list.
+          // Materials pull list calculated from the tasks: each task's MATERIAL lines
+          // (labor excluded) × the task qty, grouped by phase (the step's category).
           const kitStepIds = new Set(ks.map(s => s.id))
+          const phaseByStep = new Map(ks.map(s => [s.id, s.category || 'Uncategorized']))
           const kitTasks = tasks.filter(x => kitStepIds.has(x.step_id))
-          const kitTaskIds = new Set(kitTasks.map(x => x.id))
-          const matAgg: Record<string, { name: string; unit: string; qty: number }> = {}
+          const taskInfo = new Map(kitTasks.map(x => [x.id, { phase: phaseByStep.get(x.step_id) || 'Uncategorized', qty: Number(x.qty) || 1 }]))
+          const byPhase: Record<string, Record<string, { name: string; unit: string; qty: number }>> = {}
           for (const m of taskMats) {
-            if (!kitTaskIds.has(m.task_id) || m.line_type === 'labor') continue
-            const total = Number(m.qty) || 0
+            const info = taskInfo.get(m.task_id)
+            if (!info || m.line_type === 'labor') continue
+            const total = (Number(m.qty) || 0) * info.qty
             const key = `${(m.description || '').toLowerCase()}|${(m.unit || 'EA').toLowerCase()}`
-            if (!matAgg[key]) matAgg[key] = { name: m.description || 'Material', unit: m.unit || 'EA', qty: 0 }
-            matAgg[key].qty += total
+            if (!byPhase[info.phase]) byPhase[info.phase] = {}
+            if (!byPhase[info.phase][key]) byPhase[info.phase][key] = { name: m.description || 'Material', unit: m.unit || 'EA', qty: 0 }
+            byPhase[info.phase][key].qty += total
           }
-          const mats = Object.values(matAgg)
+          const matPhases = [...PHASE_ORDER, 'Uncategorized'].filter(p => byPhase[p]).map(p => ({ phase: p, items: Object.values(byPhase[p]) }))
+          const hasMats = matPhases.length > 0
           return (
             <View key={kit.id} style={{ marginBottom: 20 }}>
               {editMode && isManager ? (
@@ -540,7 +545,8 @@ export default function JobKitScreen() {
                         ) : st.map(task => (
                           <View key={task.id}>
                             <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
-                              title={task.description || task.label || 'Task'} />
+                              title={task.description || task.label || 'Task'}
+                              sub={(Number(task.qty) || 1) > 1 ? `×${Number(task.qty)}` : undefined} />
                             <TextInput
                               key={`note-${task.id}-${task.notes || ''}`}
                               defaultValue={task.notes || ''}
@@ -567,12 +573,17 @@ export default function JobKitScreen() {
               })}
 
               {/* Aggregated materials pull list (read-only) */}
-              {mats.length > 0 && (
+              {hasMats && (
                 <Section icon="package-variant" label={t('jkMaterials')}>
-                  {mats.map((m, i) => (
-                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border }}>
-                      <Text style={{ color: COLORS.navy, fontWeight: '600', flex: 1 }}>{m.name}</Text>
-                      <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{m.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })} {m.unit}</Text>
+                  {matPhases.map(group => (
+                    <View key={group.phase} style={{ marginBottom: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 4 }}>{group.phase}</Text>
+                      {group.items.map((m, i) => (
+                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border }}>
+                          <Text style={{ color: COLORS.navy, fontWeight: '600', flex: 1 }}>{m.name}</Text>
+                          <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{m.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })} {m.unit}</Text>
+                        </View>
+                      ))}
                     </View>
                   ))}
                 </Section>
