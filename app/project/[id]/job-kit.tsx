@@ -20,7 +20,7 @@ type Kit = { id: number; title: string | null; scope_of_work: string | null; mod
 type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
 type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
-type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null }
+type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 // Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
 type Template = { id: number; title: string | null; module_type: string | null }
@@ -93,7 +93,7 @@ export default function JobKitScreen() {
       const taskIds = taskList.map(x => x.id)
       if (taskIds.length) {
         const [{ data: tm }, { data: ph }] = await Promise.all([
-          supabase.from('task_materials').select('task_id, description, unit, qty').in('task_id', taskIds),
+          supabase.from('task_materials').select('task_id, description, unit, qty, line_type').in('task_id', taskIds),
           supabase.from('project_playbook_task_photos').select('id, step_check_id, photo_url, storage_path, uploaded_by').in('step_check_id', taskIds).order('created_at'),
         ])
         setTaskMats((tm as TaskMat[]) || [])
@@ -403,14 +403,14 @@ export default function JobKitScreen() {
         {kits.map(kit => {
           const kt = tools.filter(x => x.project_playbook_id === kit.id)
           const ks = steps.filter(x => x.project_playbook_id === kit.id)
-          // Aggregate this kit's task materials into a pull list.
+          // Aggregate this kit's MATERIAL lines (labor lines excluded) into a pull list.
           const kitStepIds = new Set(ks.map(s => s.id))
           const kitTasks = tasks.filter(x => kitStepIds.has(x.step_id))
-          const qtyByTask = new Map(kitTasks.map(x => [x.id, Number(x.qty) || 1]))
+          const kitTaskIds = new Set(kitTasks.map(x => x.id))
           const matAgg: Record<string, { name: string; unit: string; qty: number }> = {}
           for (const m of taskMats) {
-            if (!qtyByTask.has(m.task_id)) continue
-            const total = (Number(m.qty) || 0) * (qtyByTask.get(m.task_id) || 1)
+            if (!kitTaskIds.has(m.task_id) || m.line_type === 'labor') continue
+            const total = Number(m.qty) || 0
             const key = `${(m.description || '').toLowerCase()}|${(m.unit || 'EA').toLowerCase()}`
             if (!matAgg[key]) matAgg[key] = { name: m.description || 'Material', unit: m.unit || 'EA', qty: 0 }
             matAgg[key].qty += total
@@ -540,8 +540,7 @@ export default function JobKitScreen() {
                         ) : st.map(task => (
                           <View key={task.id}>
                             <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
-                              title={task.description || task.label || 'Task'}
-                              sub={task.qty ? `${t('jkNeed')} ${Number(task.qty).toLocaleString('en-US')}` : undefined} />
+                              title={task.description || task.label || 'Task'} />
                             <TextInput
                               key={`note-${task.id}-${task.notes || ''}`}
                               defaultValue={task.notes || ''}
