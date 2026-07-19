@@ -1876,6 +1876,8 @@ const es: Record<TranslationKey, string> = {
   rfiSubjectRequired: 'Agrega un asunto primero',
   rfiAnswerRequired: 'Escribe una respuesta primero',
   rfiSubmitted: 'RFI enviada',
+  rfiUpdated: 'RFI actualizada',
+  rfiEdit: 'Editar',
   rfiAnswerSent: 'Respuesta enviada',
 
   matReqTitle: 'Solicitudes de material',

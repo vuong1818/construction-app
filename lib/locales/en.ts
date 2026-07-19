@@ -1885,6 +1885,8 @@ const en = {
   rfiSubjectRequired: 'Add a subject first',
   rfiAnswerRequired: 'Type an answer first',
   rfiSubmitted: 'RFI submitted',
+  rfiUpdated: 'RFI updated',
+  rfiEdit: 'Edit',
   rfiAnswerSent: 'Answer sent',
 
   matReqTitle: 'Material Requests',

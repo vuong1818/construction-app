@@ -98,3 +98,28 @@ export async function createDailyReport(input: CreateDailyReportInput) {
 
   return data
 }
+
+export async function updateDailyReport(reportId: number, input: CreateDailyReportInput) {
+  validateReportInput(input)
+  await requireSessionUser()
+
+  const { data, error } = await supabase
+    .from('daily_reports')
+    .update({
+      report_date: input.reportDate.trim(),
+      work_completed: input.workCompleted.trim(),
+      issues: input.issues.trim() || null,
+      materials_used: input.materialsUsed.trim() || null,
+      weather: input.weather.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', reportId)
+    .select('id')
+    .single()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data
+}

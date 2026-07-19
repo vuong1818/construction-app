@@ -1,9 +1,9 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
-  
+  Pressable,
   ScrollView,
   Text,
   View,
@@ -16,6 +16,7 @@ import { COLORS } from '../../../../lib/theme'
 type DailyReport = {
   id: number
   report_date: string
+  created_by: string | null
   created_by_name: string | null
   work_completed: string | null
   issues: string | null
@@ -76,17 +77,33 @@ function DetailCard({
 }
 
 export default function DailyReportDetailScreen() {
-  const { reportId } = useLocalSearchParams<{ reportId: string }>()
+  const { id, reportId } = useLocalSearchParams<{ id: string; reportId: string }>()
+  const router = useRouter()
   const { t } = useLanguage()
   const [report, setReport] = useState<DailyReport | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [uid, setUid] = useState<string | null>(null)
+  const [isManager, setIsManager] = useState(false)
 
   useEffect(() => {
     if (reportId) {
       loadReport()
     }
   }, [reportId])
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      const myId = session?.user?.id || null
+      setUid(myId)
+      if (myId) {
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
+        const role = (prof as any)?.role
+        setIsManager(role === 'manager' || role === 'owner')
+      }
+    })()
+  }, [])
 
   async function loadReport() {
     setLoading(true)
@@ -181,6 +198,28 @@ export default function DailyReportDetailScreen() {
           <Text style={{ color: COLORS.subtext }}>
             {`${t('preparedBy')}: ${report.created_by_name || t('unknown')}`}
           </Text>
+
+          {(isManager || (uid && report.created_by === uid)) && (
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/project/[id]/new-report',
+                  params: {
+                    id: String(id),
+                    reportId: String(report.id),
+                    reportDate: report.report_date || '',
+                    workCompleted: report.work_completed || '',
+                    issues: report.issues || '',
+                    materialsUsed: report.materials_used || '',
+                    weather: report.weather || '',
+                  },
+                })
+              }
+              style={{ marginTop: 14, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+            >
+              <Text style={{ color: COLORS.white, fontWeight: '800' }}>{t('rfiEdit')}</Text>
+            </Pressable>
+          )}
         </View>
 
         <DetailCard

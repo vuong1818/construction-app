@@ -46,6 +46,7 @@ export default function RfisScreen() {
   const [newPhotoUrl, setNewPhotoUrl] = useState('')
   const [busyPhoto, setBusyPhoto] = useState(false)
   const [toast, setToast] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200) }
 
@@ -139,18 +140,32 @@ export default function RfisScreen() {
 
   useEffect(() => { load() }, [load])
 
+  function resetForm() { setSubject(''); setQuestion(''); setPlanRef(''); setNewPhotoUrl(''); setEditingId(null) }
+
+  function startEdit(rfi: Rfi) {
+    setSubject(rfi.subject || '')
+    setQuestion(rfi.question || '')
+    setPlanRef(rfi.plan_ref || '')
+    setNewPhotoUrl(rfi.photo_url || '')
+    setEditingId(rfi.id)
+    setShowForm(true)
+  }
+
   async function submit() {
     if (!subject.trim()) { flash(t('rfiSubjectRequired')); return }
     setSaving(true)
-    const { error } = await supabase.from('rfis').insert({
-      project_id: projectId, subject: subject.trim(),
+    const fields = {
+      subject: subject.trim(),
       question: question.trim() || null, plan_ref: planRef.trim() || null,
-      photo_url: newPhotoUrl || null, asked_by: uid,
-    })
+      photo_url: newPhotoUrl || null,
+    }
+    const { error } = editingId
+      ? await supabase.from('rfis').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', editingId)
+      : await supabase.from('rfis').insert({ project_id: projectId, asked_by: uid, ...fields })
     setSaving(false)
     if (error) { flash(error.message); return }
-    setSubject(''); setQuestion(''); setPlanRef(''); setNewPhotoUrl(''); setShowForm(false)
-    flash(t('rfiSubmitted')); load()
+    resetForm(); setShowForm(false)
+    flash(editingId ? t('rfiUpdated') : t('rfiSubmitted')); load()
   }
 
   async function sendAnswer(rfi: Rfi) {
@@ -186,9 +201,9 @@ export default function RfisScreen() {
         <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 }}>
           <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.navy }}>{t('rfisTitle')}</Text>
           <Text style={{ color: COLORS.subtext, marginTop: 2 }}>{t('rfisSubtitle')}</Text>
-          <Pressable onPress={() => setShowForm(v => !v)}
+          <Pressable onPress={() => { if (showForm) { setShowForm(false); resetForm() } else { resetForm(); setShowForm(true) } }}
             style={{ marginTop: 14, backgroundColor: showForm ? COLORS.background : COLORS.navy, borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: showForm ? COLORS.border : COLORS.navy }}>
-            <Text style={{ color: showForm ? COLORS.navy : 'white', fontWeight: '800' }}>{showForm ? t('cancel') : t('rfiNew')}</Text>
+            <Text style={{ color: showForm ? COLORS.navy : 'white', fontWeight: '800' }}>{showForm ? t('cancel') : (editingId ? t('rfiEdit') : t('rfiNew'))}</Text>
           </Pressable>
         </View>
 
@@ -247,7 +262,8 @@ export default function RfisScreen() {
               {rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
               {rfi.photo_url ? <Image source={{ uri: rfi.photo_url }} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
               {canEdit(rfi) && (
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <SmallBtn label={t('rfiEdit')} onPress={() => startEdit(rfi)} />
                   <SmallBtn label={busyPhoto ? '…' : (rfi.photo_url ? 'Replace photo' : '📷 Add photo')} onPress={() => setRfiPhoto(rfi)} />
                   {rfi.photo_url ? <SmallBtn label="Remove photo" onPress={() => removeRfiPhoto(rfi)} /> : null}
                 </View>

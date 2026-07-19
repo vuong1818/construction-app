@@ -59,10 +59,26 @@ function Field({
 }
 
 export default function NewReportScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const params = useLocalSearchParams<{
+    id: string; reportId?: string; reportDate?: string;
+    workCompleted?: string; issues?: string; materialsUsed?: string; weather?: string;
+  }>()
   const router = useRouter()
-  const projectId = Number(id)
+  const projectId = Number(params.id)
   const { t } = useLanguage()
+
+  // When a reportId is passed the screen edits that report (values seeded from params).
+  const one = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v)
+  const reportId = one(params.reportId) ? Number(one(params.reportId)) : undefined
+  const initial = reportId
+    ? {
+        reportDate: one(params.reportDate),
+        workCompleted: one(params.workCompleted),
+        issues: one(params.issues),
+        materialsUsed: one(params.materialsUsed),
+        weather: one(params.weather),
+      }
+    : undefined
 
   const {
     reportDate,
@@ -78,6 +94,8 @@ export default function NewReportScreen() {
     canSave,
   } = useNewReport({
     projectId: Number.isFinite(projectId) ? projectId : undefined,
+    reportId,
+    initial,
     onSaved: () => router.back(),
   })
 
