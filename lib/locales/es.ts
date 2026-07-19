@@ -873,7 +873,7 @@ const es: Record<TranslationKey, string> = {
 
   // ── Manager safety / inspections ──────────────────────────────────────
   loadingSafetyData: 'Cargando datos de seguridad',
-  cannotOpenLink: 'No hay un navegador disponible para abrir este enlace. Visita nguyenmep.com/portal/safety en una computadora para ver los documentos firmados.',
+  cannotOpenLink: 'No hay un navegador disponible para abrir este enlace. Visita app.siteofficeiq.com/portal/safety en una computadora para ver los documentos firmados.',
   couldNotOpenLink: 'No se pudo abrir el enlace.',
   safetyComplianceTitle: 'Cumplimiento de Seguridad',
   weekOfWorkers: 'Semana del {weekStart} - {count} trabajador activo',
@@ -913,7 +913,7 @@ const es: Record<TranslationKey, string> = {
   dateTimeSigned: 'Fecha y Hora de Firma',
   weekOfLabel: 'Semana de',
   noSignatureImage: 'No hay imagen de firma archivada',
-  safetyComplianceFooter: 'Cumplimiento de Seguridad de Nguyen MEP · nguyenmep.com',
+  safetyComplianceFooter: 'Cumplimiento de Seguridad · SiteOfficeIQ',
   safetyComplianceSuffix: 'Cumplimiento de Seguridad',
   yourCompany: 'Tu Empresa',
   jobKit: 'Kit de Trabajo',

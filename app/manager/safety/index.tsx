@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../../../hooks/useCompanyLogo'
+import { WEB_BASE } from '../../../lib/config'
 import { useLanguage } from '../../../lib/i18n'
 import { logError } from '../../../lib/logger'
 import { supabase } from '../../../lib/supabase'
@@ -724,7 +725,7 @@ export default function ManagerSafetyScreen() {
             </Text>
             <Pressable onPress={() => {
               if (!viewingAck) return
-              const url = `https://nguyenmep.com/portal/view-ack?id=${viewingAck.id}&type=${viewingAckType}`
+              const url = `${WEB_BASE}/portal/view-ack?id=${viewingAck.id}&type=${viewingAckType}`
               openPdf(url, openLabels)
             }}>
               <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 {t('printAction')}</Text>

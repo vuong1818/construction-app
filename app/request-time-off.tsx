@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
+import { WEB_BASE } from '../lib/config'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
@@ -98,7 +99,7 @@ export default function RequestTimeOff() {
     if (error) { Alert.alert(t('error'), error.message); return }
     // Notify the manager (fire-and-forget). Include the hours for partial requests.
     const emailReason = partial ? `${fmt12(startTime)}–${fmt12(endTime)}${reason.trim() ? ' · ' + reason.trim() : ''}` : reason.trim()
-    fetch('https://www.nguyenmep.com/api/portal/notify-timeoff', {
+    fetch(`${WEB_BASE}/api/portal/notify-timeoff`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workerName: name, startDate: reqStart, endDate: end, reason: emailReason, companyName, companyEmail }),
     }).catch(() => {})

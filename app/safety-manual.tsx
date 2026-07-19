@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
@@ -208,7 +209,7 @@ function buildPdfHtml(workerName: string, signedAt: string, sigDataUrl: string):
 </head>
 <body>
 
-<h1>NGUYEN MEP, LLC</h1>
+<h1>Company</h1>
 
 <h2>Safety Manual Acknowledgment</h2>
 
@@ -445,7 +446,7 @@ export default function SafetyManualScreen() {
       if (upsertError) throw upsertError;
 
       // Build the server-side view URL (renders HTML page from stored signature)
-      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=manual`;
+      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?id=${ackData.id}&type=manual`;
       await supabase
         .from('safety_manual_acknowledgements')
         .update({ pdf_url: pdfUrl })
@@ -456,7 +457,7 @@ export default function SafetyManualScreen() {
 
       // Fire-and-forget background email — no user interaction required
       if (companyEmail) {
-        fetch('https://nguyenmep.com/api/portal/notify-safety', {
+        fetch(`${WEB_BASE}/api/portal/notify-safety`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

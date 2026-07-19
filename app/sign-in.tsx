@@ -18,6 +18,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
+import { WEB_BASE } from '../lib/config'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
@@ -109,7 +110,7 @@ export default function SignInScreen() {
           await supabase.auth.signOut()
           Alert.alert(
             'Use the web portal',
-            'Customer accounts sign in on the web at vuongthyanne.com. The mobile app is for field crews.',
+            'Customer accounts sign in on the web at app.siteofficeiq.com. The mobile app is for field crews.',
           )
           return
         }
@@ -165,7 +166,7 @@ export default function SignInScreen() {
         options: {
           // If email confirmation is ever enabled, send the link to a real page
           // (not the Supabase Site URL default, which was localhost:3000).
-          emailRedirectTo: 'https://www.nguyenmep.com/onsite-tech',
+          emailRedirectTo: 'https://siteofficeiq.com/download',
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
@@ -201,7 +202,7 @@ export default function SignInScreen() {
     try {
       setLoading(true)
       const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
-        redirectTo: 'https://www.nguyenmep.com/reset-password',
+        redirectTo: `${WEB_BASE}/reset-password`,
       })
       if (error) throw error
       Alert.alert(t('checkYourEmail') + ' 📬', t('resetLinkSent', { email: emailToReset }))

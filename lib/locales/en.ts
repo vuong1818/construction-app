@@ -881,7 +881,7 @@ const en = {
 
   // ── Manager safety / inspections ──────────────────────────────────────
   loadingSafetyData: 'Loading safety data',
-  cannotOpenLink: 'No browser available to open this link. Visit nguyenmep.com/portal/safety on a desktop browser to view signed documents.',
+  cannotOpenLink: 'No browser available to open this link. Visit app.siteofficeiq.com/portal/safety on a desktop browser to view signed documents.',
   couldNotOpenLink: 'Could not open link.',
   safetyComplianceTitle: 'Safety Compliance',
   weekOfWorkers: 'Week of {weekStart} - {count} active worker',
@@ -921,7 +921,7 @@ const en = {
   dateTimeSigned: 'Date & Time Signed',
   weekOfLabel: 'Week Of',
   noSignatureImage: 'No signature image on file',
-  safetyComplianceFooter: 'Nguyen MEP Safety Compliance · nguyenmep.com',
+  safetyComplianceFooter: 'Safety Compliance · SiteOfficeIQ',
   safetyComplianceSuffix: 'Safety Compliance',
   yourCompany: 'Your Company',
   jobKit: 'Job Kit',

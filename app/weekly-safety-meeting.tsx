@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { logError } from '../lib/logger';
 import { supabase } from '../lib/supabase';
@@ -167,7 +168,7 @@ function buildPdfHtml(
 </head>
 <body>
 
-<h1>NGUYEN MEP, LLC</h1>
+<h1>Company</h1>
 <div class="subtitle">Weekly Safety Meeting Acknowledgement</div>
 
 <div class="topic-box">
@@ -413,7 +414,7 @@ export default function WeeklySafetyMeetingScreen() {
       if (upsertError) throw upsertError;
 
       // Combined view URL (renders the manual + meeting acknowledgement + signature)
-      const pdfUrl = `https://nguyenmep.com/api/portal/view-ack?id=${ackData.id}&type=weekly`;
+      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?id=${ackData.id}&type=weekly`;
       await supabase
         .from('weekly_meeting_acknowledgements')
         .update({ pdf_url: pdfUrl })
@@ -440,7 +441,7 @@ export default function WeeklySafetyMeetingScreen() {
 
       // Fire-and-forget background email — no user interaction required
       if (companyEmail) {
-        fetch('https://nguyenmep.com/api/portal/notify-safety', {
+        fetch(`${WEB_BASE}/api/portal/notify-safety`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

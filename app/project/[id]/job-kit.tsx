@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { WEB_BASE } from '../../../lib/config'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
@@ -185,7 +186,7 @@ export default function JobKitScreen() {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
-    const url = `https://nguyenmep.com/api/portal/step-doc?token=${encodeURIComponent(token)}&step=${stepId}`
+    const url = `${WEB_BASE}/api/portal/step-doc?token=${encodeURIComponent(token)}&step=${stepId}`
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
 
@@ -197,7 +198,7 @@ export default function JobKitScreen() {
     const token = session?.access_token
     if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
     const q = phase ? `&phase=${encodeURIComponent(phase)}` : ''
-    const url = `https://nguyenmep.com/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${q}`
+    const url = `${WEB_BASE}/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${q}`
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
   // Offer the whole kit or a single phase (the phases present on this kit's steps).
