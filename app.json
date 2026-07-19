@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nguyenmep.onsitetech",
+      "bundleIdentifier": "com.siteofficeiq.onsite",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of job site progress, receipts, and safety conditions.",
@@ -39,7 +39,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.nguyenmep.onsitetech",
+      "package": "com.siteofficeiq.onsite",
       "versionCode": 1,
       "permissions": [
         "android.permission.CAMERA",
