@@ -227,39 +227,53 @@ export default function ProjectTasksScreen() {
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
         if (!perm.granted) { Alert.alert('Photo library access required.'); return }
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 })
+        // Let the crew pick several photos in one go.
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsMultipleSelection: true })
       }
-      if (result.canceled || !result.assets?.[0]) return
-      const asset = result.assets[0]
+      if (result.canceled || !result.assets?.length) return
+      const assets = result.assets
 
       setUploadingTaskId(task.id)
-      const ext = (asset.fileName?.split('.').pop() || asset.uri.split('.').pop() || 'jpg').toLowerCase()
-      const fileName = `task-${task.id}-${Date.now()}.${ext}`
-      const filePath = `project-${task.project_id}/tasks/${task.id}/${fileName}`
+      let ok = 0
+      const fails: string[] = []
+      for (const asset of assets) {
+        try {
+          const ext = (asset.fileName?.split('.').pop() || asset.uri.split('.').pop() || 'jpg').toLowerCase()
+          const fileName = `task-${task.id}-${Date.now()}-${ok + fails.length}.${ext}`
+          const filePath = `project-${task.project_id}/tasks/${task.id}/${fileName}`
 
-      const fileResp = await fetch(asset.uri)
-      if (!fileResp.ok) throw new Error('Could not read photo file.')
-      const arrayBuffer = await fileResp.arrayBuffer()
+          const fileResp = await fetch(asset.uri)
+          if (!fileResp.ok) throw new Error('Could not read photo file.')
+          const arrayBuffer = await fileResp.arrayBuffer()
 
-      const { error: upErr } = await supabase.storage
-        .from('project-photos')
-        .upload(filePath, arrayBuffer, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
-      if (upErr) throw new Error(upErr.message)
+          const { error: upErr } = await supabase.storage
+            .from('project-photos')
+            .upload(filePath, arrayBuffer, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+          if (upErr) throw new Error(upErr.message)
 
-      const fileUrl = supabase.storage.from('project-photos').getPublicUrl(filePath).data.publicUrl
-      const { error: dbErr } = await supabase.from('project_photos').insert({
-        project_id: task.project_id,
-        task_id: task.id,
-        file_path: filePath,
-        file_url: fileUrl,
-        uploaded_by: currentUserId,
-      })
-      if (dbErr) {
-        // Best-effort cleanup of the orphaned object on row failure.
-        await supabase.storage.from('project-photos').remove([filePath]).catch(() => {})
-        throw new Error(dbErr.message)
+          const fileUrl = supabase.storage.from('project-photos').getPublicUrl(filePath).data.publicUrl
+          const { error: dbErr } = await supabase.from('project_photos').insert({
+            project_id: task.project_id,
+            task_id: task.id,
+            file_path: filePath,
+            file_url: fileUrl,
+            uploaded_by: currentUserId,
+          })
+          if (dbErr) {
+            // Best-effort cleanup of the orphaned object on row failure.
+            await supabase.storage.from('project-photos').remove([filePath]).catch(() => {})
+            throw new Error(dbErr.message)
+          }
+          ok++
+        } catch (e: any) {
+          fails.push(e?.message || 'Unknown error')
+        }
       }
       await load()
+      // Confirm completion so the crew knows the upload finished.
+      if (ok > 0 && fails.length === 0) Alert.alert('Upload complete', `${ok} photo${ok === 1 ? '' : 's'} added.`)
+      else if (ok > 0) Alert.alert('Upload complete', `${ok} added, ${fails.length} failed.`)
+      else Alert.alert('Photo upload failed', fails[0] || 'Unknown error')
     } catch (e: any) {
       Alert.alert('Photo upload failed', e?.message || 'Unknown error')
     } finally {

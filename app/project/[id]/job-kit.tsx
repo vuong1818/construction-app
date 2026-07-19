@@ -118,23 +118,27 @@ export default function JobKitScreen() {
   }
 
   // ── Task photos: pick from camera/library → jobkit-photos bucket → row (mirrors to project photo pot) ──
-  async function runPicker(source: 'camera' | 'library'): Promise<{ url: string; path: string } | null> {
+  async function runPicker(source: 'camera' | 'library'): Promise<{ url: string; path: string }[]> {
     const perm = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (!perm.granted) { Alert.alert(t('permissionNeeded'), source === 'camera' ? t('allowCamera') : t('allowPhotos')); return null }
+    if (!perm.granted) { Alert.alert(t('permissionNeeded'), source === 'camera' ? t('allowCamera') : t('allowPhotos')); return [] }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images })
-    if (result.canceled || !result.assets?.length) return null
-    const asset = result.assets[0]
-    const resp = await fetch(asset.uri)
-    const buf = await resp.arrayBuffer()
-    const ext = (asset.uri.split('.').pop() || 'jpg').toLowerCase()
-    const path = `${projectId}/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from(JOBKIT_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
-    if (error) throw error
-    return { url: supabase.storage.from(JOBKIT_BUCKET).getPublicUrl(path).data.publicUrl, path }
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: true })
+    if (result.canceled || !result.assets?.length) return []
+    const out: { url: string; path: string }[] = []
+    let i = 0
+    for (const asset of result.assets) {
+      const resp = await fetch(asset.uri)
+      const buf = await resp.arrayBuffer()
+      const ext = (asset.uri.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${projectId}/${Date.now()}-${i++}.${ext}`
+      const { error } = await supabase.storage.from(JOBKIT_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+      if (error) throw error
+      out.push({ url: supabase.storage.from(JOBKIT_BUCKET).getPublicUrl(path).data.publicUrl, path })
+    }
+    return out
   }
   async function addTaskPhoto(taskId: number) {
     Alert.alert(t('jkAddPhoto'), undefined, [
@@ -146,13 +150,18 @@ export default function JobKitScreen() {
   async function doAddTaskPhoto(taskId: number, source: 'camera' | 'library') {
     setBusyPhotoTask(taskId)
     try {
-      const up = await runPicker(source)
-      if (!up) return
-      const { data, error } = await supabase.from('project_playbook_task_photos')
-        .insert({ step_check_id: taskId, photo_url: up.url, storage_path: up.path, uploaded_by: uid })
-        .select('id, step_check_id, photo_url, storage_path, uploaded_by').single()
-      if (error) throw error
-      setTaskPhotos(prev => { const m = new Map(prev); m.set(taskId, [...(m.get(taskId) || []), data as TaskPhoto]); return m })
+      const ups = await runPicker(source)
+      if (!ups.length) return
+      const rows: TaskPhoto[] = []
+      for (const up of ups) {
+        const { data, error } = await supabase.from('project_playbook_task_photos')
+          .insert({ step_check_id: taskId, photo_url: up.url, storage_path: up.path, uploaded_by: uid })
+          .select('id, step_check_id, photo_url, storage_path, uploaded_by').single()
+        if (error) throw error
+        rows.push(data as TaskPhoto)
+      }
+      setTaskPhotos(prev => { const m = new Map(prev); m.set(taskId, [...(m.get(taskId) || []), ...rows]); return m })
+      Alert.alert(t('uploadComplete'), `${rows.length} ${t('photosAdded')}`)
     } catch (e: any) {
       Alert.alert(t('uploadFailed'), e.message || String(e))
     } finally { setBusyPhotoTask(null) }

@@ -931,6 +931,8 @@ const es: Record<TranslationKey, string> = {
   jkScope: 'Alcance del Trabajo',
   jkSteps: 'Pasos',
   jkAddPhoto: 'Agregar foto',
+  uploadComplete: 'Carga completa',
+  photosAdded: 'foto(s) agregada(s).',
   exportStepPdf: 'Exportar PDF',
   couldNotOpen: 'No se pudo abrir el documento',
   jkRemovePhoto: '¿Quitar foto?',
