@@ -369,7 +369,7 @@ export default function JobKitScreen() {
             <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
           </Pressable>
         )}
-        {isManager && templates.length > 0 && (
+        {isManager && (
           <Pressable onPress={() => setPickerVisible(true)} style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: COLORS.teal, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22 }}>
             <MaterialCommunityIcons name="folder-plus-outline" size={20} color={COLORS.teal} />
             <Text style={{ color: COLORS.teal, fontWeight: '800' }}>{t('jkAddFromTemplate')}</Text>
@@ -401,7 +401,7 @@ export default function JobKitScreen() {
               <Text style={{ color: editMode ? 'white' : COLORS.navy, fontWeight: '800' }}>{editMode ? t('jkDoneEditing') : t('jkEdit')}</Text>
             </Pressable>
           )}
-          {isManager && templates.length > 0 && (
+          {isManager && (
             <Pressable onPress={() => setPickerVisible(true)}
               style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border }}>
               <MaterialCommunityIcons name="folder-plus-outline" size={18} color={COLORS.navy} />
