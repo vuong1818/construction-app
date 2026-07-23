@@ -190,24 +190,24 @@ export default function JobKitScreen() {
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
 
-  // Export the job kit report (jobsite header + steps/tasks/notes/photos + materials
-  // + tools). Pass a phase (step category) to print just that phase's steps. Opens in
-  // the browser's Save-as-PDF / share sheet.
-  async function exportKitReport(kitId: number, phase?: string) {
+  // Open a print-ready job kit doc in the browser (Save-as-PDF / share sheet).
+  // `mode` picks the layout (task_checklist, material_checklist, combined, report).
+  async function exportKitReport(kitId: number, mode?: string) {
     const { data: { session } } = await supabase.auth.getSession()
     const token = session?.access_token
     if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
-    const q = phase ? `&phase=${encodeURIComponent(phase)}` : ''
-    const url = `${WEB_BASE}/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${q}`
+    const m = mode ? `&mode=${encodeURIComponent(mode)}` : ''
+    const url = `${WEB_BASE}/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${m}`
     Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
   }
-  // Offer the whole kit or a single phase (the phases present on this kit's steps).
+  // Offer the four print docs: task checklist, material checklist, combined
+  // (tasks with their materials), and the field results report.
   function chooseKitReport(kitId: number) {
-    const present = PHASE_ORDER.filter(p => steps.some(s => s.project_playbook_id === kitId && s.category === p))
-    if (!present.length) { exportKitReport(kitId); return }
-    Alert.alert(t('jkReport'), t('jkReportChoose'), [
-      { text: t('jkWholeKit'), onPress: () => exportKitReport(kitId) },
-      ...present.map(p => ({ text: p, onPress: () => exportKitReport(kitId, p) })),
+    Alert.alert(t('jkPrint'), t('jkPrintChoose'), [
+      { text: t('jkTaskChecklist'), onPress: () => exportKitReport(kitId, 'task_checklist') },
+      { text: t('jkMaterialChecklist'), onPress: () => exportKitReport(kitId, 'material_checklist') },
+      { text: t('jkCombinedChecklist'), onPress: () => exportKitReport(kitId, 'combined') },
+      { text: t('jkReport'), onPress: () => exportKitReport(kitId, 'report') },
       { text: t('cancel'), style: 'cancel' as const },
     ])
   }
@@ -507,8 +507,8 @@ export default function JobKitScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Text style={{ flex: 1, fontSize: 18, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
                 <Pressable onPress={() => chooseKitReport(kit.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: COLORS.navy, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <MaterialCommunityIcons name="file-document-outline" size={16} color="white" />
-                  <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>{t('jkReport')}</Text>
+                  <MaterialCommunityIcons name="printer-outline" size={16} color="white" />
+                  <Text style={{ color: 'white', fontWeight: '800', fontSize: 12 }}>{t('jkPrint')}</Text>
                 </Pressable>
               </View>
               {kit.scope_of_work ? (
