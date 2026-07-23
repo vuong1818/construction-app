@@ -46,10 +46,16 @@ export default function JobKitScreen() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [pickerVisible, setPickerVisible] = useState(false)
   const [addingTpl, setAddingTpl] = useState(false)
+  // Which kit is open (null = show the pick-list of kits for this project).
+  const [selectedKitId, setSelectedKitId] = useState<number | null>(null)
   // Steps collapsed to a one-line summary so a long kit can be scanned at a glance.
   const [collapsedSteps, setCollapsedSteps] = useState<Set<number>>(new Set())
   const toggleStepCollapsed = (stepId: number) =>
     setCollapsedSteps(prev => { const n = new Set(prev); n.has(stepId) ? n.delete(stepId) : n.add(stepId); return n })
+  // Tasks expanded to reveal their own materials + note + photos (collapsed by default).
+  const [expandedTasks, setExpandedTasks] = useState<Set<number>>(new Set())
+  const toggleTaskExpanded = (taskId: number) =>
+    setExpandedTasks(prev => { const n = new Set(prev); n.has(taskId) ? n.delete(taskId) : n.add(taskId); return n })
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -258,6 +264,7 @@ export default function JobKitScreen() {
       { text: t('delete'), style: 'destructive', onPress: async () => {
         const { error } = await supabase.from('project_playbooks').delete().eq('id', kit.id)
         if (error) { Alert.alert(t('saveFailed'), error.message); return }
+        setSelectedKitId(null); setEditMode(false)
         load()
       } },
     ])
@@ -312,10 +319,30 @@ export default function JobKitScreen() {
     ])
   }
 
-  const progress = useMemo(() => {
-    const keys = [...tasks.map(x => `step_check:${x.id}`), ...tools.map(x => `tool:${x.id}`)]
+  // Per-kit check-off progress (tasks + tools that belong to this kit).
+  const kitProgress = (kitId: number) => {
+    const ksIds = new Set(steps.filter(s => s.project_playbook_id === kitId).map(s => s.id))
+    const keys = [
+      ...tasks.filter(x => ksIds.has(x.step_id)).map(x => `step_check:${x.id}`),
+      ...tools.filter(x => x.project_playbook_id === kitId).map(x => `tool:${x.id}`),
+    ]
     return { done: keys.filter(k => checks.has(k)).length, total: keys.length }
-  }, [tasks, tools, checks])
+  }
+
+  // Each task's OWN materials (labor excluded), qty × the task qty — for the combined
+  // checklist where materials sit under their task instead of one aggregated list.
+  const matsByTask = useMemo(() => {
+    const qtyByTask = new Map(tasks.map(x => [x.id, Number(x.qty) || 1]))
+    const m = new Map<number, { name: string; unit: string; qty: number }[]>()
+    for (const mat of taskMats) {
+      if (mat.line_type === 'labor') continue
+      const tq = qtyByTask.get(mat.task_id) || 1
+      const arr = m.get(mat.task_id) || []
+      arr.push({ name: mat.description || 'Material', unit: mat.unit || 'EA', qty: (Number(mat.qty) || 0) * tq })
+      m.set(mat.task_id, arr)
+    }
+    return m
+  }, [taskMats, tasks])
 
   // Bottom-sheet list of org templates; tapping one instantiates it onto the project.
   const templatePicker = (
@@ -380,57 +407,103 @@ export default function JobKitScreen() {
     )
   }
 
-  const allDone = progress.total > 0 && progress.done === progress.total
+  const selectedKit = selectedKitId != null ? (kits.find(k => k.id === selectedKitId) || null) : null
+
+  // ── Pick-list: a card per job kit; tap one to open it ──
+  if (!selectedKit) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <ScrollView contentContainerStyle={{ padding: 18 }}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 }}>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.navy }}>{t('jkJobKits')}</Text>
+            <Text style={{ color: COLORS.subtext, marginTop: 2 }}>{t('jkPickHint')}</Text>
+            {isManager && (
+              <Pressable onPress={() => setPickerVisible(true)}
+                style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border }}>
+                <MaterialCommunityIcons name="folder-plus-outline" size={18} color={COLORS.navy} />
+                <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('jkAddFromTemplate')}</Text>
+              </Pressable>
+            )}
+            {isManager && (
+              <Pressable onPress={addKit}
+                style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 11 }}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={18} color="white" />
+                <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {kits.map(kit => {
+            const p = kitProgress(kit.id)
+            const done = p.total > 0 && p.done === p.total
+            return (
+              <Pressable key={kit.id} onPress={() => { setSelectedKitId(kit.id); setEditMode(false) }}
+                style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <MaterialCommunityIcons name="package-variant-closed" size={24} color={COLORS.teal} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
+                    {kit.module_type ? <Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700' }}>{kit.module_type}</Text> : null}
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.subtext} />
+                </View>
+                {p.total > 0 && (
+                  <View style={{ marginTop: 10 }}>
+                    <View style={{ height: 8, borderRadius: 4, backgroundColor: COLORS.background, overflow: 'hidden' }}>
+                      <View style={{ width: `${(p.done / p.total) * 100}%`, height: '100%', backgroundColor: done ? '#2E7D32' : COLORS.teal }} />
+                    </View>
+                    <Text style={{ marginTop: 5, fontSize: 12, fontWeight: '700', color: done ? '#2E7D32' : COLORS.subtext }}>
+                      {done ? t('jkAllReady') : `${p.done} / ${p.total} ${t('jkPacked')}`}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            )
+          })}
+        </ScrollView>
+        {templatePicker}
+      </SafeAreaView>
+    )
+  }
+
+  // ── Detail: the opened kit (back button + progress + combined checklist) ──
+  const kitProg = kitProgress(selectedKit.id)
+  const kitDone = kitProg.total > 0 && kitProg.done === kitProg.total
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 18 }}>
+        <Pressable onPress={() => { setSelectedKitId(null); setEditMode(false) }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12, alignSelf: 'flex-start' }}>
+          <MaterialCommunityIcons name="chevron-left" size={22} color={COLORS.teal} />
+          <Text style={{ color: COLORS.teal, fontWeight: '800' }}>{t('jkAllKits')}</Text>
+        </Pressable>
+
         <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.navy }}>{t('jobKit')}</Text>
-          <Text style={{ color: COLORS.subtext, marginTop: 2, marginBottom: 12 }}>{t('jkTapHint')}</Text>
-          <View style={{ height: 12, borderRadius: 6, backgroundColor: COLORS.background, overflow: 'hidden' }}>
-            <View style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%`, height: '100%', backgroundColor: allDone ? '#2E7D32' : COLORS.teal }} />
-          </View>
-          <Text style={{ marginTop: 8, fontWeight: '800', color: allDone ? '#2E7D32' : COLORS.navy }}>
-            {allDone ? t('jkAllReady') : `${progress.done} / ${progress.total} ${t('jkPacked')}`}
-          </Text>
+          {kitProg.total > 0 && (
+            <>
+              <View style={{ height: 12, borderRadius: 6, backgroundColor: COLORS.background, overflow: 'hidden' }}>
+                <View style={{ width: `${(kitProg.done / kitProg.total) * 100}%`, height: '100%', backgroundColor: kitDone ? '#2E7D32' : COLORS.teal }} />
+              </View>
+              <Text style={{ marginTop: 8, fontWeight: '800', color: kitDone ? '#2E7D32' : COLORS.navy }}>
+                {kitDone ? t('jkAllReady') : `${kitProg.done} / ${kitProg.total} ${t('jkPacked')}`}
+              </Text>
+            </>
+          )}
           {isManager && (
             <Pressable onPress={() => setEditMode(v => !v)}
-              style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: editMode ? COLORS.teal : COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: editMode ? COLORS.teal : COLORS.border }}>
+              style={{ marginTop: kitProg.total > 0 ? 14 : 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: editMode ? COLORS.teal : COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: editMode ? COLORS.teal : COLORS.border }}>
               <MaterialCommunityIcons name={editMode ? 'check' : 'pencil-outline'} size={18} color={editMode ? 'white' : COLORS.navy} />
               <Text style={{ color: editMode ? 'white' : COLORS.navy, fontWeight: '800' }}>{editMode ? t('jkDoneEditing') : t('jkEdit')}</Text>
             </Pressable>
           )}
-          {isManager && (
-            <Pressable onPress={() => setPickerVisible(true)}
-              style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.background, borderRadius: 12, paddingVertical: 11, borderWidth: 1, borderColor: COLORS.border }}>
-              <MaterialCommunityIcons name="folder-plus-outline" size={18} color={COLORS.navy} />
-              <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('jkAddFromTemplate')}</Text>
-            </Pressable>
-          )}
         </View>
 
-        {kits.map(kit => {
+        {[selectedKit].map(kit => {
           const kt = tools.filter(x => x.project_playbook_id === kit.id)
           const ks = steps.filter(x => x.project_playbook_id === kit.id)
-          // Materials pull list calculated from the tasks: each task's MATERIAL lines
-          // (labor excluded) × the task qty, grouped by phase (the step's category).
           const kitStepIds = new Set(ks.map(s => s.id))
-          const phaseByStep = new Map(ks.map(s => [s.id, s.category || 'Uncategorized']))
           const kitTasks = tasks.filter(x => kitStepIds.has(x.step_id))
-          const taskInfo = new Map(kitTasks.map(x => [x.id, { phase: phaseByStep.get(x.step_id) || 'Uncategorized', qty: Number(x.qty) || 1 }]))
-          const byPhase: Record<string, Record<string, { name: string; unit: string; qty: number }>> = {}
-          for (const m of taskMats) {
-            const info = taskInfo.get(m.task_id)
-            if (!info || m.line_type === 'labor') continue
-            const total = (Number(m.qty) || 0) * info.qty
-            const key = `${(m.description || '').toLowerCase()}|${(m.unit || 'EA').toLowerCase()}`
-            if (!byPhase[info.phase]) byPhase[info.phase] = {}
-            if (!byPhase[info.phase][key]) byPhase[info.phase][key] = { name: m.description || 'Material', unit: m.unit || 'EA', qty: 0 }
-            byPhase[info.phase][key].qty += total
-          }
-          const matPhases = [...PHASE_ORDER, 'Uncategorized'].filter(p => byPhase[p]).map(p => ({ phase: p, items: Object.values(byPhase[p]) }))
-          const hasMats = matPhases.length > 0
           return (
             <View key={kit.id} style={{ marginBottom: 20 }}>
               {editMode && isManager ? (
@@ -552,52 +625,67 @@ export default function JobKitScreen() {
                         </Pressable>
                         {st.length === 0 ? (
                           <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
-                        ) : st.map(task => (
-                          <View key={task.id}>
-                            <CheckRow checked={checks.has(`step_check:${task.id}`)} onPress={() => toggleTask(kit.id, task.id)}
-                              title={task.description || task.label || 'Task'}
-                              sub={(Number(task.qty) || 1) > 1 ? `×${Number(task.qty)}` : undefined} />
-                            <TextInput
-                              key={`note-${task.id}-${task.notes || ''}`}
-                              defaultValue={task.notes || ''}
-                              placeholder={t('addNote')}
-                              placeholderTextColor={COLORS.border}
-                              multiline
-                              onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
-                              style={{ marginTop: -2, marginBottom: 8, marginLeft: 38, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
-                            />
-                            <TaskPhotos
-                              photos={taskPhotos.get(task.id) || []}
-                              busy={busyPhotoTask === task.id}
-                              canRemove={(p) => isManager || p.uploaded_by === uid}
-                              onAdd={() => addTaskPhoto(task.id)}
-                              onRemove={confirmRemovePhoto}
-                              addLabel={t('jkAddPhoto')}
-                            />
+                        ) : st.map(task => {
+                          const checked = checks.has(`step_check:${task.id}`)
+                          const mats = matsByTask.get(task.id) || []
+                          const expanded = expandedTasks.has(task.id)
+                          return (
+                          <View key={task.id} style={{ marginBottom: 8 }}>
+                            {/* Task row: check circle toggles done; chevron expands its materials/note/photos */}
+                            <View style={{ flexDirection: 'row', alignItems: 'stretch', backgroundColor: checked ? '#E8F5E9' : COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: checked ? '#A5D6A7' : COLORS.border }}>
+                              <Pressable onPress={() => toggleTask(kit.id, task.id)} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, flex: 1, padding: 14 }}>
+                                <MaterialCommunityIcons name={checked ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'} size={26} color={checked ? '#2E7D32' : COLORS.border} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 16, textDecorationLine: checked ? 'line-through' : 'none' }}>{task.description || task.label || 'Task'}</Text>
+                                  {(Number(task.qty) || 1) > 1 ? <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 3 }}>×{Number(task.qty)}</Text> : null}
+                                </View>
+                              </Pressable>
+                              <Pressable onPress={() => toggleTaskExpanded(task.id)} hitSlop={6} style={{ paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }}>
+                                {mats.length > 0 && <Text style={{ fontSize: 10, fontWeight: '800', color: COLORS.teal }}>{mats.length}</Text>}
+                                <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={22} color={COLORS.teal} />
+                              </Pressable>
+                            </View>
+                            {expanded && (
+                              <View style={{ marginLeft: 20, marginTop: 6 }}>
+                                {mats.length > 0 && (
+                                  <View style={{ marginBottom: 8 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('jkMaterials')}</Text>
+                                    {mats.map((m, mi) => (
+                                      <View key={mi} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, padding: 10, marginBottom: 4, borderWidth: 1, borderColor: COLORS.border }}>
+                                        <Text style={{ color: COLORS.navy, fontWeight: '600', flex: 1 }}>{m.name}</Text>
+                                        <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{m.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })} {m.unit}</Text>
+                                      </View>
+                                    ))}
+                                  </View>
+                                )}
+                                <TextInput
+                                  key={`note-${task.id}-${task.notes || ''}`}
+                                  defaultValue={task.notes || ''}
+                                  placeholder={t('addNote')}
+                                  placeholderTextColor={COLORS.border}
+                                  multiline
+                                  onEndEditing={e => saveTaskNote(task, e.nativeEvent.text.trim())}
+                                  style={{ marginBottom: 8, backgroundColor: COLORS.card, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: COLORS.text, minHeight: 36 }}
+                                />
+                                <TaskPhotos
+                                  photos={taskPhotos.get(task.id) || []}
+                                  busy={busyPhotoTask === task.id}
+                                  canRemove={(p) => isManager || p.uploaded_by === uid}
+                                  onAdd={() => addTaskPhoto(task.id)}
+                                  onRemove={confirmRemovePhoto}
+                                  addLabel={t('jkAddPhoto')}
+                                  indent={0}
+                                />
+                              </View>
+                            )}
                           </View>
-                        ))}
+                          )
+                        })}
                       </>
                     )}
                   </View>
                 )
               })}
-
-              {/* Aggregated materials pull list (read-only) */}
-              {hasMats && (
-                <Section icon="package-variant" label={t('jkMaterials')}>
-                  {matPhases.map(group => (
-                    <View key={group.phase} style={{ marginBottom: 6 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 6, marginBottom: 4 }}>{group.phase}</Text>
-                      {group.items.map((m, i) => (
-                        <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: COLORS.border }}>
-                          <Text style={{ color: COLORS.navy, fontWeight: '600', flex: 1 }}>{m.name}</Text>
-                          <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{m.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })} {m.unit}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ))}
-                </Section>
-              )}
 
               {/* Tools (check-out) */}
               {kt.length > 0 && (
@@ -614,13 +702,6 @@ export default function JobKitScreen() {
             </View>
           )
         })}
-
-        {editMode && isManager && (
-          <Pressable onPress={addKit} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: COLORS.navy, borderRadius: 14, paddingVertical: 14, marginTop: 4 }}>
-            <MaterialCommunityIcons name="plus-circle-outline" size={20} color="white" />
-            <Text style={{ color: 'white', fontWeight: '800' }}>{t('jkAddKit')}</Text>
-          </Pressable>
-        )}
       </ScrollView>
       {templatePicker}
     </SafeAreaView>
@@ -639,12 +720,12 @@ function Section({ icon, label, children }: { icon: string; label: string; child
   )
 }
 
-function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel }: {
+function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel, indent = 38 }: {
   photos: TaskPhoto[]; busy: boolean; canRemove: (p: TaskPhoto) => boolean
-  onAdd: () => void; onRemove: (p: TaskPhoto) => void; addLabel: string
+  onAdd: () => void; onRemove: (p: TaskPhoto) => void; addLabel: string; indent?: number
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 38, marginBottom: 10 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: indent, marginBottom: 10 }}>
       {photos.map(p => (
         <Pressable key={p.id} onLongPress={() => canRemove(p) && onRemove(p)} style={{ position: 'relative' }}>
           <Image source={{ uri: p.photo_url }} style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
