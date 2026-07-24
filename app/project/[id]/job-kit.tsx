@@ -73,9 +73,14 @@ export default function JobKitScreen() {
     }
 
     const { data: k } = await supabase
-      .from('project_playbooks').select('id, title, scope_of_work, module_type')
+      .from('project_playbooks').select('id, title, scope_of_work, module_type, kind')
       .eq('project_id', projectId).order('created_at', { ascending: false })
-    const kitList = (k as Kit[]) || []
+    // The field app works off CHECKLIST kits (generated when an estimate is accepted).
+    // Fall back to the priced estimate kits when a project has no checklist yet, so
+    // in-flight projects don't suddenly show nothing.
+    const all = (k as (Kit & { kind?: string })[]) || []
+    const checklists = all.filter(x => x.kind === 'checklist')
+    const kitList = (checklists.length ? checklists : all.filter(x => x.kind !== 'checklist')) as Kit[]
     setKits(kitList)
 
     if (!kitList.length) {
