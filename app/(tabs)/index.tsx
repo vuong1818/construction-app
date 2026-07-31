@@ -104,9 +104,6 @@ export default function HomeScreen() {
   const [offsitePrompt, setOffsitePrompt] = useState<OffsitePromptState | null>(null)
   const [pendingSync, setPendingSync] = useState(0)
   const [clockOutReviewVisible, setClockOutReviewVisible] = useState(false)
-  // True while a travel leg is in progress — hides the manual clock button so the
-  // worker finishes via the Travel flow (Tap When Arrived / Leave Work).
-  const [travelLegOpen, setTravelLegOpen] = useState(false)
   const offsiteReasons = useClockInReasons()
 
   useEffect(() => {
@@ -729,23 +726,20 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
 
-          {/* Manual clock button — available to everyone, hidden while a travel leg is
-              in progress (the worker finishes via the Travel flow). */}
-          {!travelLegOpen && (
-            <Pressable
-              onPress={() => setClockModalVisible(true)}
-              style={{
-                width: 74,
-                height: 74,
-                borderRadius: 22,
-                backgroundColor: safetyCompleted() ? COLORS.red : '#94A3B8',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Ionicons name="time-outline" size={30} color={COLORS.white} />
-            </Pressable>
-          )}
+          {/* Clock button — always available. Travel no longer gates or replaces it. */}
+          <Pressable
+            onPress={() => setClockModalVisible(true)}
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 22,
+              backgroundColor: safetyCompleted() ? COLORS.red : '#94A3B8',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Ionicons name="time-outline" size={30} color={COLORS.white} />
+          </Pressable>
 
           <Pressable
             onPress={handleLogout}
@@ -841,18 +835,9 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* Travel is available to everyone (e.g., office visiting a jobsite). Using it
-            hides the manual clock button; both are otherwise available. */}
-        <TravelCard
-          activeEntryId={activeEntry && !activeEntry.clock_out_time ? activeEntry.id : null}
-          projects={projects.map(p => ({ id: p.id, name: p.name }))}
-          userName={profile?.full_name ?? null}
-          language={language}
-          safetyOk={safetyCompleted()}
-          onRequestClockIn={(destProjectId) => { if (destProjectId) setSelectedProjectId(destProjectId); setClockModalVisible(true) }}
-          onOpenLegChange={setTravelLegOpen}
-          onChanged={loadDashboard}
-        />
+        {/* Travel — a standalone mileage log. Start Trip / End Trip, each with a geo
+            photo. It never clocks anyone in or out. */}
+        <TravelCard userName={profile?.full_name ?? null} language={language} />
 
         <Pressable
           onPress={() => router.push('/my-schedule' as any)}

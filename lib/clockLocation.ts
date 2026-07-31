@@ -213,6 +213,28 @@ export async function stateForLocation(lat: number, lng: number): Promise<string
   }
 }
 
+/**
+ * Best-effort short street address for a coordinate ("1240 Main St, Springfield MO").
+ * Returns null on failure — it's a display label on trip photos, never load-bearing.
+ */
+export async function addressForLocation(lat: number, lng: number): Promise<string | null> {
+  try {
+    const results = await withTimeout(
+      Location.reverseGeocodeAsync({ latitude: lat, longitude: lng }),
+      6000,
+      'Reverse geocode',
+    )
+    const r = results?.[0]
+    if (!r) return null
+    const street = [r.streetNumber, r.street].filter(Boolean).join(' ')
+    const cityState = [r.city, normalizeState(r.region) || r.region].filter(Boolean).join(' ')
+    const label = [street || r.name, cityState].filter(Boolean).join(', ')
+    return label || null
+  } catch {
+    return null
+  }
+}
+
 // Off-site clock-in/out reason slugs are now manager-editable from the
 // web app's Settings → Lists. The mobile picker fetches the active list
 // at sign-in and caches it in AsyncStorage so it still works offline.

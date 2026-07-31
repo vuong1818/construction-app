@@ -173,8 +173,7 @@ export default function Profile() {
                 <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
                   <View>
                     <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 13 }}>
-                      {s.kind === 'commute_to' ? '🚗 ' : s.kind === 'commute_from' ? '🏠 ' : '🔄 '}
-                      {new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      🚗 {new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </Text>
                     <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{new Date(s.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
                   </View>

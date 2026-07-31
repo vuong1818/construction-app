@@ -39,7 +39,7 @@ type Entry = {
 }
 
 type Project = { id: number; name: string }
-type TravelSeg = { miles: number | null; kind: string | null; own_vehicle: boolean | null; out_of_state: boolean | null }
+type TravelSeg = { miles: number | null }
 
 type Mode = 'day' | 'period' | 'custom'
 
@@ -133,7 +133,7 @@ export default function TimesheetScreen() {
     const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
       supabase.from('profiles').select('wage').eq('id', user.id).maybeSingle(),
       supabase.from('company_settings').select('mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
-      supabase.from('travel_segments').select('miles, kind, own_vehicle, out_of_state')
+      supabase.from('travel_segments').select('miles')
         .eq('user_id', user.id)
         .gte('started_at', range.start.toISOString())
         .lte('started_at', range.end.toISOString()),
@@ -176,19 +176,18 @@ export default function TimesheetScreen() {
   const pay = useMemo(() => {
     const labor = totals.hours * wage
     const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
-    // Gas is now driven entirely by the travel/mileage function (commute over the
-    // threshold + site-to-site transfers), not a manual gas_amount field.
-    // In-state commute legs reimburse miles OVER the threshold; out-of-state legs and
-    // transfers reimburse in full. Own-vehicle only.
-    let payMiles = 0
+    // Mileage is one formula per trip, matching web payroll:
+    //   (trip miles - threshold) x rate = amount paid
+    // The threshold is deducted per trip, never from the period total.
+    let miles = 0        // miles actually driven
+    let payMiles = 0     // reimbursable miles after the per-trip threshold
     for (const ts of travel) {
-      if (ts.own_vehicle === false) continue
       const m = Number(ts.miles) || 0
-      const isCommute = ts.kind === 'commute_to' || ts.kind === 'commute_from'
-      payMiles += (isCommute && !ts.out_of_state) ? Math.max(0, m - mileageThreshold) : m
+      miles += m
+      payMiles += Math.max(0, m - mileageThreshold)
     }
     const gas = payMiles * mileageRate
-    return { labor, gas, receipts, total: labor + gas + receipts }
+    return { labor, gas, receipts, miles, payMiles, total: labor + gas + receipts }
   }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
 
   const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -302,7 +301,13 @@ export default function TimesheetScreen() {
           <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 0.5, marginBottom: 10 }}>MY PAY — {range.label}</Text>
           {[
             { label: 'Labor', sub: wage > 0 ? `${formatHours(totals.hours)} h @ $${wage.toFixed(2)}/h` : 'wage not set', value: pay.labor },
-            { label: 'Gas', sub: 'mileage / travel', value: pay.gas },
+            {
+              label: 'Mileage',
+              sub: pay.miles > 0
+                ? `${pay.miles.toFixed(1)} mi driven · ${pay.payMiles.toFixed(1)} mi paid${mileageRate > 0 ? ` @ $${mileageRate.toFixed(2)}/mi` : ''}`
+                : 'no trips logged',
+              value: pay.gas,
+            },
             { label: 'Receipts', value: pay.receipts },
           ].map(row => (
             <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
