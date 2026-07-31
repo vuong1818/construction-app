@@ -31,7 +31,7 @@ import {
 import { useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
-import { clockIn as svcClockIn, clockOut as svcClockOut } from '../../services/dashboardService'
+import { clockIn as svcClockIn, clockOut as svcClockOut, switchProject as svcSwitchProject } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
 import TravelCard from '../../components/TravelCard'
@@ -50,7 +50,8 @@ type Project = {
 }
 
 type OffsitePromptState = {
-  kind: 'in' | 'out'
+  kind: 'in' | 'out' | 'switch'
+  switchToProjectId?: number   // 'switch' only — the project being moved to
   distance: number | null   // null = project has no set job-site location
   outOfState?: boolean      // true when triggered by a state mismatch
   projectState?: string | null
@@ -96,6 +97,7 @@ export default function HomeScreen() {
   const [errorMessage, setErrorMessage] = useState('')
 
   const [clockModalVisible, setClockModalVisible] = useState(false)
+  const [switchModalVisible, setSwitchModalVisible] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
 
   const [manualAcknowledged, setManualAcknowledged] = useState(false)
@@ -448,6 +450,74 @@ export default function HomeScreen() {
     }
   }
 
+  /**
+   * Change Job Site — move the open shift to another project. The geofence is
+   * checked against the NEW site only; being outside the old one is expected once
+   * you've driven away. Off-site still goes through, it just needs a reason.
+   */
+  async function handleSwitchProject(newProjectId: number) {
+    if (!activeEntry?.id || activeEntry.clock_out_time) return
+    if (newProjectId === activeEntry.project_id) {
+      Alert.alert(t(language, 'error'), t(language, 'alreadyOnThisSite'))
+      return
+    }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      Alert.alert(t(language, 'error'), t(language, 'mustBeSignedIn'))
+      return
+    }
+
+    const project = projects.find((p) => p.id === newProjectId)
+    setSwitchModalVisible(false)
+    setClocking(true)
+
+    try {
+      const loc = await readCurrentLocation()
+
+      const fence = checkGeofence(loc.lat, loc.lng, {
+        latitude: project?.latitude ?? null,
+        longitude: project?.longitude ?? null,
+        geofence_radius_meters: project?.geofence_radius_meters ?? null,
+      })
+      const projectState = normalizeState(project?.state)
+      const workerState = await stateForLocation(loc.lat, loc.lng)
+      const outOfState = !!(projectState && workerState && projectState !== workerState)
+
+      const snapshotUrl = await captureMapSnapshot({ userId: session.user.id, lat: loc.lat, lng: loc.lng, kind: 'in' })
+
+      if (fence.inside && !outOfState) {
+        await svcSwitchProject(activeEntry.id, newProjectId, {
+          lat: loc.lat, lng: loc.lng, snapshotUrl,
+          offsite: false, offsiteReason: null, offsiteNote: null,
+        })
+        Alert.alert(t(language, 'success'), t(language, 'jobSiteChanged', { project: project?.name || '' }))
+        await loadDashboard()
+        return
+      }
+
+      setOffsitePrompt({
+        kind: 'switch',
+        switchToProjectId: newProjectId,
+        distance: fence.distanceMeters,
+        outOfState,
+        projectState,
+        workerState,
+        projectName: project?.name || t(language, 'project'),
+        payload: { lat: loc.lat, lng: loc.lng, snapshotUrl },
+        noteText: '',
+      })
+    } catch (error: any) {
+      if (error instanceof LocationDeniedError) {
+        Alert.alert(t(language, 'locationRequired'), t(language, 'allowLocationToClockIn'))
+      } else {
+        Alert.alert(t(language, 'error'), error?.message || t(language, 'somethingWrong'))
+      }
+    } finally {
+      setClocking(false)
+    }
+  }
+
   async function confirmOffsiteClock(reason: OffsiteReason) {
     if (!offsitePrompt) return
 
@@ -456,7 +526,16 @@ export default function HomeScreen() {
 
       const note = offsitePrompt.noteText.trim() || null
 
-      if (offsitePrompt.kind === 'in') {
+      if (offsitePrompt.kind === 'switch') {
+        if (!activeEntry?.id || !offsitePrompt.switchToProjectId) return
+        await svcSwitchProject(activeEntry.id, offsitePrompt.switchToProjectId, {
+          lat: offsitePrompt.payload.lat,
+          lng: offsitePrompt.payload.lng,
+          snapshotUrl: offsitePrompt.payload.snapshotUrl,
+          offsite: true, offsiteReason: reason, offsiteNote: note,
+        })
+        Alert.alert(t(language, 'success'), t(language, 'jobSiteChanged', { project: offsitePrompt.projectName }))
+      } else if (offsitePrompt.kind === 'in') {
         if (!selectedProjectId) return
         const result = await svcClockIn(selectedProjectId, {
           lat: offsitePrompt.payload.lat,
@@ -826,6 +905,32 @@ export default function HomeScreen() {
               {t(language, 'todayClockOut')}: {formatTimeOnly(todayEntry?.clock_out_time || null)}
             </Text>
           </View>
+
+          {/* Change Job Site — only while on the clock. Splits the shift in two
+              rather than making the worker clock out and back in. */}
+          {activeEntry && !activeEntry.clock_out_time && (
+            <Pressable
+              onPress={() => setSwitchModalVisible(true)}
+              disabled={clocking}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.14)',
+                borderRadius: 16,
+                paddingVertical: 14,
+                marginBottom: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.25)',
+              }}
+            >
+              <Ionicons name="swap-horizontal" size={20} color={COLORS.white} />
+              <Text style={{ color: COLORS.white, fontSize: 16, fontWeight: '800' }}>
+                {t(language, 'changeJobSite')}
+              </Text>
+            </Pressable>
+          )}
 
           <Text style={{ color: '#D9F6FB', marginBottom: 6 }}>
             {t(language, 'workWeek')}: {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}
@@ -1259,6 +1364,63 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Change Job Site — pick the new project; the shift splits at this instant.
+          Geofence is checked against the new site and an off-site reason is asked
+          for (but never blocks) exactly like clocking in. */}
+      <Modal
+        visible={switchModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSwitchModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.card, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 22, maxHeight: '85%' }}>
+            <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '800', marginBottom: 6 }}>
+              {t(language, 'changeJobSite')}
+            </Text>
+            <Text style={{ color: COLORS.subtext, marginBottom: 16, lineHeight: 20 }}>
+              {t(language, 'changeJobSiteIntro', { project: getProjectName(activeEntry?.project_id ?? null) })}
+            </Text>
+
+            <View style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, overflow: 'hidden', marginBottom: 16, backgroundColor: '#F8FAFC', maxHeight: 320 }}>
+              <ScrollView nestedScrollEnabled>
+                {projects.filter((p) => p.id !== activeEntry?.project_id).length === 0 ? (
+                  <Text style={{ color: COLORS.subtext, padding: 16 }}>{t(language, 'noProjectsAvailable')}</Text>
+                ) : (
+                  projects
+                    .filter((p) => p.id !== activeEntry?.project_id)
+                    .map((project) => (
+                      <Pressable
+                        key={project.id}
+                        onPress={() => handleSwitchProject(project.id)}
+                        disabled={clocking}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 10,
+                          paddingHorizontal: 14, paddingVertical: 16,
+                          borderBottomWidth: 1, borderBottomColor: COLORS.border,
+                        }}
+                      >
+                        <Ionicons name="flag" size={20} color={COLORS.navy} />
+                        <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                          {String(project?.name ?? '').trim() || `Project #${project.id}`}
+                        </Text>
+                        <Ionicons name="chevron-forward" size={18} color={COLORS.subtext} />
+                      </Pressable>
+                    ))
+                )}
+              </ScrollView>
+            </View>
+
+            <Pressable
+              onPress={() => setSwitchModalVisible(false)}
+              style={{ borderRadius: 18, paddingVertical: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border }}
+            >
+              <Text style={{ color: COLORS.subtext, fontSize: 16, fontWeight: '700' }}>{t(language, 'cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* Offsite reason prompt — shown when worker clocks in/out beyond the project geofence */}
       <Modal
         visible={!!offsitePrompt}
@@ -1287,7 +1449,7 @@ export default function HomeScreen() {
                       ? t(language, 'offsiteNoLocationIntro', { project: offsitePrompt.projectName })
                       : t(
                           language,
-                          offsitePrompt.kind === 'in' ? 'offsiteIntroIn' : 'offsiteIntroOut',
+                          offsitePrompt.kind === 'out' ? 'offsiteIntroOut' : 'offsiteIntroIn',
                           { distance: String(Math.round(offsitePrompt.distance)), project: offsitePrompt.projectName },
                         )
                   : ''}

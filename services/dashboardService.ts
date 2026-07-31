@@ -166,6 +166,73 @@ export async function clockOut(timeEntryId: number, location: ClockLocationPaylo
   }
 }
 
+/**
+ * Change Job Site — close the open entry and open one on another project at the
+ * SAME instant, so the day splits into two contiguous halves with no gap.
+ *
+ * Both halves carry the same GPS fix and map snapshot: one physical location, one
+ * moment. The offsite reason (if the worker isn't at the new site) belongs to the
+ * new entry's clock-in — leaving the old site's fence is expected, not an exception.
+ *
+ * Not queued for offline: a switch is two dependent writes and the second needs the
+ * first's row id. Workers with no signal clock out and back in as before.
+ */
+export async function switchProject(
+  currentEntryId: number,
+  newProjectId: number,
+  location: ClockLocationPayload,
+): Promise<{ newEntryId: number }> {
+  const user = await requireSessionUser()
+  const userName = await getUserFullName(user.id)
+  const at = new Date().toISOString()
+
+  const { error: outErr } = await supabase
+    .from('time_entries')
+    .update({
+      clock_out_time: at,
+      clock_out_lat: location.lat,
+      clock_out_lng: location.lng,
+      clock_out_snapshot_url: location.snapshotUrl,
+      clock_out_offsite: false,
+      clock_out_offsite_reason: null,
+      clock_out_offsite_note: null,
+    })
+    .eq('id', currentEntryId)
+  if (outErr) throw new Error(outErr.message)
+
+  const { data: inserted, error: inErr } = await supabase
+    .from('time_entries')
+    .insert({
+      project_id: newProjectId,
+      user_id: user.id,
+      user_name: userName,
+      clock_in_time: at,
+      clock_in_lat: location.lat,
+      clock_in_lng: location.lng,
+      clock_in_snapshot_url: location.snapshotUrl,
+      clock_in_offsite: location.offsite,
+      clock_in_offsite_reason: location.offsiteReason,
+      clock_in_offsite_note: location.offsiteNote,
+      switched_from_entry_id: currentEntryId,
+    })
+    .select('id')
+    .single()
+
+  if (inErr) {
+    // Re-open the original entry so the worker isn't left clocked out of everything.
+    await supabase.from('time_entries')
+      .update({ clock_out_time: null, clock_out_lat: null, clock_out_lng: null, clock_out_snapshot_url: null })
+      .eq('id', currentEntryId)
+    throw new Error(inErr.message)
+  }
+
+  await supabase.from('time_entries')
+    .update({ switched_to_entry_id: inserted.id })
+    .eq('id', currentEntryId)
+
+  return { newEntryId: inserted.id as number }
+}
+
 export async function logoutAndClockOutIfNeeded(activeEntryId?: number | null) {
   if (activeEntryId) {
     // Best-effort clock-out on logout — no location capture (background, no UI).
