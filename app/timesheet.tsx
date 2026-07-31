@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
 import { SkeletonList } from '../components/SkeletonCard'
+import { thresholdApplies } from '../components/TravelCard'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -39,7 +40,7 @@ type Entry = {
 }
 
 type Project = { id: number; name: string }
-type TravelSeg = { miles: number | null }
+type TravelSeg = { miles: number | null; kind: string | null }
 
 type Mode = 'day' | 'period' | 'custom'
 
@@ -133,7 +134,7 @@ export default function TimesheetScreen() {
     const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
       supabase.from('profiles').select('wage').eq('id', user.id).maybeSingle(),
       supabase.from('company_settings').select('mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
-      supabase.from('travel_segments').select('miles')
+      supabase.from('travel_segments').select('miles, kind')
         .eq('user_id', user.id)
         .gte('started_at', range.start.toISOString())
         .lte('started_at', range.end.toISOString()),
@@ -176,15 +177,15 @@ export default function TimesheetScreen() {
   const pay = useMemo(() => {
     const labor = totals.hours * wage
     const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
-    // Mileage is one formula per trip, matching web payroll:
-    //   (trip miles - threshold) x rate = amount paid
-    // The threshold is deducted per trip, never from the period total.
+    // Mileage per trip, matching web payroll:
+    //   home↔jobsite legs → (trip miles - threshold) x rate
+    //   site-to-site transfers → every mile x rate
     let miles = 0        // miles actually driven
     let payMiles = 0     // reimbursable miles after the per-trip threshold
     for (const ts of travel) {
       const m = Number(ts.miles) || 0
       miles += m
-      payMiles += Math.max(0, m - mileageThreshold)
+      payMiles += thresholdApplies(ts.kind) ? Math.max(0, m - mileageThreshold) : m
     }
     const gas = payMiles * mileageRate
     return { labor, gas, receipts, miles, payMiles, total: labor + gas + receipts }
