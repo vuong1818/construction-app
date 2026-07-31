@@ -176,7 +176,12 @@ export default function TimesheetScreen() {
   // Pay summary for the selected range (mirrors the web payroll math).
   const pay = useMemo(() => {
     const labor = totals.hours * wage
-    const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
+    // Gas is retired as a pay category — mileage replaced it. A legacy amount on an
+    // old entry folds into receipts so the historical total still reconciles.
+    const receipts = entries.reduce(
+      (s, e) => s + (Number((e as any).receipts_amount) || 0) + (Number((e as any).gas_amount) || 0),
+      0,
+    )
     // Mileage per trip, matching web payroll:
     //   home↔jobsite legs → (trip miles - threshold) x rate
     //   site-to-site transfers → every mile x rate
@@ -187,8 +192,8 @@ export default function TimesheetScreen() {
       miles += m
       payMiles += thresholdApplies(ts.kind) ? Math.max(0, m - mileageThreshold) : m
     }
-    const gas = payMiles * mileageRate
-    return { labor, gas, receipts, miles, payMiles, total: labor + gas + receipts }
+    const mileage = payMiles * mileageRate
+    return { labor, mileage, receipts, miles, payMiles, total: labor + mileage + receipts }
   }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
 
   const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -307,7 +312,7 @@ export default function TimesheetScreen() {
               sub: pay.miles > 0
                 ? `${pay.miles.toFixed(1)} mi driven · ${pay.payMiles.toFixed(1)} mi paid${mileageRate > 0 ? ` @ $${mileageRate.toFixed(2)}/mi` : ''}`
                 : 'no trips logged',
-              value: pay.gas,
+              value: pay.mileage,
             },
             { label: 'Receipts', value: pay.receipts },
           ].map(row => (

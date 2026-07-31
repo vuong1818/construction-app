@@ -62,7 +62,6 @@ type WorkerSummary = {
   rawHours: number
   totalHours: number
   labor: number
-  gasAmount: number
   receiptsAmount: number
   totalAmount: number
   adjustmentId: number | null
@@ -71,14 +70,12 @@ type WorkerSummary = {
 type EditForm = {
   workerName: string
   hours: string
-  gasAmount: string
   receiptsAmount: string
 }
 
 const EMPTY_FORM: EditForm = {
   workerName: '',
   hours: '',
-  gasAmount: '',
   receiptsAmount: '',
 }
 
@@ -228,10 +225,6 @@ function WorkerCard({
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
             {t('laborColon', { amount: formatMoney(item.labor) })}
-          </Text>
-
-          <Text style={{ color: COLORS.text, marginBottom: 4 }}>
-            {t('gasColon', { amount: formatMoney(item.gasAmount) })}
           </Text>
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
@@ -429,10 +422,12 @@ export default function ManagerTimeClockScreen() {
         adjustment?.hours_override !== null && adjustment?.hours_override !== undefined
           ? Number(adjustment.hours_override)
           : rawHours
-      const gasAmount = Number(adjustment?.gas_amount || 0)
-      const receiptsAmount = Number(adjustment?.receipts_amount || 0)
+      // Gas is retired as a pay category — mileage replaced it. A legacy amount
+      // folds into receipts so an older week still totals the same.
+      const legacyGas = Number(adjustment?.gas_amount || 0)
+      const receiptsAmount = Number(adjustment?.receipts_amount || 0) + legacyGas
       const labor = totalHours * wage
-      const totalAmount = labor + gasAmount + receiptsAmount
+      const totalAmount = labor + receiptsAmount
 
       return {
         workerId,
@@ -441,7 +436,6 @@ export default function ManagerTimeClockScreen() {
         rawHours,
         totalHours,
         labor,
-        gasAmount,
         receiptsAmount,
         totalAmount,
         adjustmentId: adjustment?.id || null,
@@ -457,7 +451,6 @@ export default function ManagerTimeClockScreen() {
     setForm({
       workerName: item.workerName,
       hours: String(item.totalHours),
-      gasAmount: String(item.gasAmount),
       receiptsAmount: String(item.receiptsAmount),
     })
     setModalVisible(true)
@@ -479,7 +472,6 @@ export default function ManagerTimeClockScreen() {
     }
 
     if (!validateAmount(form.hours, t('hoursLabelShort'))) return
-    if (!validateAmount(form.gasAmount, t('gasLabelShort'))) return
     if (!validateAmount(form.receiptsAmount, t('receiptsLabelShort'))) return
 
     try {
@@ -489,7 +481,6 @@ export default function ManagerTimeClockScreen() {
         worker_id: editingWorkerId,
         week_start: weekStartDateString(selectedWeek.start),
         hours_override: form.hours.trim() ? Number(form.hours) : null,
-        gas_amount: form.gasAmount.trim() ? Number(form.gasAmount) : 0,
         receipts_amount: form.receiptsAmount.trim() ? Number(form.receiptsAmount) : 0,
       }
 
@@ -752,13 +743,6 @@ export default function ManagerTimeClockScreen() {
                 value={form.hours}
                 onChangeText={(text) => setField('hours', text)}
                 placeholder={t('totalHoursPh')}
-              />
-
-              <Field
-                label={t('gasAmountField')}
-                value={form.gasAmount}
-                onChangeText={(text) => setField('gasAmount', text)}
-                placeholder={t('gasAmountPh')}
               />
 
               <Field
