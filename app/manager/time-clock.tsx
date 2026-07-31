@@ -44,7 +44,6 @@ type WorkerWeekAdjustment = {
   worker_id: string
   week_start: string
   hours_override: number | null
-  gas_amount: number | null
   receipts_amount: number | null
 }
 
@@ -350,7 +349,7 @@ export default function ManagerTimeClockScreen() {
 
         supabase
           .from('worker_week_adjustments')
-          .select('id, worker_id, week_start, hours_override, gas_amount, receipts_amount')
+          .select('id, worker_id, week_start, hours_override, receipts_amount')
           .eq('week_start', weekStartStr),
       ])
 
@@ -422,10 +421,9 @@ export default function ManagerTimeClockScreen() {
         adjustment?.hours_override !== null && adjustment?.hours_override !== undefined
           ? Number(adjustment.hours_override)
           : rawHours
-      // Gas is retired as a pay category — mileage replaced it. A legacy amount
-      // folds into receipts so an older week still totals the same.
-      const legacyGas = Number(adjustment?.gas_amount || 0)
-      const receiptsAmount = Number(adjustment?.receipts_amount || 0) + legacyGas
+      // Gas is not a pay category — mileage covers a worker's own fuel, and gas for
+      // equipment books as a company expense.
+      const receiptsAmount = Number(adjustment?.receipts_amount || 0)
       const labor = totalHours * wage
       const totalAmount = labor + receiptsAmount
 

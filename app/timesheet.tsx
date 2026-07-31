@@ -35,7 +35,6 @@ type Entry = {
   clock_out_offsite_reason: string | null
   clock_in_offsite_note: string | null
   clock_out_offsite_note: string | null
-  gas_amount: number | null
   receipts_amount: number | null
 }
 
@@ -176,12 +175,9 @@ export default function TimesheetScreen() {
   // Pay summary for the selected range (mirrors the web payroll math).
   const pay = useMemo(() => {
     const labor = totals.hours * wage
-    // Gas is retired as a pay category — mileage replaced it. A legacy amount on an
-    // old entry folds into receipts so the historical total still reconciles.
-    const receipts = entries.reduce(
-      (s, e) => s + (Number((e as any).receipts_amount) || 0) + (Number((e as any).gas_amount) || 0),
-      0,
-    )
+    // Gas is not a pay category — mileage covers your own fuel, and gas for
+    // equipment books as a company expense.
+    const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
     // Mileage per trip, matching web payroll:
     //   home↔jobsite legs → (trip miles - threshold) x rate
     //   site-to-site transfers → every mile x rate
