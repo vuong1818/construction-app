@@ -19,7 +19,7 @@ type Project = { id: number; name: string; status: string | null; contract_amoun
 type ChangeOrder = { id: number; project_id: number; amount: number }
 type Expense = { id: number; project_id: number; amount: number; is_paid: boolean | null; payment_method: string | null }
 type PayApp = { id: number; project_id: number; retainage_pct: number | null; amount_paid: number | null }
-type PayAppLine = { pay_app_id: number; from_previous: number; this_period: number; materials_stored: number }
+type PayAppLine = { draw_id: number; from_previous: number; this_period: number; materials_stored: number }
 
 function fmtMoney(n: number): string {
   return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
@@ -50,7 +50,7 @@ export default function ManagerFinanceScreen() {
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),
       supabase.from('project_change_orders').select('id, project_id, amount'),
       supabase.from('project_expenses').select('id, project_id, amount, is_paid, payment_method'),
-      supabase.from('project_pay_apps').select('id, project_id, retainage_pct, amount_paid'),
+      supabase.from('project_draws').select('id, project_id, retainage_pct, amount_paid'),
     ])
     setProjects((pr as Project[]) || [])
     setChangeOrders((co as ChangeOrder[]) || [])
@@ -60,9 +60,9 @@ export default function ManagerFinanceScreen() {
     const ids = (ap || []).map(a => a.id)
     if (ids.length > 0) {
       const { data: lns } = await supabase
-        .from('project_pay_app_lines')
-        .select('pay_app_id, from_previous, this_period, materials_stored')
-        .in('pay_app_id', ids)
+        .from('project_draw_lines')
+        .select('draw_id, from_previous, this_period, materials_stored')
+        .in('draw_id', ids)
       setPayAppLines((lns as PayAppLine[]) || [])
     } else {
       setPayAppLines([])
@@ -74,14 +74,14 @@ export default function ManagerFinanceScreen() {
   useEffect(() => { load() }, [load])
   useRealtimeRefetch('project_change_orders', load, undefined, !loading)
   useRealtimeRefetch('project_expenses',      load, undefined, !loading)
-  useRealtimeRefetch('project_pay_apps',      load, undefined, !loading)
+  useRealtimeRefetch('project_draws',          load, undefined, !loading)
   useRealtimeRefetch('projects',              load, undefined, !loading)
 
   // Per-app billed (sum of D+E+F) and outstanding (netBilled - amount_paid)
   const completedByApp = new Map<number, number>()
   payAppLines.forEach(l => {
     const v = (Number(l.from_previous) || 0) + (Number(l.this_period) || 0) + (Number(l.materials_stored) || 0)
-    completedByApp.set(l.pay_app_id, (completedByApp.get(l.pay_app_id) || 0) + v)
+    completedByApp.set(l.draw_id, (completedByApp.get(l.draw_id) || 0) + v)
   })
 
   const billedByProject = new Map<number, number>()
