@@ -63,6 +63,7 @@ export default function TravelCard({ userName, language }: { userName: string | 
   const [picking, setPicking] = useState(false)
   const [threshold, setThreshold] = useState(0)
   const [edit, setEdit] = useState<TripEdit | null>(null)
+  const [enabled, setEnabled] = useState(true)
 
   const load = useCallback(async () => {
     try {
@@ -76,10 +77,15 @@ export default function TravelCard({ userName, language }: { userName: string | 
           .eq('user_id', uid)
           .gte('started_at', start.toISOString())
           .order('started_at', { ascending: false }),
-        supabase.from('company_settings').select('mileage_threshold_miles').order('id', { ascending: true }).limit(1).maybeSingle(),
+        supabase.from('company_settings')
+          .select('mileage_threshold_miles, feature_travel')
+          .order('id', { ascending: true }).limit(1).maybeSingle(),
       ])
       setSegments((data as Segment[]) || [])
       setThreshold(Number((cs as any)?.mileage_threshold_miles || 0))
+      // Travel is optional per tenant (web: Settings → Special Features). Default
+      // ON so a failed read never hides a feature crews are relying on.
+      setEnabled((cs as any)?.feature_travel !== false)
     } catch (e) { console.warn('travel load failed', e) } finally { setLoading(false) }
   }, [])
 
@@ -231,7 +237,8 @@ export default function TravelCard({ userName, language }: { userName: string | 
     ])
   }
 
-  if (loading) return null
+  // Feature switched off for this tenant — render nothing at all.
+  if (loading || !enabled) return null
 
   return (
     <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 18, marginTop: 16, borderWidth: 1, borderColor: COLORS.border }}>
