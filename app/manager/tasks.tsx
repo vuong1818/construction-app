@@ -15,15 +15,16 @@ import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
-type Status = 'assigned' | 'in_progress' | 'completed'
+type Status = 'preparation' | 'in_progress' | 'blocked' | 'completed'
 
 const STATUS_CONFIG: Record<Status, { labelKey: TranslationKey; color: string; bg: string }> = {
-  assigned:    { labelKey: 'statusAssigned',   color: '#1565C0', bg: '#E3F2FD' },
+  preparation: { labelKey: 'statusPreparation', color: '#64748B', bg: '#F1F5F9' },
+  blocked:     { labelKey: 'statusBlocked',     color: '#B71C1C', bg: '#FDECEA' },
   in_progress: { labelKey: 'statusInProgress', color: '#E65100', bg: '#FFF3E0' },
   completed:   { labelKey: 'statusCompleted',  color: '#2E7D32', bg: '#E8F5E9' },
 }
 
-const STATUS_ORDER: Record<Status, number> = { in_progress: 0, assigned: 1, completed: 2 }
+const STATUS_ORDER: Record<Status, number> = { in_progress: 0, blocked: 1, preparation: 2, completed: 3 }
 
 const OVERDUE = { color: '#C62828', bg: '#FFEBEE' }
 
@@ -108,7 +109,7 @@ export default function ManagerTasksScreen() {
 
   const overdueCount    = visibleTasks.filter(isOverdue).length
   const inProgressCount = visibleTasks.filter(t => t.status === 'in_progress').length
-  const assignedCount   = visibleTasks.filter(t => t.status === 'assigned').length
+  const preparationCount = visibleTasks.filter(t => t.status === 'preparation').length
 
   if (loading) {
     return (
@@ -154,8 +155,8 @@ export default function ManagerTasksScreen() {
           <View style={{ backgroundColor: STATUS_CONFIG.in_progress.bg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 }}>
             <Text style={{ color: STATUS_CONFIG.in_progress.color, fontWeight: '800', fontSize: 12 }}>{t('inProgressCount', { count: inProgressCount })}</Text>
           </View>
-          <View style={{ backgroundColor: STATUS_CONFIG.assigned.bg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 }}>
-            <Text style={{ color: STATUS_CONFIG.assigned.color, fontWeight: '800', fontSize: 12 }}>{t('assignedCount', { count: assignedCount })}</Text>
+          <View style={{ backgroundColor: STATUS_CONFIG.preparation.bg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100 }}>
+            <Text style={{ color: STATUS_CONFIG.preparation.color, fontWeight: '800', fontSize: 12 }}>{t('preparationCount', { count: preparationCount })}</Text>
           </View>
         </View>
 
@@ -165,7 +166,7 @@ export default function ManagerTasksScreen() {
           </View>
         ) : (
           sorted.map(task => {
-            const cfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.assigned
+            const cfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.preparation
             const overdue = isOverdue(task)
             return (
               <Pressable

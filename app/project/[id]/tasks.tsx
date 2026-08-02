@@ -25,16 +25,17 @@ import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS, TOUCH, TYPE } from '../../../lib/theme'
 
-type Status = 'assigned' | 'in_progress' | 'completed'
+type Status = 'preparation' | 'in_progress' | 'blocked' | 'completed'
 
 const STATUS_CONFIG: Record<Status, { labelKey: TranslationKey; color: string; bg: string }> = {
-  assigned:    { labelKey: 'statusAssigned',   color: '#1565C0', bg: '#E3F2FD' },
+  preparation: { labelKey: 'statusPreparation', color: '#64748B', bg: '#F1F5F9' },
+  blocked:     { labelKey: 'statusBlocked',     color: '#B71C1C', bg: '#FDECEA' },
   in_progress: { labelKey: 'statusInProgress', color: '#E65100', bg: '#FFF3E0' },
   completed:   { labelKey: 'statusCompleted', color: '#2E7D32', bg: '#E8F5E9' },
 }
 
 // Sort: in_progress first, then assigned, then completed (overdue is bumped above all in code).
-const STATUS_ORDER: Status[] = ['in_progress', 'assigned', 'completed']
+const STATUS_ORDER: Status[] = ['in_progress', 'blocked', 'preparation', 'completed']
 
 const OVERDUE_BADGE = { color: '#C62828', bg: '#FFEBEE' }
 
@@ -114,7 +115,7 @@ export default function ProjectTasksScreen() {
     task_date: '',
     title: '',
     assigned_to: '',
-    status: 'assigned' as Status,
+    status: 'preparation' as Status,
     notes: '',
   })
   const [saving, setSaving] = useState(false)
@@ -302,7 +303,7 @@ export default function ProjectTasksScreen() {
       task_date: new Date().toISOString().split('T')[0],
       title: '',
       assigned_to: '',
-      status: 'assigned',
+      status: 'preparation',
       notes: '',
     })
     setCreating(true)

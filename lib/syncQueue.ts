@@ -53,7 +53,7 @@ export type TaskStatusUpdateOp = {
   kind: 'task_status_update'
   payload: {
     task_id: number
-    status: 'assigned' | 'in_progress' | 'completed'
+    status: 'preparation' | 'in_progress' | 'blocked' | 'completed'
   }
   queued_at: string
   attempts: number

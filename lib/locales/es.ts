@@ -156,7 +156,8 @@ const es: Record<TranslationKey, string> = {
   addTaskShort: 'Agregar tarea',
   noTasksManager: 'Aún no hay tareas para este proyecto.',
   noTasksWorker: 'No tienes tareas asignadas en este proyecto.',
-  statusAssigned: 'Asignada',
+  statusPreparation: 'Preparación',
+  statusBlocked: 'Bloqueada',
   statusInProgress: 'En progreso',
   statusCompleted: 'Completada',
   overdue: 'Atrasada',
@@ -422,7 +423,7 @@ const es: Record<TranslationKey, string> = {
   noOpenTasksActive: 'No hay tareas abiertas en proyectos activos.',
   overdueCount: '⚠ Atrasadas: {count}',
   inProgressCount: 'En progreso: {count}',
-  assignedCount: 'Asignadas: {count}',
+  preparationCount: 'Preparación: {count}',
 
   // ── Manager dashboard ─────────────────────────────────────────────────
   loadingManagerDashboard: 'Cargando panel de gerencia...',

@@ -40,8 +40,16 @@ export default function MyTasksScreen() {
       const me = session.user.id
       setUid(me)
 
+      // Tasks are crewed, not owned: read the assignee join table rather than
+      // the single assigned_to column, or a worker only sees the jobs where
+      // they happen to be listed first.
+      const { data: mine } = await supabase.from('project_task_assignees')
+        .select('task_id').eq('user_id', me)
+      const myTaskIds = [...new Set((mine || []).map((a: any) => a.task_id))]
+      if (myTaskIds.length === 0) { setTasks([]); setLoading(false); return }
+
       const { data: raw } = await supabase.from('project_playbook_step_checks')
-        .select('id, step_id, label, description, notes').eq('assigned_to', me)
+        .select('id, step_id, label, description, notes').in('id', myTaskIds)
       const rows = raw || []
       const stepIds = [...new Set(rows.map((r: any) => r.step_id))]
       if (stepIds.length === 0) { setTasks([]); setLoading(false); return }

@@ -164,7 +164,8 @@ const en = {
   addTaskShort: 'Add Task',
   noTasksManager: 'No tasks yet for this project.',
   noTasksWorker: 'No tasks assigned to you for this project.',
-  statusAssigned: 'Assigned',
+  statusPreparation: 'Preparation',
+  statusBlocked: 'Blocked',
   statusInProgress: 'In Progress',
   statusCompleted: 'Completed',
   overdue: 'Overdue',
@@ -430,7 +431,7 @@ const en = {
   noOpenTasksActive: 'No open tasks across active projects.',
   overdueCount: '⚠ Overdue: {count}',
   inProgressCount: 'In Progress: {count}',
-  assignedCount: 'Assigned: {count}',
+  preparationCount: 'Preparation: {count}',
 
   // ── Manager dashboard ─────────────────────────────────────────────────
   loadingManagerDashboard: 'Loading manager dashboard...',

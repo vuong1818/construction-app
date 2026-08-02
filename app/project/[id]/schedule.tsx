@@ -12,7 +12,7 @@ import { COLORS } from '../../../lib/theme'
 type Task = {
   id: number
   title: string
-  status: 'assigned' | 'in_progress' | 'completed'
+  status: 'preparation' | 'in_progress' | 'blocked' | 'completed'
   task_date: string | null
   start_date: string | null
   end_date: string | null
@@ -23,8 +23,9 @@ type Task = {
 type Profile = { id: string; full_name: string | null }
 type Project = { id: number; name: string }
 
-const STATUS_BADGE: Record<Task['status'], { bg: string; color: string; key: 'statusAssigned' | 'statusInProgress' | 'statusCompleted' }> = {
-  assigned:    { bg: '#E3F2FD', color: '#1565C0', key: 'statusAssigned' },
+const STATUS_BADGE: Record<Task['status'], { bg: string; color: string; key: 'statusPreparation' | 'statusInProgress' | 'statusBlocked' | 'statusCompleted' }> = {
+  preparation: { bg: '#F1F5F9', color: '#64748B', key: 'statusPreparation' },
+  blocked:     { bg: '#FDECEA', color: '#B71C1C', key: 'statusBlocked' },
   in_progress: { bg: '#FFF3E0', color: '#E65100', key: 'statusInProgress' },
   completed:   { bg: '#E8F5E9', color: '#2E7D32', key: 'statusCompleted' },
 }
