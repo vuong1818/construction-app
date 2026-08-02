@@ -416,19 +416,16 @@ export default function ManagerSafetyScreen() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error(t('notAuthenticatedShort'))
 
-      const payload: any = {
-        week_start: weekStart,
-        topic: topicText.trim(),
-        created_by: user.id,
-        pdf_url: selectedDoc?.pdf_url ?? topic?.pdf_url ?? null,
-        video_url: selectedVideo?.pdf_url ?? topic?.video_url ?? null,
-      }
-
-      if (topic?.id) {
-        await supabase.from('weekly_safety_topics').update(payload).eq('id', topic.id)
-      } else {
-        await supabase.from('weekly_safety_topics').insert(payload)
-      }
+      // Through the RPC, not a direct write: the row is keyed
+      // (org_id, week_start) and the client has no org_id to set, so an insert
+      // here landed with a NULL org — invisible to every org-scoped read.
+      const { error } = await supabase.rpc('set_weekly_safety_topic', {
+        p_week_start: weekStart,
+        p_topic: topicText.trim(),
+        p_pdf_url: selectedDoc?.pdf_url ?? topic?.pdf_url ?? null,
+        p_video_url: selectedVideo?.pdf_url ?? topic?.video_url ?? null,
+      })
+      if (error) throw error
 
       await loadTopic()
       setEditing(false)
