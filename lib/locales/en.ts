@@ -787,8 +787,8 @@ const en = {
   loadingTimeClock: 'Loading time clock...',
   failedToLoadTimeClock: 'Failed to load time clock.',
   unknownWorkerName: 'Unknown Worker',
-  timeClockTitle: 'Time Clock',
-  timeClockIntro: 'Select a work week, review each worker’s totals, and update hours, gas, and receipts.',
+  timeClockTitle: 'Payroll',
+  timeClockIntro: 'Select a work week, review each worker’s pay — hours, receipts and mileage — and adjust hours or add receipts.',
   workWeekHeader: 'Work Week',
   workersHeader: 'Workers',
   noWorkersForWeek: 'No workers found for this work week.',
@@ -800,6 +800,7 @@ const en = {
   gasAmountPh: 'Enter gas amount',
   receiptsAmountField: 'Receipts Amount',
   receiptsAmountPh: 'Enter receipts amount',
+  receiptsAmountHint: 'Extra receipts to pay on top of what the worker already submitted.',
   invalidNumber: 'Invalid Number',
   fieldMustBeNumber: '{label} must be a valid number.',
   hoursLabelShort: 'Hours',
@@ -816,6 +817,7 @@ const en = {
   mileageColon: 'Mileage: {amount}',
   mileageDetail: '{driven} mi driven · {paid} mi paid @ ${rate}/mi',
   receiptsColon: 'Receipts: {amount}',
+  receiptsBreakdown: '{submitted} submitted by worker · {added} added here',
   totalAmountColon: 'Total Amount: {amount}',
 
   // ── Manager company ───────────────────────────────────────────────────

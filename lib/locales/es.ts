@@ -779,8 +779,8 @@ const es: Record<TranslationKey, string> = {
   loadingTimeClock: 'Cargando reloj de tiempo...',
   failedToLoadTimeClock: 'No se pudo cargar el reloj de tiempo.',
   unknownWorkerName: 'Trabajador desconocido',
-  timeClockTitle: 'Reloj de tiempo',
-  timeClockIntro: 'Selecciona una semana laboral, revisa los totales de cada trabajador y actualiza horas, gasolina y recibos.',
+  timeClockTitle: 'Nómina',
+  timeClockIntro: 'Selecciona una semana laboral, revisa el pago de cada trabajador — horas, recibos y millaje — y ajusta horas o agrega recibos.',
   workWeekHeader: 'Semana laboral',
   workersHeader: 'Trabajadores',
   noWorkersForWeek: 'No se encontraron trabajadores para esta semana laboral.',
@@ -792,6 +792,7 @@ const es: Record<TranslationKey, string> = {
   gasAmountPh: 'Ingresa el monto de gasolina',
   receiptsAmountField: 'Monto de recibos',
   receiptsAmountPh: 'Ingresa el monto de recibos',
+  receiptsAmountHint: 'Recibos adicionales a pagar además de lo que el trabajador ya envió.',
   invalidNumber: 'Número inválido',
   fieldMustBeNumber: '{label} debe ser un número válido.',
   hoursLabelShort: 'Horas',
@@ -808,6 +809,7 @@ const es: Record<TranslationKey, string> = {
   mileageColon: 'Millaje: {amount}',
   mileageDetail: '{driven} mi recorridas · {paid} mi pagadas a ${rate}/mi',
   receiptsColon: 'Recibos: {amount}',
+  receiptsBreakdown: '{submitted} enviado por el trabajador · {added} agregado aquí',
   totalAmountColon: 'Monto total: {amount}',
 
   // ── Manager company ───────────────────────────────────────────────────

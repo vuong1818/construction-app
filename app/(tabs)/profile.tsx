@@ -13,12 +13,13 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import MileageHistory from '../../components/MileageHistory'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
 export default function Profile() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [uid, setUid] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -33,7 +34,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [showMileage, setShowMileage] = useState(false)
-  const [mileage, setMileage] = useState<{ id: number; kind: string | null; started_at: string; miles: number | null }[]>([])
+  const [fullName, setFullName] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -51,16 +52,10 @@ export default function Profile() {
         setAddress(prof.address || '')
         setHomeState(prof.home_state || '')
         setHomeZip(prof.home_zip || '')
+        setFullName(prof.full_name || null)
       }
-      // Recent mileage history (last ~60 days of completed travel legs).
-      const since = new Date(); since.setDate(since.getDate() - 60)
-      const { data: segs } = await supabase.from('travel_segments')
-        .select('id, kind, started_at, miles')
-        .eq('user_id', user.id)
-        .not('ended_at', 'is', null)
-        .gte('started_at', since.toISOString())
-        .order('started_at', { ascending: false })
-      setMileage((segs as any) || [])
+      // Trip history itself is loaded by <MileageHistory />, which also owns
+      // correcting and adding trips.
       setLoading(false)
     })()
   }, [])
@@ -167,25 +162,7 @@ export default function Profile() {
 
           {showMileage && (
             <View style={{ ...card, borderTopLeftRadius: 0, borderTopRightRadius: 0, borderTopWidth: 0 }}>
-              {mileage.length === 0 ? (
-                <Text style={{ color: COLORS.subtext, textAlign: 'center', paddingVertical: 10 }}>{t('mileageHistoryEmpty')}</Text>
-              ) : mileage.map(s => (
-                <View key={s.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border }}>
-                  <View>
-                    <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 13 }}>
-                      🚗 {new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </Text>
-                    <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{new Date(s.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</Text>
-                  </View>
-                  <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{(Number(s.miles) || 0).toFixed(1)} mi</Text>
-                </View>
-              ))}
-              {mileage.length > 0 && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10 }}>
-                  <Text style={{ color: COLORS.text, fontWeight: '800' }}>{t('total')}</Text>
-                  <Text style={{ color: COLORS.green, fontWeight: '900' }}>{mileage.reduce((a, s) => a + (Number(s.miles) || 0), 0).toFixed(1)} mi</Text>
-                </View>
-              )}
+              <MileageHistory userName={fullName} language={language} />
             </View>
           )}
 

@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
 import { SkeletonList } from '../components/SkeletonCard'
 import { thresholdApplies } from '../components/TravelCard'
+import { effectiveWage } from '../lib/payrollWage'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -38,7 +39,7 @@ type Entry = {
   receipts_amount: number | null
 }
 
-type Project = { id: number; name: string }
+type Project = { id: number; name: string; state?: string | null }
 type TravelSeg = { miles: number | null; kind: string | null }
 
 type Mode = 'day' | 'period' | 'custom'
@@ -86,6 +87,10 @@ export default function TimesheetScreen() {
   const [loading, setLoading] = useState(true)
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null)
   const [wage, setWage] = useState(0)
+  // Out-of-state rate + the company's home state, so labor here matches the
+  // web payroll instead of paying every hour at the base rate.
+  const [oosWage, setOosWage] = useState(0)
+  const [companyState, setCompanyState] = useState<string | null>(null)
   const [mileageRate, setMileageRate] = useState(0)
   const [mileageThreshold, setMileageThreshold] = useState(0)
   const [travel, setTravel] = useState<TravelSeg[]>([])
@@ -131,21 +136,23 @@ export default function TimesheetScreen() {
 
     // Pay inputs: own wage, company mileage rate + threshold, and travel this range.
     const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
-      supabase.from('profiles').select('wage').eq('id', user.id).maybeSingle(),
-      supabase.from('company_settings').select('mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
+      supabase.from('profiles').select('wage, oos_wage').eq('id', user.id).maybeSingle(),
+      supabase.from('company_settings').select('state, mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
       supabase.from('travel_segments').select('miles, kind')
         .eq('user_id', user.id)
         .gte('started_at', range.start.toISOString())
         .lte('started_at', range.end.toISOString()),
     ])
     setWage(Number((prof as any)?.wage || 0))
+    setOosWage(Number((prof as any)?.oos_wage || 0))
+    setCompanyState(((cs as any)?.state as string) || null)
     setMileageRate(Number((cs as any)?.mileage_rate || 0))
     setMileageThreshold(Number((cs as any)?.mileage_threshold_miles || 0))
     setTravel((ts as TravelSeg[]) || [])
 
     const ids = Array.from(new Set(list.map(e => e.project_id).filter((x): x is number => x != null)))
     if (ids.length > 0) {
-      const { data: ps } = await supabase.from('projects').select('id, name').in('id', ids)
+      const { data: ps } = await supabase.from('projects').select('id, name, state').in('id', ids)
       const map: Record<number, Project> = {}
       for (const p of (ps || [])) map[p.id] = p as Project
       setProjects(map)
@@ -174,7 +181,16 @@ export default function TimesheetScreen() {
 
   // Pay summary for the selected range (mirrors the web payroll math).
   const pay = useMemo(() => {
-    const labor = totals.hours * wage
+    // Labor is per shift, not per week: an entry on an out-of-state project
+    // pays oos_wage. Open entries count to now, matching the hours total.
+    const labor = entries.reduce((sum, e) => {
+      const start = e.clock_in_time ? new Date(e.clock_in_time).getTime() : 0
+      if (!start) return sum
+      const end = e.clock_out_time ? new Date(e.clock_out_time).getTime() : Date.now()
+      const hours = Math.max(0, end - start) / 3_600_000
+      const projectState = e.project_id != null ? projects[e.project_id]?.state : null
+      return sum + hours * effectiveWage({ wage, oos_wage: oosWage }, { projectState, companyState })
+    }, 0)
     // Gas is not a pay category — mileage covers your own fuel, and gas for
     // equipment books as a company expense.
     const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
@@ -190,7 +206,7 @@ export default function TimesheetScreen() {
     }
     const mileage = payMiles * mileageRate
     return { labor, mileage, receipts, miles, payMiles, total: labor + mileage + receipts }
-  }, [totals.hours, wage, entries, travel, mileageRate, mileageThreshold])
+  }, [wage, oosWage, companyState, projects, entries, travel, mileageRate, mileageThreshold])
 
   const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
