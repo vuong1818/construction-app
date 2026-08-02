@@ -62,8 +62,20 @@ type WorkerSummary = {
   totalHours: number
   labor: number
   receiptsAmount: number
+  drivenMiles: number
+  paidMiles: number
+  mileageReimb: number
   totalAmount: number
   adjustmentId: number | null
+}
+
+// The threshold comes off each qualifying trip individually, never off the
+// week's total — and it does not apply to site-to-site transfers, which are
+// paid in full. Same rule as the web payroll and the mobile Travel card; if
+// these three ever disagree, a worker gets paid a different amount depending
+// on which screen you look at.
+function tripThresholdApplies(kind: string | null): boolean {
+  return kind !== 'transfer'
 }
 
 type EditForm = {
@@ -179,9 +191,13 @@ function Field({
 function WorkerCard({
   item,
   onEdit,
+  showMileage,
+  mileageRate,
 }: {
   item: WorkerSummary
   onEdit: (item: WorkerSummary) => void
+  showMileage: boolean
+  mileageRate: number
 }) {
   const { t } = useLanguage()
   return (
@@ -230,6 +246,26 @@ function WorkerCard({
             {t('receiptsColon', { amount: formatMoney(item.receiptsAmount) })}
           </Text>
 
+          {showMileage && (
+            <View style={{ marginBottom: 4 }}>
+              <Text style={{ color: COLORS.text }}>
+                {t('mileageColon', { amount: formatMoney(item.mileageReimb) })}
+              </Text>
+              {item.drivenMiles > 0 && (
+                // Driven vs paid, because they differ and the difference is the
+                // first thing a worker asks about. Showing only the dollars
+                // makes the threshold look like an error.
+                <Text style={{ color: COLORS.subtext, fontSize: 12 }}>
+                  {t('mileageDetail', {
+                    driven: item.drivenMiles.toFixed(1),
+                    paid: item.paidMiles.toFixed(1),
+                    rate: mileageRate.toFixed(2),
+                  })}
+                </Text>
+              )}
+            </View>
+          )}
+
           <Text style={{ color: COLORS.navy, fontWeight: '800' }}>
             {t('totalAmountColon', { amount: formatMoney(item.totalAmount) })}
           </Text>
@@ -264,6 +300,13 @@ export default function ManagerTimeClockScreen() {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [adjustments, setAdjustments] = useState<WorkerWeekAdjustment[]>([])
+  const [travel, setTravel] = useState<{ user_id: string; miles: number | null; kind: string | null }[]>([])
+  const [mileageRate, setMileageRate] = useState(0)
+  const [mileageThreshold, setMileageThreshold] = useState(0)
+  // Travel is a switchable feature. Off means mileage never appears here and
+  // never lands in a total — a tenant that does not reimburse mileage should
+  // not see a zero row prompting them to wonder what it is.
+  const [travelEnabled, setTravelEnabled] = useState(true)
 
   const [modalVisible, setModalVisible] = useState(false)
   const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null)
@@ -333,7 +376,7 @@ export default function ManagerTimeClockScreen() {
 
       const weekStartStr = weekStartDateString(weekStart)
 
-      const [entriesResult, profilesResult, adjustmentsResult] = await Promise.all([
+      const [entriesResult, profilesResult, adjustmentsResult, travelResult, settingsResult] = await Promise.all([
         supabase
           .from('time_entries')
           .select('id, project_id, user_id, user_name, clock_in_time, clock_out_time, created_at')
@@ -351,6 +394,21 @@ export default function ManagerTimeClockScreen() {
           .from('worker_week_adjustments')
           .select('id, worker_id, week_start, hours_override, receipts_amount')
           .eq('week_start', weekStartStr),
+
+        // Trips in this week, and the rate/threshold they are paid at. Mileage
+        // is pay, not a footnote: leaving it out of this screen meant the
+        // manager's total and the worker's check disagreed.
+        supabase
+          .from('travel_segments')
+          .select('user_id, miles, kind')
+          .gte('started_at', weekStart.toISOString())
+          .lte('started_at', weekEnd.toISOString()),
+
+        supabase
+          .from('company_settings')
+          .select('mileage_rate, mileage_threshold_miles, feature_travel')
+          .limit(1)
+          .maybeSingle(),
       ])
 
       if (entriesResult.error) {
@@ -371,6 +429,14 @@ export default function ManagerTimeClockScreen() {
       setEntries(entriesResult.data || [])
       setProfiles(profilesResult.data || [])
       setAdjustments(adjustmentsResult.data || [])
+      // A failed travel read must not blank the payroll screen — hours and
+      // receipts are still correct without it. Mileage shows as zero and the
+      // manager can see something is off, which beats an empty week.
+      setTravel(travelResult.error ? [] : (travelResult.data || []))
+      const cs: any = settingsResult.data || {}
+      setMileageRate(Number(cs.mileage_rate || 0))
+      setMileageThreshold(Number(cs.mileage_threshold_miles || 0))
+      setTravelEnabled(cs.feature_travel !== false)
     } catch (error: any) {
       setErrorMessage(error?.message || t('failedToLoadTimeClock'))
     } finally {
@@ -425,7 +491,22 @@ export default function ManagerTimeClockScreen() {
       // equipment books as a company expense.
       const receiptsAmount = Number(adjustment?.receipts_amount || 0)
       const labor = totalHours * wage
-      const totalAmount = labor + receiptsAmount
+
+      // Mileage, per trip and driven by the trip type the worker picked:
+      //   home↔jobsite legs      → (trip miles − threshold) × rate
+      //   site-to-site transfers → every mile × rate
+      let drivenMiles = 0
+      let paidMiles = 0
+      if (travelEnabled) {
+        for (const ts of travel) {
+          if (ts.user_id !== workerId) continue
+          const m = Number(ts.miles) || 0
+          drivenMiles += m
+          paidMiles += tripThresholdApplies(ts.kind) ? Math.max(0, m - mileageThreshold) : m
+        }
+      }
+      const mileageReimb = paidMiles * mileageRate
+      const totalAmount = labor + receiptsAmount + mileageReimb
 
       return {
         workerId,
@@ -435,13 +516,16 @@ export default function ManagerTimeClockScreen() {
         totalHours,
         labor,
         receiptsAmount,
+        drivenMiles,
+        paidMiles,
+        mileageReimb,
         totalAmount,
         adjustmentId: adjustment?.id || null,
       }
     })
 
     return summaryList.sort((a, b) => a.workerName.localeCompare(b.workerName))
-  }, [entries, profiles, adjustments, t])
+  }, [entries, profiles, adjustments, travel, mileageRate, mileageThreshold, travelEnabled, t])
 
   function openEditModal(item: WorkerSummary) {
     setEditingWorkerId(item.workerId)
@@ -686,6 +770,8 @@ export default function ManagerTimeClockScreen() {
               key={item.workerId}
               item={item}
               onEdit={openEditModal}
+              showMileage={travelEnabled}
+              mileageRate={mileageRate}
             />
           ))
         )}

@@ -813,6 +813,8 @@ const en = {
   totalHoursColon: 'Total Hours: {hours}',
   laborColon: 'Labor: {amount}',
   gasColon: 'Gas: {amount}',
+  mileageColon: 'Mileage: {amount}',
+  mileageDetail: '{driven} mi driven · {paid} mi paid @ ${rate}/mi',
   receiptsColon: 'Receipts: {amount}',
   totalAmountColon: 'Total Amount: {amount}',
 

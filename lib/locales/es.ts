@@ -805,6 +805,8 @@ const es: Record<TranslationKey, string> = {
   totalHoursColon: 'Horas totales: {hours}',
   laborColon: 'Mano de obra: {amount}',
   gasColon: 'Gasolina: {amount}',
+  mileageColon: 'Millaje: {amount}',
+  mileageDetail: '{driven} mi recorridas · {paid} mi pagadas a ${rate}/mi',
   receiptsColon: 'Recibos: {amount}',
   totalAmountColon: 'Monto total: {amount}',
 
