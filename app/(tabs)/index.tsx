@@ -980,75 +980,8 @@ export default function HomeScreen() {
           <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
         </Pressable>
 
-        {/* Request Time Off — moved here from Profile (a card like Tools & Equipment) */}
-        <Pressable
-          onPress={() => router.push('/request-time-off' as any)}
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 24,
-            paddingVertical: 18,
-            paddingHorizontal: 18,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
-            marginBottom: 14,
-          }}
-        >
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 18,
-              backgroundColor: COLORS.navySoft,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <MaterialCommunityIcons name="calendar-remove-outline" size={30} color={COLORS.navy} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'requestTimeOff')}</Text>
-            <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
-              {t(language, 'requestTimeOffSub')}
-            </Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
-        </Pressable>
-
-        {/* Tools & Equipment — moved here from Profile */}
-        <Pressable
-          onPress={() => router.push('/equipment' as any)}
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 24,
-            paddingVertical: 18,
-            paddingHorizontal: 18,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
-            marginBottom: 14,
-          }}
-        >
-          <View
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 18,
-              backgroundColor: COLORS.tealSoft,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <MaterialCommunityIcons name="hammer-wrench" size={30} color={COLORS.teal} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'toolsEquipment')}</Text>
-            <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
-              {t(language, 'toolsEquipmentSub')}
-            </Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
-        </Pressable>
+        {/* Request Time Off lives on the Profile screen — it is a personal action,
+            not a jobsite one, so it sits with the worker's own details. */}
 
         <View style={{ flexDirection: 'row', gap: 14, marginBottom: 14 }}>
           <Pressable
@@ -1115,36 +1048,65 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <Pressable
-          onPress={() => router.push('/smart-tools')}
-          style={{
-            backgroundColor: COLORS.navy,
-            borderRadius: 24,
-            paddingVertical: 20,
-            paddingHorizontal: 20,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
-          }}
-        >
-          <View
+        {/* Smart Tools + Tools & Equipment sit side by side — both are "reach for a
+            tool", so they read as a pair rather than two full-width rows. */}
+        <View style={{ flexDirection: 'row', gap: 14 }}>
+          <Pressable
+            onPress={() => router.push('/smart-tools')}
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 18,
-              backgroundColor: 'rgba(25,182,210,0.25)',
-              justifyContent: 'center',
-              alignItems: 'center',
+              flex: 1,
+              backgroundColor: COLORS.navy,
+              borderRadius: 24,
+              paddingVertical: 20,
+              paddingHorizontal: 16,
+              alignItems: 'flex-start',
+              gap: 10,
             }}
           >
-            <MaterialCommunityIcons name="calculator-variant-outline" size={30} color={COLORS.teal} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.white, fontSize: 18, fontWeight: '800' }}>{t(language, 'smartTools')}</Text>
-            <Text style={{ color: '#A8C8E8', fontSize: 13 }}>{t(language, 'smartToolsTagline')}</Text>
-          </View>
-          <MaterialCommunityIcons name="chevron-right" size={22} color={COLORS.teal} />
-        </Pressable>
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                backgroundColor: 'rgba(25,182,210,0.25)',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="calculator-variant-outline" size={30} color={COLORS.teal} />
+            </View>
+            <Text style={{ color: COLORS.white, fontSize: 17, fontWeight: '800' }}>{t(language, 'smartTools')}</Text>
+            <Text style={{ color: '#A8C8E8', fontSize: 12 }} numberOfLines={2}>{t(language, 'smartToolsTagline')}</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/equipment' as any)}
+            style={{
+              flex: 1,
+              backgroundColor: COLORS.card,
+              borderRadius: 24,
+              paddingVertical: 20,
+              paddingHorizontal: 16,
+              alignItems: 'flex-start',
+              gap: 10,
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                backgroundColor: COLORS.tealSoft,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="hammer-wrench" size={30} color={COLORS.teal} />
+            </View>
+            <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'toolsEquipment')}</Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 12 }} numberOfLines={2}>{t(language, 'toolsEquipmentSub')}</Text>
+          </Pressable>
+        </View>
 
         {/* User guide → SiteOfficeIQ */}
         <Pressable

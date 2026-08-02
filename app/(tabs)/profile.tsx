@@ -189,6 +189,14 @@ export default function Profile() {
             </View>
           )}
 
+          {/* Request time off — a personal action, so it belongs with the worker's
+              own details rather than on the jobsite home screen. */}
+          <Pressable onPress={() => router.push('/request-time-off' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="calendar-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('requestTimeOff')}</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
+          </Pressable>
+
           {/* Change password */}
           <Pressable onPress={() => router.push('/change-password' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Ionicons name="key-outline" size={22} color={COLORS.navy} />

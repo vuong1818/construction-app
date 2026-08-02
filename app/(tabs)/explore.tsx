@@ -295,27 +295,9 @@ export default function ManagerSummaryScreen() {
           onPress={() => router.push('/manager/crew-status' as any)}
         />
 
-        {!isSupervisor && (
-          <ManagerCard
-            title={t('projectsAndPlans')}
-            subtitle={t('projectsAndPlansSubtitle')}
-            icon="briefcase-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            onPress={() => router.push('/manager/plans')}
-          />
-        )}
-
-        {!isSupervisor && (
-          <ManagerCard
-            title={t('jobKits')}
-            subtitle={t('jobKitsSubtitle')}
-            icon="toolbox-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            onPress={() => router.push('/manager/job-kits')}
-          />
-        )}
+        {/* Projects & Plans and Job Kits are gone from here. Both duplicated what
+            the project itself already offers — Projects on the home screen, and
+            Job Kit inside a project — and a second way in only splits the habit. */}
 
         {!isSupervisor && (
           <ManagerCard
@@ -339,16 +321,9 @@ export default function ManagerSummaryScreen() {
           />
         )}
 
-        {!isSupervisor && (
-          <ManagerCard
-            title={t('inspections')}
-            subtitle={t('inspectionsSubtitle')}
-            icon="clipboard-check-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            onPress={() => router.push('/manager/inspections')}
-          />
-        )}
+        {/* Inspections moved onto the project itself, next to Tasks and Schedule —
+            an inspection belongs to a job, not to a manager menu. Both roles see
+            it there; only a manager can change the list. */}
 
         {!isSupervisor && (
           <ManagerCard
