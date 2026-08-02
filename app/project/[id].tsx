@@ -336,25 +336,52 @@ export default function ProjectDetailScreen() {
             {t('status')}: {project.status || t('noStatus')}
           </Text>
 
-          <Text style={{ color: COLORS.subtext }}>
+          <Text style={{ color: COLORS.subtext, marginBottom: 14 }}>
             {project.description || t('noDescription')}
           </Text>
+
+          {/* Directions belong with the address, not in a section of their own —
+              the address is what you are acting on when you tap it. */}
+          <Pressable
+            onPress={openProjectMap}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              backgroundColor: COLORS.tealSoft,
+              borderRadius: 14,
+              paddingVertical: 14,
+            }}
+          >
+            <MaterialCommunityIcons name="map-marker-radius-outline" size={20} color={COLORS.teal} />
+            <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 15 }}>{t('openInMaps')}</Text>
+          </Pressable>
         </View>
 
+        {/* Job Kit leads: it is the scope everything else on this screen is
+            derived from, so it gets the accent and the first slot. */}
         <SectionTitle
-          icon="map-marker-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          title={t('mapTitle')}
+          icon="toolbox-outline"
+          iconBg="#FFF3E0"
+          iconColor="#E65100"
+          title={t('jobKit')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
-            icon="map-marker-radius-outline"
+            icon="package-variant-closed"
+            iconBg="#FFF3E0"
+            iconColor="#E65100"
+            title={t('viewJobKit')}
+            onPress={() => router.push(`/project/${id}/job-kit`)}
+          />
+          <BigActionCard
+            icon="image-search-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={t('openInMaps')}
-            onPress={openProjectMap}
+            title={t('photos')}
+            onPress={openPhotoViewer}
           />
         </View>
 
@@ -380,22 +407,12 @@ export default function ProjectDetailScreen() {
             title={t('projectSchedule')}
             onPress={() => router.push(`/project/${id}/schedule`)}
           />
-        </View>
-
-        <SectionTitle
-          icon="toolbox-outline"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          title={t('jobKit')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
-            icon="package-variant-closed"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('viewJobKit')}
-            onPress={() => router.push(`/project/${id}/job-kit`)}
+            icon="clipboard-check-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            title={t('inspections')}
+            onPress={() => router.push(`/project/${id}/inspections`)}
           />
         </View>
 
@@ -469,38 +486,11 @@ export default function ProjectDetailScreen() {
             title={t('viewDocuments')}
             onPress={openDocumentsViewer}
           />
-        </View>
-
-        <SectionTitle
-          icon="image-multiple-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          title={t('photos')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="image-search-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('viewPhoto')}
-            onPress={openPhotoViewer}
-          />
-        </View>
-
-        <SectionTitle
-          icon="receipt-text-outline"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          title={t('expenses')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
             icon="cash-plus"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={isManager ? `${t('view')} / ${t('add')} ${t('expenses')}` : t('myExpenses')}
+            title={isManager ? t('expenses') : t('myExpenses')}
             onPress={() => router.push(`/project/${id}/expenses`)}
           />
         </View>

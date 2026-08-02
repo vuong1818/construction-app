@@ -45,7 +45,6 @@ export default function RootLayout() {
 
       <Stack.Screen name="manager/workers"    options={{ title: 'Workers' }} />
       <Stack.Screen name="manager/time-clock" options={{ title: 'Time Clock' }} />
-      <Stack.Screen name="manager/plans"      options={{ title: 'Plans' }} />
       <Stack.Screen name="manager/reports"    options={{ title: 'Reports' }} />
 
       <Stack.Screen name="smart-tools/index"      options={{ title: 'Smart Tools' }} />

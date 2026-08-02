@@ -19,12 +19,9 @@ import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import {
-  CIVIL_INSPECTIONS,
-  COMMERCIAL_RESIDENTIAL_INSPECTIONS,
   InspectionStatus,
   STATUS_CONFIG,
   STATUS_ORDER,
-  totalItems,
 } from '../../../lib/inspections'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
@@ -42,6 +39,8 @@ type InspectionRow = {
   inspection_date: string | null
   notes: string | null
   updated_at?: string | null
+  status_by?: string | null
+  status_at?: string | null
 }
 
 type EditingItem = {
@@ -65,17 +64,34 @@ export default function ProjectInspectionsScreen() {
   const [userRole, setUserRole] = useState('')
   const [project, setProject] = useState<Project | null>(null)
   const [records, setRecords] = useState<Record<string, InspectionRow>>({})
+  const [projItems, setProjItems] = useState<any[]>([])
+  const [signerNames, setSignerNames] = useState<Record<string, string>>({})
 
   const [editing, setEditing] = useState<EditingItem | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // The inspections on THIS project, from the same table the web reads. The old
+  // manager screen showed a hardcoded master list, so a phone displayed
+  // inspections the project had never selected and the two never agreed.
   const inspList = useMemo(() => {
-    return project?.construction_type === 'civil'
-      ? CIVIL_INSPECTIONS
-      : COMMERCIAL_RESIDENTIAL_INSPECTIONS
-  }, [project?.construction_type])
+    const cats: any[] = []
+    const byCat = new Map<string, any>()
+    for (const r of projItems) {
+      let c = byCat.get(r.category)
+      if (!c) {
+        c = { category: r.category, icon: r.category_icon || '🧩', sections: [], _sec: new Map() }
+        byCat.set(r.category, c)
+        cats.push(c)
+      }
+      const phase = r.phase || 'General'
+      let s = c._sec.get(phase)
+      if (!s) { s = { phase, items: [] }; c._sec.set(phase, s); c.sections.push(s) }
+      s.items.push({ key: r.item_key, label: r.label })
+    }
+    return cats
+  }, [projItems])
 
-  const total = useMemo(() => totalItems(inspList), [inspList])
+  const total = useMemo(() => projItems.length, [projItems])
 
   const counts = useMemo(() => {
     const c: Record<InspectionStatus, number> = { not_yet: 0, partial: 0, failed: 0, passed: 0 }
@@ -115,28 +131,41 @@ export default function ProjectInspectionsScreen() {
         .from('profiles').select('role').eq('id', session.user.id).single()
       const role = me?.role || 'worker'
       setUserRole(role)
-      if (!['manager', 'owner'].includes(String(role))) return
+      // Everyone on the job may READ the gates — a crew that cannot see whether
+      // rough-in passed cannot plan around it. Only managers may set a verdict,
+      // which is enforced further down at the edit action.
 
-      const [{ data: proj, error: pErr }, { data: insp, error: iErr }] = await Promise.all([
+      const [{ data: proj, error: pErr }, { data: insp, error: iErr }, { data: items }] = await Promise.all([
         supabase.from('projects')
           .select('id, name, construction_type')
           .eq('id', projectId)
           .single(),
         supabase.from('project_inspections')
-          .select('project_id, inspection_key, status, inspection_date, notes, updated_at')
+          .select('project_id, inspection_key, status, inspection_date, notes, updated_at, status_by, status_at')
           .eq('project_id', projectId),
+        supabase.from('project_inspection_items')
+          .select('item_key, label, category, category_icon, phase, sort_order')
+          .eq('project_id', projectId)
+          .order('sort_order'),
       ])
 
       if (pErr) { setErrorMessage(pErr.message); return }
       if (iErr) { setErrorMessage(iErr.message); return }
 
       setProject(proj as Project)
+      setProjItems(items || [])
 
       const map: Record<string, InspectionRow> = {}
       for (const r of (insp || []) as InspectionRow[]) {
         map[r.inspection_key] = r
       }
       setRecords(map)
+
+      const signers = [...new Set((insp || []).map((r: any) => r.status_by).filter(Boolean))]
+      if (signers.length) {
+        const { data: sp } = await supabase.from('profiles').select('id, full_name').in('id', signers)
+        setSignerNames(Object.fromEntries((sp || []).map((p: any) => [p.id, p.full_name])))
+      }
     } catch (error: any) {
       setErrorMessage(error?.message || t('failedToLoadInspections'))
     } finally {
@@ -213,14 +242,9 @@ export default function ProjectInspectionsScreen() {
     )
   }
 
-  if (!isManagerRole(userRole)) {
-    return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: COLORS.background }}>
-        <Text style={{ color: COLORS.navy, fontSize: 24, fontWeight: '800', marginBottom: 10 }}>{t('managerOnly')}</Text>
-        <Text style={{ color: COLORS.text, textAlign: 'center' }}>{t('noPermissionInspections')}</Text>
-      </SafeAreaView>
-    )
-  }
+  // Read-only for the crew, editable for managers. A worker who cannot see
+  // whether rough-in passed cannot plan around it.
+  const canEdit = isManagerRole(userRole)
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -264,7 +288,7 @@ export default function ProjectInspectionsScreen() {
               </Text>
             </View>
 
-            {cat.sections.map(sec => (
+            {cat.sections.map((sec: any) => (
               <View key={sec.phase}>
                 <Text style={{
                   color: COLORS.subtext,
@@ -279,7 +303,7 @@ export default function ProjectInspectionsScreen() {
                   {sec.phase}
                 </Text>
 
-                {sec.items.map(item => {
+                {sec.items.map((item: any) => {
                   const rec = records[item.key]
                   const status: InspectionStatus = rec?.status || 'not_yet'
                   const cfg = STATUS_CONFIG[status]
@@ -287,7 +311,7 @@ export default function ProjectInspectionsScreen() {
                   return (
                     <Pressable
                       key={item.key}
-                      onPress={() => openEdit(item.key, item.label)}
+                      onPress={canEdit ? () => openEdit(item.key, item.label) : undefined}
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -312,6 +336,13 @@ export default function ProjectInspectionsScreen() {
                           )}
                           {hasNote && (
                             <Text style={{ color: COLORS.subtext, fontSize: 11 }}>📝 {t('noteShort')}</Text>
+                          )}
+                          {/* Who called it. A pass with no name on it is fine
+                              until the day someone disputes it. */}
+                          {rec?.status_at && status !== 'not_yet' && (
+                            <Text style={{ color: COLORS.subtext, fontSize: 11 }}>
+                              ✓ {signerNames[rec.status_by as string] || '—'}
+                            </Text>
                           )}
                         </View>
                       </View>

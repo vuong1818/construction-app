@@ -32,6 +32,9 @@ type UserProfile = {
   wage: number | null
 }
 
+type WorkerRole =
+  | 'owner' | 'manager' | 'supervisor' | 'office' | 'warehouse' | 'worker' | 'contractor'
+
 type UserForm = {
   first_name: string
   last_name: string
@@ -42,7 +45,7 @@ type UserForm = {
   state: string
   zip: string
   wage: string
-  role: 'worker' | 'manager'
+  role: WorkerRole
 }
 
 const EMPTY_FORM: UserForm = {
@@ -98,12 +101,28 @@ function Field({
   )
 }
 
+// The roles the web portal offers, in the same order. This screen used to show
+// two buttons — Worker and Manager — while the role model has seven. Opening a
+// supervisor, an owner or a bookkeeper and pressing Update silently rewrote them
+// to 'worker', because the form had no way to represent what they actually were.
+// That is why "Update Worker" appeared not to work: it worked, and quietly
+// demoted people.
+const ROLE_OPTIONS: { value: WorkerRole; labelKey: string }[] = [
+  { value: 'owner',      labelKey: 'roleOwner' },
+  { value: 'manager',    labelKey: 'roleManager' },
+  { value: 'supervisor', labelKey: 'roleSupervisor' },
+  { value: 'office',     labelKey: 'roleOffice' },
+  { value: 'warehouse',  labelKey: 'roleWarehouse' },
+  { value: 'worker',     labelKey: 'roleWorker' },
+  { value: 'contractor', labelKey: 'roleContractor' },
+]
+
 function RoleSelector({
   value,
   onChange,
 }: {
-  value: 'worker' | 'manager'
-  onChange: (value: 'worker' | 'manager') => void
+  value: WorkerRole
+  onChange: (value: WorkerRole) => void
 }) {
   const { t } = useLanguage()
   return (
@@ -112,50 +131,29 @@ function RoleSelector({
         {t('role')}
       </Text>
 
-      <View style={{ flexDirection: 'row', gap: 12 }}>
-        <Pressable
-          onPress={() => onChange('worker')}
-          style={{
-            flex: 1,
-            borderRadius: 16,
-            paddingVertical: 14,
-            alignItems: 'center',
-            backgroundColor: value === 'worker' ? COLORS.navy : COLORS.white,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-          }}
-        >
-          <Text
-            style={{
-              color: value === 'worker' ? COLORS.white : COLORS.text,
-              fontWeight: '700',
-            }}
-          >
-            {t('worker')}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => onChange('manager')}
-          style={{
-            flex: 1,
-            borderRadius: 16,
-            paddingVertical: 14,
-            alignItems: 'center',
-            backgroundColor: value === 'manager' ? COLORS.navy : COLORS.white,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-          }}
-        >
-          <Text
-            style={{
-              color: value === 'manager' ? COLORS.white : COLORS.text,
-              fontWeight: '700',
-            }}
-          >
-            {t('manager')}
-          </Text>
-        </Pressable>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {ROLE_OPTIONS.map(opt => {
+          const on = value === opt.value
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => onChange(opt.value)}
+              style={{
+                borderRadius: 14,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                alignItems: 'center',
+                backgroundColor: on ? COLORS.navy : COLORS.white,
+                borderWidth: 1,
+                borderColor: on ? COLORS.navy : COLORS.border,
+              }}
+            >
+              <Text style={{ color: on ? COLORS.white : COLORS.text, fontWeight: '700' }}>
+                {t(opt.labelKey as any)}
+              </Text>
+            </Pressable>
+          )
+        })}
       </View>
     </View>
   )
@@ -354,7 +352,9 @@ export default function WorkersManagerScreen() {
       state: user.state || 'TX',
       zip: user.zip || '',
       wage: user.wage !== null && user.wage !== undefined ? String(user.wage) : '',
-      role: user.role === 'manager' ? 'manager' : 'worker',
+      // Show what they ARE. Anything unrecognised falls back to worker rather
+      // than being silently rewritten on save.
+      role: (ROLE_OPTIONS.some(o => o.value === user.role) ? user.role : 'worker') as WorkerRole,
     })
     setModalVisible(true)
   }

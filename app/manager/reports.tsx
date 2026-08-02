@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { COLORS } from '../../lib/theme'
 import {
   ActivityIndicator,
@@ -131,6 +131,7 @@ export default function ManagerReportsScreen() {
   const [refreshing, setRefreshing]   = useState(false)
   const [filterProject, setFilterProject] = useState<number | null>(null)
   const [showFilter, setShowFilter]   = useState(false)
+  const [period, setPeriod]           = useState<'day' | 'week' | 'month' | 'all'>('all')
   const [selected, setSelected]       = useState<Report | null>(null)
   const [rfisOpen, setRfisOpen]       = useState(true)
   const [reportsOpen, setReportsOpen] = useState(true)
@@ -227,12 +228,30 @@ export default function ManagerReportsScreen() {
     )
   }
 
-  const filtered = filterProject !== null
-    ? reports.filter(r => r.project_id === filterProject)
-    : reports
-  const filteredRfis = filterProject !== null
-    ? rfis.filter(r => r.project_id === filterProject)
-    : rfis
+  // Date window. A manager looking for "what happened yesterday" was scrolling
+  // through every report ever filed, because project was the only filter.
+  // Anchored to today and counted back, so Week means the last seven days
+  // rather than a calendar week nobody is thinking in terms of on a jobsite.
+  const periodCutoff = useMemo(() => {
+    if (period === 'all') return null
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    if (period === 'week')  d.setDate(d.getDate() - 6)
+    if (period === 'month') d.setDate(d.getDate() - 29)
+    return d
+  }, [period])
+
+  function withinPeriod(dateStr: string | null) {
+    if (!periodCutoff) return true
+    if (!dateStr) return false
+    const d = new Date(`${dateStr}T00:00:00`)
+    return !Number.isNaN(d.getTime()) && d >= periodCutoff
+  }
+
+  const filtered = reports.filter(r =>
+    (filterProject === null || r.project_id === filterProject) && withinPeriod(r.report_date))
+  const filteredRfis = rfis.filter(r =>
+    filterProject === null || r.project_id === filterProject)
 
   const activeProjectName = filterProject !== null
     ? projects.find(p => p.id === filterProject)?.name
@@ -282,6 +301,35 @@ export default function ManagerReportsScreen() {
         <View style={{ backgroundColor: COLORS.navySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
           <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 13 }}>{filtered.length}</Text>
         </View>
+      </View>
+
+      {/* ── Period bar ── */}
+      <View style={{
+        backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+        paddingHorizontal: 16, paddingBottom: 10, flexDirection: 'row', gap: 8,
+      }}>
+        {([
+          ['day',   t('periodDay')],
+          ['week',  t('periodWeek')],
+          ['month', t('periodMonth')],
+          ['all',   t('periodAll')],
+        ] as const).map(([key, label]) => {
+          const on = period === key
+          return (
+            <Pressable
+              key={key}
+              onPress={() => setPeriod(key)}
+              style={{
+                flex: 1, alignItems: 'center',
+                backgroundColor: on ? COLORS.navy : '#F1F5F9',
+                borderRadius: 10, paddingVertical: 8,
+                borderWidth: 1, borderColor: on ? COLORS.navy : COLORS.border,
+              }}
+            >
+              <Text style={{ color: on ? COLORS.white : COLORS.subtext, fontWeight: '800', fontSize: 12 }}>{label}</Text>
+            </Pressable>
+          )
+        })}
       </View>
 
       <ScrollView
