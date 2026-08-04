@@ -26,6 +26,8 @@ export type ProjectFile = {
   plan_type?: string | null
   caption?: string | null
   uploaded_by?: string | null
+  /** Absolute URL, when the row already carries one. See getPhotoUrl. */
+  file_url?: string | null
 }
 
 export type DocType = 'submittal' | 'change_order' | 'requirements' | 'admin' | 'other'
@@ -103,6 +105,14 @@ function mapPlan(p: any): ProjectFile {
   }
 }
 
+// A row with neither a URL nor a path cannot be rendered, and handing it to the
+// image viewer as an empty uri produces a spinner that never resolves — which is
+// indistinguishable, to whoever is looking at it, from the app being broken.
+// Better it not be in the album.
+function isViewable(p: ProjectFile) {
+  return Boolean(p.file_url || p.file_path)
+}
+
 function mapPhoto(p: any): ProjectFile {
   const fname = p.file_path ? p.file_path.split('/').pop() : 'photo.jpg'
   return {
@@ -110,6 +120,7 @@ function mapPhoto(p: any): ProjectFile {
     file_name: fname,
     original_name: fname,
     file_path: p.file_path || '',
+    file_url: p.file_url ?? null,
     created_at: p.created_at,
     bucket_name: 'project-photos',
     file_type: 'image/jpeg',
@@ -139,7 +150,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
   const [plansResult, photosResult, documentsResult, reportsResult] = await Promise.all([
     supabase.from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
-    supabase.from('project_photos').select('id, project_id, file_path, caption, uploaded_by, created_at')
+    supabase.from('project_photos').select('id, project_id, file_path, file_url, caption, uploaded_by, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('project_documents').select('id, project_id, name, doc_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
@@ -149,7 +160,7 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
 
   return {
     project: projectData,
-    photos:    (photosResult.data    || []).map(mapPhoto),
+    photos:    (photosResult.data    || []).map(mapPhoto).filter(isViewable),
     plans:     (plansResult.data     || []).map(mapPlan),
     documents: (documentsResult.data || []).map(mapDocument),
     reports:   reportsResult.data    || [],
@@ -236,10 +247,10 @@ export async function openDocument(doc: ProjectFile) {
 
 export async function reloadPhotos(projectId: number) {
   const { data, error } = await supabase
-    .from('project_photos').select('id, project_id, file_path, caption, created_at')
+    .from('project_photos').select('id, project_id, file_path, file_url, caption, created_at')
     .eq('project_id', projectId).order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data || []).map(mapPhoto)
+  return (data || []).map(mapPhoto).filter(isViewable)
 }
 
 export async function updatePhotoCaption(photoId: number, caption: string | null) {
@@ -327,6 +338,14 @@ export async function uploadProjectFile(params: {
 }
 
 export function getPhotoUrl(photo: ProjectFile) {
+  // Prefer the stored URL. project_photos is a shared album: 99 of its rows are
+  // mirrored in from expenses, material requests and task photos, and those live
+  // in OTHER buckets (expense-receipts and friends) so they carry a file_url and
+  // no file_path. Building a URL from file_path turned every one of them into
+  //   .../object/public/project-photos/null
+  // which never resolves — so the viewer sat there spinning forever.
+  if (photo.file_url) return photo.file_url
+  if (!photo.file_path) return ''
   return supabase.storage.from('project-photos').getPublicUrl(photo.file_path).data.publicUrl
 }
 
