@@ -31,6 +31,7 @@ import {
 import { useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
+import { canStock } from '../../lib/roles'
 import { clockIn as svcClockIn, clockOut as svcClockOut, switchProject as svcSwitchProject } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
@@ -91,6 +92,7 @@ export default function HomeScreen() {
   const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null)
   const [todayEntry, setTodayEntry] = useState<TimeEntry | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [inventoryOn, setInventoryOn] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [clocking, setClocking] = useState(false)
@@ -239,6 +241,16 @@ export default function HomeScreen() {
       }
 
       setCurrentUserId(currentUserId)
+
+      // Inventory is a switchable feature AND role-gated. Both have to be true
+      // before the card appears: a company that doesn't count stock shouldn't
+      // carry the tile, and a field worker shouldn't reach the screen.
+      const csResult = await supabase
+        .from('company_settings')
+        .select('feature_inventory')
+        .limit(1)
+        .maybeSingle()
+      setInventoryOn((csResult.data as any)?.feature_inventory !== false)
 
       const profileResult = await supabase
         .from('profiles')
@@ -1107,6 +1119,43 @@ export default function HomeScreen() {
             <Text style={{ color: COLORS.subtext, fontSize: 12 }} numberOfLines={2}>{t(language, 'toolsEquipmentSub')}</Text>
           </Pressable>
         </View>
+
+        {/* Inventory sits with Smart Tools and Tools & Equipment — same "reach
+            for something" shelf. Hidden unless the feature is on AND the person
+            can actually manage stock, so it never offers a screen that would
+            turn them away. */}
+        {inventoryOn && canStock(profile?.role) && (
+          <Pressable
+            onPress={() => router.push('/inventory' as any)}
+            style={{
+              backgroundColor: COLORS.card,
+              borderRadius: 24,
+              paddingVertical: 20,
+              paddingHorizontal: 16,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                backgroundColor: COLORS.tealSoft,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="package-variant-closed" size={30} color={COLORS.teal} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>{t(language, 'inventory')}</Text>
+              <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{t(language, 'inventorySub')}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
+          </Pressable>
+        )}
 
         {/* User guide → SiteOfficeIQ */}
         <Pressable

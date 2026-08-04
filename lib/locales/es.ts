@@ -1947,6 +1947,8 @@ const es: Record<TranslationKey, string> = {
   matReqMarkOrdered: 'Marcar pedido',
   matReqFulfill: 'Entregar',
   matReqCancel: 'Cancelar solicitud',
+  inventory: 'Inventario',
+  inventorySub: 'Lo que hay en el almacén',
 }
 
 export default es

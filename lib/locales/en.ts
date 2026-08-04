@@ -1956,6 +1956,8 @@ const en = {
   matReqMarkOrdered: 'Mark ordered',
   matReqFulfill: 'Fulfill',
   matReqCancel: 'Cancel request',
+  inventory: 'Inventory',
+  inventorySub: 'What we have on the shelf',
 } as const
 
 export default en
