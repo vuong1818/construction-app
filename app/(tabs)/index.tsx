@@ -817,19 +817,37 @@ export default function HomeScreen() {
             </Text>
           </Pressable>
 
-          {/* Clock button — always available. Travel no longer gates or replaces it. */}
+          {/* Clock button — always available. Travel no longer gates or replaces it.
+              The colour reports STATE, not availability: green while the clock is
+              running, red when it is not. It used to be red whenever safety was
+              signed, which read as a warning at exactly the moment nothing was
+              wrong. Grey still means the safety acknowledgement is outstanding
+              and clocking in is blocked — that is a third state, not a shade of
+              "not clocked in".
+
+              Colour is not carrying this alone: the status line directly below
+              says "Clocked in" or "Not clocked in" in words. */}
           <Pressable
             onPress={() => setClockModalVisible(true)}
+            accessibilityLabel={activeEntry ? 'Clocked in — tap to clock out' : 'Not clocked in — tap to clock in'}
             style={{
               width: 74,
               height: 74,
               borderRadius: 22,
-              backgroundColor: safetyCompleted() ? COLORS.red : '#94A3B8',
+              backgroundColor: !safetyCompleted()
+                ? '#94A3B8'
+                : activeEntry
+                  ? COLORS.green
+                  : COLORS.red,
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <Ionicons name="time-outline" size={30} color={COLORS.white} />
+            <Ionicons
+              name={activeEntry ? 'time' : 'time-outline'}
+              size={30}
+              color={COLORS.white}
+            />
           </Pressable>
 
           <Pressable
