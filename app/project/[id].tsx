@@ -22,6 +22,7 @@ import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { getPhotoUrl, type DocType } from '../../services/projectDetailService'
+import { choosePhotoSource, pickAndUploadPhotos, reportUpload } from '../../services/photoUpload'
 import { COLORS } from '../../lib/theme'
 
 const DOC_TYPE_LABEL_KEYS: Record<DocType, TranslationKey> = {
@@ -195,6 +196,7 @@ export default function ProjectDetailScreen() {
     savePhotoCaption,
     handleDeletePhoto,
     currentUserId,
+    refreshAll,
   } = useProjectDetail(Number.isFinite(projectId) ? projectId : undefined)
 
   const { totals: financeTotals } = useProjectFinance(Number.isFinite(projectId) ? projectId : undefined)
@@ -226,6 +228,7 @@ export default function ProjectDetailScreen() {
 
   // Photo viewer state — pinch-to-zoom + swipe via react-native-image-viewing.
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [captionEditing, setCaptionEditing] = useState(false)
   const [captionDraft, setCaptionDraft] = useState('')
   const [captionSaving, setCaptionSaving] = useState(false)
@@ -382,6 +385,29 @@ export default function ProjectDetailScreen() {
             iconColor={COLORS.teal}
             title={t('photos')}
             onPress={openPhotoViewer}
+          />
+          {/* Adding a project photo had no entry point at all — the screen could
+              only view what the web had uploaded, which is what Android users
+              were reporting as "cannot add photos". */}
+          <BigActionCard
+            icon="camera-plus-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={uploadingPhoto ? t('uploadingDots') : t('uploadPhoto')}
+            onPress={() => {
+              if (uploadingPhoto) return
+              choosePhotoSource(async from => {
+                setUploadingPhoto(true)
+                const res = await pickAndUploadPhotos(
+                  from,
+                  { projectId, folder: 'photos' },
+                  currentUserId ?? null,
+                )
+                setUploadingPhoto(false)
+                reportUpload(res)
+                if (res.ok > 0) await refreshAll()
+              })
+            }}
           />
         </View>
 

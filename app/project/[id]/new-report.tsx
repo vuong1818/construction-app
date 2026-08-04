@@ -1,9 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useState } from 'react'
+import * as ImagePicker from 'expo-image-picker'
 import {
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-
   ScrollView,
   Text,
   TextInput,
@@ -14,6 +17,8 @@ import DatePickerField from '../../../components/DatePickerField'
 import { useNewReport } from '../../../hooks/useNewReport'
 import { useLanguage } from '../../../lib/i18n'
 import { COLORS } from '../../../lib/theme'
+import { supabase } from '../../../lib/supabase'
+import { pickAndUploadPhotos, reportUpload } from '../../../services/photoUpload'
 
 function Field({
   label,
@@ -80,6 +85,46 @@ export default function NewReportScreen() {
       }
     : undefined
 
+  // Photos are staged locally until the report is saved, because a new report
+  // has no id to attach them to yet. On save we upload them against the id the
+  // hook hands back. Editing an existing report uploads straight away.
+  const [staged, setStaged] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [uploading, setUploading] = useState(false)
+
+  async function addPhotos(from: 'camera' | 'library') {
+    if (reportId) {
+      setUploading(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      const res = await pickAndUploadPhotos(from, {
+        projectId, sourceTable: 'daily_reports', sourceId: reportId, folder: `reports/${reportId}`,
+      }, user?.id ?? null)
+      setUploading(false)
+      reportUpload(res)
+      return
+    }
+    // New report: just collect them.
+    let result: ImagePicker.ImagePickerResult
+    if (from === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync()
+      if (!perm.granted) { Alert.alert('Camera access required', 'Enable camera access in Settings to take photos.'); return }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 })
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (!perm.granted) { Alert.alert('Photo access required', 'Enable photo access in Settings to attach photos.'); return }
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsMultipleSelection: true })
+    }
+    if (result.canceled || !result.assets?.length) return
+    setStaged(prev => [...prev, ...result.assets])
+  }
+
+  function pickSource() {
+    Alert.alert('Add photos', 'Take a new photo or choose from your library.', [
+      { text: 'Take Photo', onPress: () => addPhotos('camera') },
+      { text: 'Choose from Library', onPress: () => addPhotos('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ])
+  }
+
   const {
     reportDate,
     workCompleted,
@@ -96,7 +141,50 @@ export default function NewReportScreen() {
     projectId: Number.isFinite(projectId) ? projectId : undefined,
     reportId,
     initial,
-    onSaved: () => router.back(),
+    // Upload anything staged now that the report has an id, then leave.
+    onSaved: async (savedId?: number) => {
+      if (staged.length && savedId) {
+        setUploading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        let ok = 0
+        const failures: string[] = []
+        for (const asset of staged) {
+          try {
+            const ext = (asset.fileName?.split('.').pop() || asset.uri.split('.').pop() || 'jpg').toLowerCase()
+            const filePath = `project-${projectId}/reports/${savedId}/report-${savedId}-${Date.now()}-${ok + failures.length}.${ext}`
+            const resp = await fetch(asset.uri)
+            if (!resp.ok) throw new Error('Could not read the photo file.')
+            const buf = await resp.arrayBuffer()
+            const { error: upErr } = await supabase.storage.from('project-photos')
+              .upload(filePath, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+            if (upErr) throw new Error(upErr.message)
+            const fileUrl = supabase.storage.from('project-photos').getPublicUrl(filePath).data.publicUrl
+            const { error: dbErr } = await supabase.from('project_photos').insert({
+              project_id: projectId, source_table: 'daily_reports', source_id: savedId,
+              source: 'mobile', file_path: filePath, file_url: fileUrl, uploaded_by: user?.id ?? null,
+            })
+            if (dbErr) {
+              await supabase.storage.from('project-photos').remove([filePath]).catch(() => {})
+              throw new Error(dbErr.message)
+            }
+            ok++
+          } catch (e: any) {
+            failures.push(e?.message || 'Unknown error')
+          }
+        }
+        setUploading(false)
+        if (failures.length) {
+          // Don't navigate away on a failed upload — the report saved, but the
+          // crew needs to know the photos did not, while they can still retry.
+          Alert.alert('Report saved, photos failed', `${ok} of ${staged.length} uploaded.
+
+${failures[0]}`)
+          setStaged([])
+          return
+        }
+      }
+      router.back()
+    },
   })
 
   return (
@@ -142,9 +230,48 @@ export default function NewReportScreen() {
             placeholder={t('weatherPlaceholder')}
           />
 
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>Photos</Text>
+            <Pressable
+              onPress={pickSource}
+              disabled={uploading}
+              style={{
+                backgroundColor: COLORS.card,
+                borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.border,
+                borderRadius: 16, paddingVertical: 18, alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: COLORS.navy, fontWeight: '700' }}>
+                {uploading ? 'Uploading…' : '+ Add Photos'}
+              </Text>
+              <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 4 }}>
+                Take a photo or choose from your library
+              </Text>
+            </Pressable>
+
+            {staged.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                {staged.map((a, i) => (
+                  <Pressable
+                    key={`${a.uri}-${i}`}
+                    onLongPress={() => setStaged(prev => prev.filter((_, j) => j !== i))}
+                    style={{ marginRight: 8 }}
+                  >
+                    <Image source={{ uri: a.uri }} style={{ width: 82, height: 82, borderRadius: 12 }} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+            {staged.length > 0 && (
+              <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>
+                {staged.length} photo{staged.length === 1 ? '' : 's'} will upload when you save. Long-press one to remove it.
+              </Text>
+            )}
+          </View>
+
           <Pressable
             onPress={handleSave}
-            disabled={!canSave}
+            disabled={!canSave || uploading}
             style={{
               backgroundColor: canSave ? COLORS.navy : '#94A3B8',
               borderRadius: 18,

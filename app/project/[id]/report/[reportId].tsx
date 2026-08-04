@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { Image } from 'react-native'
 import {
   ActivityIndicator,
   Pressable,
@@ -85,6 +86,22 @@ export default function DailyReportDetailScreen() {
   const [errorMessage, setErrorMessage] = useState('')
   const [uid, setUid] = useState<string | null>(null)
   const [isManager, setIsManager] = useState(false)
+  // Photos attach to a report through project_photos' generic source_table /
+  // source_id, so no new table was needed to give reports pictures.
+  const [photos, setPhotos] = useState<{ id: number; file_url: string | null }[]>([])
+
+  useEffect(() => {
+    if (!reportId) return
+    ;(async () => {
+      const { data } = await supabase
+        .from('project_photos')
+        .select('id, file_url')
+        .eq('source_table', 'daily_reports')
+        .eq('source_id', reportId)
+        .order('created_at')
+      setPhotos((data as any) || [])
+    })()
+  }, [reportId])
 
   useEffect(() => {
     if (reportId) {
@@ -219,6 +236,24 @@ export default function DailyReportDetailScreen() {
             >
               <Text style={{ color: COLORS.white, fontWeight: '800' }}>{t('rfiEdit')}</Text>
             </Pressable>
+          )}
+          {photos.length > 0 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>
+                {`Photos (${photos.length})`}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {photos.map(ph => (
+                  ph.file_url ? (
+                    <Image
+                      key={ph.id}
+                      source={{ uri: ph.file_url }}
+                      style={{ width: 110, height: 110, borderRadius: 12, marginRight: 8 }}
+                    />
+                  ) : null
+                ))}
+              </ScrollView>
+            </View>
           )}
         </View>
 

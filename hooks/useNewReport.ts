@@ -14,7 +14,7 @@ type UseNewReportParams = {
   projectId?: number
   reportId?: number       // when set, save UPDATES this report instead of creating
   initial?: ReportInitial // seed values when editing
-  onSaved?: () => void
+  onSaved?: (reportId?: number) => void | Promise<void>
 }
 
 type UseNewReportResult = {
@@ -62,14 +62,16 @@ export function useNewReport({
       setSaving(true)
 
       const input = { projectId, reportDate, workCompleted, issues, materialsUsed, weather }
+      // The saved id goes back to the caller so photos picked before the report
+      // existed can be attached to it now that it does.
+      let savedId = reportId
       if (reportId) {
         await updateDailyReport(reportId, input)
-        Alert.alert('Success', 'Report updated')
       } else {
-        await createDailyReport(input)
-        Alert.alert('Success', 'Report saved')
+        const created = await createDailyReport(input)
+        savedId = created?.id
       }
-      onSaved?.()
+      await onSaved?.(savedId)
     } catch (error: any) {
       Alert.alert('Error', error?.message || 'Could not save report.')
     } finally {
