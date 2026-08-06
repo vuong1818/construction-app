@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../../lib/i18n'
 import { supabase } from '../../../../lib/supabase'
 import { COLORS } from '../../../../lib/theme'
+import { SignedImage } from '../../../../components/SignedImage'
 
 type DailyReport = {
   id: number
@@ -88,14 +89,14 @@ export default function DailyReportDetailScreen() {
   const [isManager, setIsManager] = useState(false)
   // Photos attach to a report through project_photos' generic source_table /
   // source_id, so no new table was needed to give reports pictures.
-  const [photos, setPhotos] = useState<{ id: number; file_url: string | null }[]>([])
+  const [photos, setPhotos] = useState<{ id: number; file_url: string | null; file_path: string | null }[]>([])
 
   useEffect(() => {
     if (!reportId) return
     ;(async () => {
       const { data } = await supabase
         .from('project_photos')
-        .select('id, file_url')
+        .select('id, file_url, file_path')
         .eq('source_table', 'daily_reports')
         .eq('source_id', reportId)
         .order('created_at')
@@ -245,9 +246,10 @@ export default function DailyReportDetailScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {photos.map(ph => (
                   ph.file_url ? (
-                    <Image
+                    <SignedImage
                       key={ph.id}
-                      source={{ uri: ph.file_url }}
+                      bucket="project-photos"
+                      value={ph.file_path || ph.file_url}
                       style={{ width: 110, height: 110, borderRadius: 12, marginRight: 8 }}
                     />
                   ) : null

@@ -9,6 +9,7 @@ import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { SignedImage } from '../../../components/SignedImage'
 
 const JOBKIT_BUCKET = 'jobkit-photos'
 // Install phases a step can be tagged with (matches the web editor + report route).
@@ -733,7 +734,7 @@ function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel, indent
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: indent, marginBottom: 10 }}>
       {photos.map(p => (
         <Pressable key={p.id} onLongPress={() => canRemove(p) && onRemove(p)} style={{ position: 'relative' }}>
-          <Image source={{ uri: p.photo_url }} style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
+          <SignedImage bucket="jobkit-photos" value={p.storage_path || p.photo_url} style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
           {canRemove(p) && (
             <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#B71C1C', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
               <MaterialCommunityIcons name="close" size={13} color="white" />

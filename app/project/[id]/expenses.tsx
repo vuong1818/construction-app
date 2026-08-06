@@ -24,6 +24,7 @@ import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { SignedImage } from '../../../components/SignedImage'
 
 type ExpenseType = { id: number; value: string; label: string; sort_order: number; deleted_at: string | null }
 type Vendor      = { id: number; name: string; deleted_at: string | null }
@@ -405,7 +406,7 @@ export default function ProjectExpensesScreen() {
               >
                 {e.receipt_photo_url ? (
                   <Pressable onPress={() => setReceiptViewerUrl(e.receipt_photo_url)}>
-                    <Image source={{ uri: e.receipt_photo_url }} style={{ width: 56, height: 56, borderRadius: 10 }} />
+                    <SignedImage bucket={RECEIPTS_BUCKET} value={e.receipt_photo_path || e.receipt_photo_url} style={{ width: 56, height: 56, borderRadius: 10 }} />
                   </Pressable>
                 ) : (
                   <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: COLORS.navySoft, justifyContent: 'center', alignItems: 'center' }}>

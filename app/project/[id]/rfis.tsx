@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { SignedImage } from '../../../components/SignedImage'
 
 // RFI (Request For Information): a field question the office/manager must answer.
 // Any worker assigned to the project can raise one; managers answer. Tracked
@@ -260,7 +261,7 @@ export default function RfisScreen() {
               </View>
               {rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
               {rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
-              {rfi.photo_url ? <Image source={{ uri: rfi.photo_url }} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
+              {rfi.photo_url ? <SignedImage bucket={PHOTO_BUCKET} value={rfi.photo_url} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
               {canEdit(rfi) && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   <SmallBtn label={t('rfiEdit')} onPress={() => startEdit(rfi)} />

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
+import { SignedImage } from '../components/SignedImage'
 
 type Item = { id: number; name: string; unit: string | null; qty_on_hand: number | null; photo_url: string | null }
 type Loc = { id: number; name: string; kind: string }
@@ -126,7 +127,7 @@ export default function InventoryScan() {
               <ScrollView contentContainerStyle={{ padding: 22 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 }}>
                   {item.photo_url
-                    ? <Image source={{ uri: item.photo_url }} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: COLORS.background }} />
+                    ? <SignedImage bucket="inventory-photos" value={item.photo_url} style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: COLORS.background }} />
                     : <View style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="cube-outline" size={30} color={COLORS.border} /></View>}
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: COLORS.navy, fontWeight: '900', fontSize: 22 }}>{item.name}</Text>

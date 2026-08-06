@@ -432,10 +432,20 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     setSelectedPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length)
   }
 
-  const currentPhotoUrl =
-    photos.length > 0 && photos[selectedPhotoIndex]
-      ? getPhotoUrl(photos[selectedPhotoIndex])
-      : null
+  // getPhotoUrl signs now, so this resolves in an effect rather than inline.
+  // It stays null until the url for THIS photo arrives, so paging through the
+  // viewer never shows the previous photo under the new caption.
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null)
+  const currentPhoto = photos.length > 0 ? photos[selectedPhotoIndex] : undefined
+  const currentPhotoKey = currentPhoto ? (currentPhoto.file_path || currentPhoto.file_url || '') : ''
+  useEffect(() => {
+    if (!currentPhoto) { return }
+    let alive = true
+    getPhotoUrl(currentPhoto)
+      .then((u) => { if (alive) setCurrentPhotoUrl(u || null) })
+      .catch(() => { if (alive) setCurrentPhotoUrl(null) })
+    return () => { alive = false }
+  }, [currentPhoto, currentPhotoKey])
 
   return {
     project,

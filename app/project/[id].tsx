@@ -235,10 +235,17 @@ export default function ProjectDetailScreen() {
   useEffect(() => { setPhotoIndex(selectedPhotoIndex) }, [selectedPhotoIndex])
   useEffect(() => { setCaptionEditing(false) }, [photoIndex])
 
-  const photoImages = useMemo(
-    () => photos.map(p => ({ uri: getPhotoUrl(p) })),
-    [photos]
-  )
+  // Signing is a round trip, so the gallery resolves its uris once per photo
+  // set rather than per render. Unresolved entries stay out of the array — the
+  // lightbox would otherwise be handed { uri: '' } and sit spinning.
+  const [photoImages, setPhotoImages] = useState<{ uri: string }[]>([])
+  useEffect(() => {
+    let alive = true
+    Promise.all(photos.map(p => getPhotoUrl(p)))
+      .then(urls => { if (alive) setPhotoImages(urls.filter(Boolean).map(uri => ({ uri }))) })
+      .catch(() => { if (alive) setPhotoImages([]) })
+    return () => { alive = false }
+  }, [photos])
 
   if (loading) {
     return (

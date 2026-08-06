@@ -18,6 +18,7 @@ import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
+import { useSignedUrl } from '../lib/storageUrl';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -289,6 +290,10 @@ export default function SafetyManualScreen() {
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [manual, setManual]             = useState<ManualDoc | null>(null);
+  // Google's viewer fetches the pdf from its own servers, which is exactly
+  // what a signed url is for. Two hours, so a manual left open mid-read does
+  // not expire under the worker.
+  const manualPdfUrl = useSignedUrl('safety-pdfs', manual?.pdf_url, { expiresIn: 60 * 60 * 2 });
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [companyEmail, setCompanyEmail] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState<string>('');
@@ -503,9 +508,9 @@ export default function SafetyManualScreen() {
           1. If the manager uploaded a PDF, show that (Google Docs viewer for inline PDF rendering).
           2. Otherwise fall back to the embedded English+Spanish acknowledgment HTML so workers can still sign. */}
       <View style={s.docViewerWrap}>
-        {manual?.pdf_url ? (
+        {manualPdfUrl ? (
           <WebView
-            source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(manual.pdf_url)}` }}
+            source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(manualPdfUrl)}` }}
             style={s.docViewer}
             scrollEnabled
             originWhitelist={['*']}

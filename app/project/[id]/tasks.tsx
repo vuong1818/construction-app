@@ -23,6 +23,8 @@ import { SkeletonList } from '../../../components/SkeletonCard'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
+import { SignedImage } from '../../../components/SignedImage'
+import { signedUrl } from '../../../lib/storageUrl'
 import { COLORS, TOUCH, TYPE } from '../../../lib/theme'
 
 type Status = 'preparation' | 'in_progress' | 'blocked' | 'completed'
@@ -107,6 +109,12 @@ export default function ProjectTasksScreen() {
   const [photosByTask, setPhotosByTask] = useState<Record<number, TaskPhoto[]>>({})
   const [uploadingTaskId, setUploadingTaskId] = useState<number | null>(null)
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  // The lightbox needs a real uri, so the path is signed on tap rather than
+  // for every thumbnail up front.
+  const openLightbox = async (path?: string | null) => {
+    if (!path) return
+    setLightboxUrl(await signedUrl('project-photos', path))
+  }
 
   // Edit modal state
   const [editing, setEditing] = useState<Task | null>(null)
@@ -176,9 +184,9 @@ export default function ProjectTasksScreen() {
 
       const grouped: Record<number, TaskPhoto[]> = {}
       for (const p of (photosResult?.data || [])) {
-        const url = supabase.storage.from('project-photos').getPublicUrl(p.file_path).data.publicUrl
+        // Keep the path; SignedImage mints the url when the row renders.
         const list = grouped[p.task_id] || (grouped[p.task_id] = [])
-        list.push({ ...p, url } as TaskPhoto)
+        list.push({ ...p, url: p.file_path } as TaskPhoto)
       }
       setPhotosByTask(grouped)
     } catch (e: any) {
@@ -531,11 +539,11 @@ export default function ProjectTasksScreen() {
                       return (
                         <Pressable
                           key={p.id}
-                          onPress={() => setLightboxUrl(p.url)}
+                          onPress={() => openLightbox(p.file_path)}
                           onLongPress={canDelete ? () => confirmDeletePhoto(p) : undefined}
                           style={{ width: 84, height: 84, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border }}
                         >
-                          <Image source={{ uri: p.url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          <SignedImage bucket="project-photos" value={p.file_path} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         </Pressable>
                       )
                     })}

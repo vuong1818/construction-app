@@ -9,6 +9,7 @@ import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { SignedImage } from '../../../components/SignedImage'
 
 // Material Requests: the crew builds a LIST of material they need and sends it to the
 // office. Each item is typed, barcode-scanned, and/or photographed (when they don't know
@@ -290,7 +291,7 @@ export default function MaterialRequestsScreen() {
                 </View>
                 <Text style={{ fontWeight: '800', color: COLORS.navy, fontSize: 16, flexShrink: 1 }}>{req.item_name}</Text>
               </View>
-              {req.photo_url ? <Image source={{ uri: req.photo_url }} style={{ width: '100%', height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
+              {req.photo_url ? <SignedImage bucket={PHOTO_BUCKET} value={req.photo_url} style={{ width: '100%', height: 160, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
               <Text style={{ color: COLORS.text, marginTop: 6, fontWeight: '700' }}>{Number(req.qty).toLocaleString('en-US')} {req.unit}</Text>
               {req.barcode ? <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>🔖 {req.barcode}</Text> : null}
               {req.note ? <Text style={{ color: COLORS.subtext, marginTop: 4, lineHeight: 20 }}>{req.note}</Text> : null}

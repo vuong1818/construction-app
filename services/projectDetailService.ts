@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Linking from 'expo-linking'
 import { supabase } from '../lib/supabase'
+import { bucketOf, signedUrl } from '../lib/storageUrl'
 
 export type Project = {
   id: number
@@ -66,8 +67,9 @@ function bucketForDocType(docType?: string | null) {
   return docType === 'admin' ? ADMIN_DOCS_BUCKET : DOCUMENTS_BUCKET
 }
 
-// Build the public-bucket URL for a given storage path. Mirrors the format
-// the web portal stores in *_url columns so backfilled rows look the same.
+// Still written into the *_url columns so rows keep the shape the web portal
+// and older app installs expect. Nothing READS it any more — every read signs
+// from the path — and it stops being written once the buckets are private.
 function publicUrl(bucket: string, filePath: string) {
   return supabase.storage.from(bucket).getPublicUrl(filePath).data.publicUrl
 }
@@ -337,16 +339,20 @@ export async function uploadProjectFile(params: {
   }
 }
 
-export function getPhotoUrl(photo: ProjectFile) {
-  // Prefer the stored URL. project_photos is a shared album: 99 of its rows are
-  // mirrored in from expenses, material requests and task photos, and those live
-  // in OTHER buckets (expense-receipts and friends) so they carry a file_url and
-  // no file_path. Building a URL from file_path turned every one of them into
-  //   .../object/public/project-photos/null
-  // which never resolves — so the viewer sat there spinning forever.
-  if (photo.file_url) return photo.file_url
-  if (!photo.file_path) return ''
-  return supabase.storage.from('project-photos').getPublicUrl(photo.file_path).data.publicUrl
+// project_photos is a shared album: many of its rows are mirrored in from
+// expenses, material requests and task photos, and those objects live in OTHER
+// buckets (expense-receipts and friends), carrying a file_url and no file_path.
+// bucketOf() reads the bucket back out of that url, so signing works for both
+// kinds of row without the caller knowing which it has.
+export function photoRef(photo: ProjectFile): { bucket: string; value: string | null } {
+  const value = photo.file_path || photo.file_url || null
+  return { bucket: bucketOf(photo.file_url) || 'project-photos', value }
+}
+
+/** A signed url for one photo, or '' when it cannot be resolved. */
+export async function getPhotoUrl(photo: ProjectFile): Promise<string> {
+  const { bucket, value } = photoRef(photo)
+  return (await signedUrl(bucket, value)) || ''
 }
 
 export async function openPlan(plan: ProjectFile) {
