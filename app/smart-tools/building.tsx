@@ -333,10 +333,10 @@ function CalcSpanTable({ onClose }: { onClose: () => void }) {
         <View style={{ borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: COLORS.border }}>
           <View style={{ flexDirection: 'row', backgroundColor: COLORS.navy, padding: 10 }}>
             <Text style={{ flex: 1, color: COLORS.white, fontWeight: '700', fontSize: 12 }}>{t('stbColSize')}</Text>
-            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>HF@16"</Text>
-            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>HF@24"</Text>
-            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>SPF@16"</Text>
-            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>SPF@24"</Text>
+            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>{'HF@16"'}</Text>
+            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>{'HF@24"'}</Text>
+            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>{'SPF@16"'}</Text>
+            <Text style={{ width: 70, color: COLORS.white, fontWeight: '700', fontSize: 12, textAlign: 'center' }}>{'SPF@24"'}</Text>
           </View>
           {table.map((r, i) => (
             <View
