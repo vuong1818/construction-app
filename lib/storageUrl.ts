@@ -57,11 +57,13 @@ export async function signedUrl(
   if (!b) return null
 
   const expiresIn = opts?.expiresIn ?? DEFAULT_TTL
-  const key = `${b}|${path}`
+  // The storage client prefixes the org for us (lib/storageOrgScope.ts).
+  const full = path
+  const key = `${b}|${full}`
   const hit = cache.get(key)
   if (hit && hit.expiresAt - Date.now() > 60_000) return hit.url
 
-  const { data, error } = await supabase.storage.from(b).createSignedUrl(path, expiresIn)
+  const { data, error } = await supabase.storage.from(b).createSignedUrl(full, expiresIn)
   if (error || !data?.signedUrl) {
     // Deliberately no fall back to getPublicUrl: that is the thing being
     // removed, and quietly serving a public url would undo the fix while
