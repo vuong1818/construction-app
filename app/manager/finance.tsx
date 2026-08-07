@@ -16,6 +16,10 @@ import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
 type Project = { id: number; name: string; status: string | null; contract_amount: number | null }
+// A change order is an SOV line flagged is_change_order, the same source the
+// web portal reports from. It used to read project_change_orders — a legacy
+// table that nothing has written to, so this tile has been showing $0 on every
+// project regardless of what was actually approved.
 type ChangeOrder = { id: number; project_id: number; amount: number }
 type Expense = { id: number; project_id: number; amount: number; is_paid: boolean | null; payment_method: string | null }
 type PayApp = { id: number; project_id: number; retainage_pct: number | null; amount_paid: number | null }
@@ -48,12 +52,16 @@ export default function ManagerFinanceScreen() {
 
     const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status, contract_amount').order('name'),
-      supabase.from('project_change_orders').select('id, project_id, amount'),
+      supabase.from('project_pay_app_items')
+        .select('id, project_id, scheduled_value')
+        .eq('is_change_order', true),
       supabase.from('project_expenses').select('id, project_id, amount, is_paid, payment_method'),
       supabase.from('project_draws').select('id, project_id, retainage_pct, amount_paid'),
     ])
     setProjects((pr as Project[]) || [])
-    setChangeOrders((co as ChangeOrder[]) || [])
+    setChangeOrders(((co as any[]) || []).map(r => ({
+      id: r.id, project_id: r.project_id, amount: Number(r.scheduled_value) || 0,
+    })))
     setExpenses((ex as Expense[]) || [])
     setPayApps((ap as PayApp[]) || [])
 
@@ -72,7 +80,7 @@ export default function ManagerFinanceScreen() {
   }, [])
 
   useEffect(() => { load() }, [load])
-  useRealtimeRefetch('project_change_orders', load, undefined, !loading)
+  useRealtimeRefetch('project_pay_app_items', load, undefined, !loading)
   useRealtimeRefetch('project_expenses',      load, undefined, !loading)
   useRealtimeRefetch('project_draws',          load, undefined, !loading)
   useRealtimeRefetch('projects',              load, undefined, !loading)
