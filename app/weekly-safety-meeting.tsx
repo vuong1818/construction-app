@@ -632,7 +632,6 @@ export default function WeeklySafetyMeetingScreen() {
                   onMessage={handleWebViewMessage}
                   javaScriptEnabled
                   originWhitelist={['*']}
-                  androidHardwareAccelerationDisabled
                 />
               </View>
             </>

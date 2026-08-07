@@ -665,7 +665,9 @@ export default function NewBackflowTest() {
         return
       }
       setUserId(user.id)
-      const tasks: Promise<any>[] = [
+      // PromiseLike, not Promise: a PostgREST builder is a thenable and
+      // Promise.all accepts thenables, but it has no .catch or .finally.
+      const tasks: PromiseLike<any>[] = [
         supabase.from('backflow_test_gauges').select('id, make, model, serial, calibration_date').order('make'),
         supabase
           .from('backflow_testers')

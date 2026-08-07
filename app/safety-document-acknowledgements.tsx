@@ -53,7 +53,11 @@ export default function SafetyDocumentAcknowledgementsScreen() {
 
       if (error) throw error;
 
-      setRows((data as AckRow[]) || []);
+      // profiles:user_id and safety_documents:document_id are to-one embeds, so
+      // each comes back as an OBJECT. Without a generated schema the client
+      // cannot know the cardinality and infers an array, so the cast goes via
+      // unknown — the runtime shape is what AckRow describes.
+      setRows((data as unknown as AckRow[]) || []);
     } catch (error) {
       console.error('Error loading acknowledgements:', error);
     } finally {

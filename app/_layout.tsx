@@ -27,7 +27,7 @@ export default function RootLayout() {
         headerStyle: { backgroundColor: COLORS.navy },
         headerTintColor: COLORS.white,
         headerTitleStyle: { fontWeight: '700', color: COLORS.white },
-        headerBackTitleVisible: false,
+        headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: COLORS.background },
       }}
     >

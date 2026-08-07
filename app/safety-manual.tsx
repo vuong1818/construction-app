@@ -584,7 +584,6 @@ export default function SafetyManualScreen() {
                   onMessage={handleWebViewMessage}
                   javaScriptEnabled
                   originWhitelist={['*']}
-                  androidHardwareAccelerationDisabled
                 />
               </View>
             </>
