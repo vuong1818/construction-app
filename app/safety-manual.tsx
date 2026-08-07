@@ -446,12 +446,15 @@ export default function SafetyManualScreen() {
       const { data: ackData, error: upsertError } = await supabase
         .from('safety_manual_acknowledgements')
         .upsert(upsertPayload, { onConflict: 'worker_id,week_start' })
-        .select('id')
+        .select('id, view_token')
         .single();
       if (upsertError) throw upsertError;
 
       // Build the server-side view URL (renders HTML page from stored signature)
-      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?id=${ackData.id}&type=manual`;
+      // The link goes to a worker with no session, so it carries the row's
+      // unguessable view_token rather than its id — the id is sequential and
+      // would let anyone walk every signature in the table.
+      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?token=${ackData.view_token}&type=manual`;
       await supabase
         .from('safety_manual_acknowledgements')
         .update({ pdf_url: pdfUrl })

@@ -409,12 +409,15 @@ export default function WeeklySafetyMeetingScreen() {
           },
           { onConflict: 'worker_id,topic_id,week_start' }
         )
-        .select('id')
+        .select('id, view_token')
         .single();
       if (upsertError) throw upsertError;
 
       // Combined view URL (renders the manual + meeting acknowledgement + signature)
-      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?id=${ackData.id}&type=weekly`;
+      // The link goes to a worker with no session, so it carries the row's
+      // unguessable view_token rather than its id — the id is sequential and
+      // would let anyone walk every signature in the table.
+      const pdfUrl = `${WEB_BASE}/api/portal/view-ack?token=${ackData.view_token}&type=weekly`;
       await supabase
         .from('weekly_meeting_acknowledgements')
         .update({ pdf_url: pdfUrl })
