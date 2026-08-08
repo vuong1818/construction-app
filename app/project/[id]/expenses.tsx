@@ -1,6 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Picker } from '@react-native-picker/picker'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -8,6 +9,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -61,6 +63,11 @@ type Project = { id: number; name: string }
 
 function fmtMoney(n: number) {
   return (Number(n) || 0).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+// A receipt can be a photo or a PDF — suppliers email PDF invoices. Only the
+// rendering differs: a PDF has no thumbnail and cannot go in an <Image>.
+function isPdf(v: string | null | undefined) {
+  return /\.pdf($|\?)/i.test(String(v || ''))
 }
 function fmtDate(d: string | null) {
   if (!d) return '—'
@@ -225,6 +232,32 @@ export default function ProjectExpensesScreen() {
     if (result.canceled || !result.assets?.length) return
     const a = result.assets[0]
     setPendingReceipt({ uri: a.uri, name: a.fileName || `receipt-${Date.now()}.jpg`, mimeType: a.mimeType || 'image/jpeg' })
+  }
+
+  async function openReceiptPdf(e: Expense) {
+    const target = e.receipt_photo_path || e.receipt_photo_url
+    if (!target) return
+    try {
+      // Buckets are private, so a stored public URL no longer opens. Sign the
+      // path for a short window and let the OS take it from there.
+      const path = e.receipt_photo_path || String(e.receipt_photo_url).split(`/${RECEIPTS_BUCKET}/`).pop() || ''
+      const { data, error } = await supabase.storage.from(RECEIPTS_BUCKET).createSignedUrl(path, 300)
+      if (error || !data?.signedUrl) throw new Error(error?.message || 'Could not open the receipt.')
+      await Linking.openURL(data.signedUrl)
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not open the receipt.')
+    }
+  }
+
+  async function pickReceiptDocument() {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true })
+    if (result.canceled || !result.assets?.length) return
+    const a = result.assets[0]
+    setPendingReceipt({
+      uri: a.uri,
+      name: a.name || `receipt-${Date.now()}.pdf`,
+      mimeType: a.mimeType || 'application/pdf',
+    })
   }
 
   async function uploadReceipt(file: { uri: string; name: string; mimeType: string }) {
@@ -405,9 +438,18 @@ export default function ProjectExpensesScreen() {
                 style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}
               >
                 {e.receipt_photo_url ? (
-                  <Pressable onPress={() => setReceiptViewerUrl(e.receipt_photo_url)}>
-                    <SignedImage bucket={RECEIPTS_BUCKET} value={e.receipt_photo_path || e.receipt_photo_url} style={{ width: 56, height: 56, borderRadius: 10 }} />
-                  </Pressable>
+                  isPdf(e.receipt_photo_path || e.receipt_photo_url) ? (
+                    // ImageView cannot render a PDF. Hand it to the OS viewer,
+                    // which is also what the user expects from a tap.
+                    <Pressable onPress={() => openReceiptPdf(e)} style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' }}>
+                      <Ionicons name="document-text-outline" size={24} color={COLORS.text} />
+                      <Text style={{ fontSize: 9, fontWeight: '800', color: COLORS.subtext }}>PDF</Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable onPress={() => setReceiptViewerUrl(e.receipt_photo_url)}>
+                      <SignedImage bucket={RECEIPTS_BUCKET} value={e.receipt_photo_path || e.receipt_photo_url} style={{ width: 56, height: 56, borderRadius: 10 }} />
+                    </Pressable>
+                  )
                 ) : (
                   <View style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: COLORS.navySoft, justifyContent: 'center', alignItems: 'center' }}>
                     <MaterialCommunityIcons name="receipt-outline" size={26} color={COLORS.navy} />
@@ -585,13 +627,26 @@ export default function ProjectExpensesScreen() {
                   <Ionicons name="image-outline" size={18} color={COLORS.navy} />
                   <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('receiptLibrary')}</Text>
                 </Pressable>
+                <Pressable onPress={pickReceiptDocument} style={{ flex: 1, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+                  <Ionicons name="document-text-outline" size={18} color={COLORS.text} />
+                  <Text style={{ color: COLORS.text, fontWeight: '700' }}>PDF</Text>
+                </Pressable>
               </View>
               {(pendingReceipt || form.receipt_photo_url) && (
                 <View style={{ marginBottom: 16, alignItems: 'center' }}>
-                  <Image
-                    source={{ uri: pendingReceipt?.uri || form.receipt_photo_url || '' }}
-                    style={{ width: '100%', height: 180, borderRadius: 12, resizeMode: 'cover' }}
-                  />
+                  {isPdf(pendingReceipt?.name || pendingReceipt?.uri || form.receipt_photo_url) ? (
+                    <View style={{ width: '100%', height: 110, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                      <Ionicons name="document-text-outline" size={30} color={COLORS.text} />
+                      <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={1}>
+                        {pendingReceipt?.name || 'PDF receipt'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Image
+                      source={{ uri: pendingReceipt?.uri || form.receipt_photo_url || '' }}
+                      style={{ width: '100%', height: 180, borderRadius: 12, resizeMode: 'cover' }}
+                    />
+                  )}
                   {pendingReceipt && (
                     <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>{t('receiptNew')}</Text>
                   )}
@@ -612,6 +667,41 @@ export default function ProjectExpensesScreen() {
               </View>
             </ScrollView>
           </View>
+
+          {/* Vendor picker.
+              This lives INSIDE the form modal on purpose. It used to be a
+              sibling <Modal> further down the tree, and a second Modal opened
+              while the form Modal is up renders behind it — the state flipped,
+              the picker mounted, and nothing appeared. An absolutely
+              positioned overlay inside the same modal has no such problem and
+              behaves the same on both platforms. */}
+          {vendorPickerOpen && (
+            <Pressable
+              onPress={() => setVendorPickerOpen(false)}
+              style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', padding: 24 }}
+            >
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, maxHeight: '70%' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>{t('pickVendor')}</Text>
+                  <Pressable onPress={() => setVendorPickerOpen(false)} hitSlop={10}><Ionicons name="close" size={22} color={COLORS.subtext} /></Pressable>
+                </View>
+                <ScrollView keyboardShouldPersistTaps="handled">
+                  {activeVendors.map(v => (
+                    <Pressable
+                      key={v.id}
+                      onPress={() => { setForm(f => ({ ...f, vendor: v.name })); setVendorPickerOpen(false) }}
+                      style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+                    >
+                      <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{v.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable onPress={() => setVendorPickerOpen(false)} style={{ marginTop: 12, padding: 12, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 10 }}>
+                  <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t('cancel')}</Text>
+                </Pressable>
+              </Pressable>
+            </Pressable>
+          )}
         </KeyboardAvoidingView>
       </Modal>
 
@@ -625,31 +715,6 @@ export default function ProjectExpensesScreen() {
         doubleTapToZoomEnabled
       />
 
-      {/* Vendor picker modal */}
-      <Modal visible={vendorPickerOpen} transparent animationType="fade" onRequestClose={() => setVendorPickerOpen(false)}>
-        <Pressable onPress={() => setVendorPickerOpen(false)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 24 }}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, maxHeight: '70%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: COLORS.text }}>{t('pickVendor')}</Text>
-              <Pressable onPress={() => setVendorPickerOpen(false)}><Ionicons name="close" size={22} color={COLORS.subtext} /></Pressable>
-            </View>
-            <ScrollView>
-              {activeVendors.map(v => (
-                <Pressable
-                  key={v.id}
-                  onPress={() => { setForm(f => ({ ...f, vendor: v.name })); setVendorPickerOpen(false) }}
-                  style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
-                >
-                  <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '600' }}>{v.name}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <Pressable onPress={() => setVendorPickerOpen(false)} style={{ marginTop: 12, padding: 12, alignItems: 'center', backgroundColor: COLORS.background, borderRadius: 10 }}>
-              <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t('cancel')}</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   )
 }
