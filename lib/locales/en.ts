@@ -195,6 +195,11 @@ const en = {
 
   // ── My Schedule ─────────────────────────────────────────────────────
   mySchedule: 'My Tasks',
+  listView: 'List',
+  byDateView: 'By date',
+  scopeMine: 'Mine',
+  scopeEveryone: 'Everyone',
+  fromJobKit: 'From job kit',
   scheduledWork: 'Scheduled Work',
   jobKitTasks: 'Job Kit Tasks',
   myScheduleSubtitle: 'Tasks assigned to you across all projects. Tap to update status.',

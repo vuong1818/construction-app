@@ -59,6 +59,9 @@ type Task = {
   status: Status
   notes: string | null
   created_by: string | null
+  // Set when this bar was generated from a job-kit task. Contracted scope, as
+  // opposed to something somebody typed in on site.
+  source_task_id?: number | null
   created_at: string
   updated_at: string
 }
@@ -93,6 +96,27 @@ function formatDate(d: string | null) {
   })
 }
 
+// Monday-of-week for the anchor date, and a readable label for it. Lifted from
+// the old separate Schedule screen, which is now the "By date" view here.
+function weekKeyOf(iso: string | null | undefined): string {
+  if (!iso) return '0000-00-00'
+  const d = new Date(iso + 'T12:00:00')
+  d.setHours(0, 0, 0, 0)
+  const day = d.getDay() || 7
+  if (day !== 1) d.setHours(-24 * (day - 1))
+  return d.toISOString().slice(0, 10)
+}
+
+function weekLabel(weekKey: string): string {
+  if (weekKey === '0000-00-00') return 'Unscheduled'
+  const start = new Date(weekKey + 'T12:00:00')
+  const end = new Date(start); end.setDate(end.getDate() + 6)
+  const same = start.getMonth() === end.getMonth()
+  const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const endStr = end.toLocaleDateString('en-US', same ? { day: 'numeric' } : { month: 'short', day: 'numeric' })
+  return `${startStr} – ${endStr}`
+}
+
 export default function ProjectTasksScreen() {
   const { id, task: focusTaskId } = useLocalSearchParams<{ id: string; task?: string }>()
   const router = useRouter()
@@ -103,6 +127,10 @@ export default function ProjectTasksScreen() {
   const [errorMessage, setErrorMessage] = useState('')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [isManager, setIsManager] = useState(false)
+  const [view, setView] = useState<'list' | 'dates'>('list')
+  // A worker opens on their own work; a manager opens on the whole project.
+  // Both can switch — the old Schedule screen showed everyone to everyone.
+  const [scope, setScope] = useState<'mine' | 'all'>('mine')
   const [project, setProject] = useState<Project | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -144,7 +172,7 @@ export default function ProjectTasksScreen() {
         supabase.from('profiles').select('role').eq('id', session.user.id).single(),
         supabase.from('projects').select('id, name').eq('id', projectId).single(),
         supabase.from('project_tasks')
-          .select('id, project_id, task_date, start_date, end_date, title, assigned_to, status, notes, created_by, created_at, updated_at')
+          .select('id, project_id, task_date, start_date, end_date, title, assigned_to, status, notes, created_by, created_at, updated_at, source_task_id')
           .eq('project_id', projectId),
         supabase.from('profiles').select('id, full_name, role').order('full_name'),
         supabase.from('project_photos')
@@ -157,14 +185,17 @@ export default function ProjectTasksScreen() {
       const role = meResult.data?.role || 'worker'
       const manager = ['manager', 'owner'].includes(String(role))
       setIsManager(manager)
+      setScope(manager ? 'all' : 'mine')
 
       if (projectResult.error) { setErrorMessage(projectResult.error.message); setLoading(false); return }
       setProject(projectResult.data as Project)
 
       if (tasksResult.error) { setErrorMessage(tasksResult.error.message); setLoading(false); return }
       const allTasks = (tasksResult.data || []) as Task[]
-      // Workers only see tasks assigned to them; managers see all
-      const visible = manager ? allTasks : allTasks.filter(task => task.assigned_to === session.user.id)
+      // Everything is held; Mine/All decides what is shown. This screen now
+      // does the job the separate Schedule screen used to, and that one showed
+      // the whole project to everybody.
+      const visible = allTasks
       // Sort: status priority, then by scheduled start (start_date if set,
       // falling back to task_date) so the list reads as a project schedule.
       visible.sort((a, b) => {
@@ -417,6 +448,39 @@ export default function ProjectTasksScreen() {
 
   const editingFieldsLocked = !!(editing && !isManager)
 
+  // Mine/All is a filter, By-date is a grouping. Building one row list from
+  // both keeps the card markup below written once — the alternative was a
+  // second copy of it that would drift.
+  const scoped = scope === 'mine'
+    ? tasks.filter(x => x.assigned_to === currentUserId)
+    : tasks
+  type Row = { key: string; header?: string; task?: Task }
+  const rows: Row[] = view === 'list'
+    ? scoped.map(x => ({ key: `t${x.id}`, task: x }))
+    : (() => {
+        const byWeek = new Map<string, Task[]>()
+        const ordered = [...scoped].sort((a, b) => {
+          const ai = a.start_date || a.task_date || ''
+          const bi = b.start_date || b.task_date || ''
+          if (!ai && !bi) return a.id - b.id
+          if (!ai) return 1
+          if (!bi) return -1
+          return ai.localeCompare(bi)
+        })
+        for (const x of ordered) {
+          const k = weekKeyOf(x.start_date || x.task_date)
+          if (!byWeek.has(k)) byWeek.set(k, [])
+          byWeek.get(k)!.push(x)
+        }
+        const out: Row[] = []
+        for (const [k, list] of byWeek) {
+          out.push({ key: `h${k}`, header: weekLabel(k) })
+          for (const x of list) out.push({ key: `t${x.id}`, task: x })
+        }
+        return out
+      })()
+
+
   if (loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -455,13 +519,35 @@ export default function ProjectTasksScreen() {
             {project?.name || t('project')}
           </Text>
           <Text style={{ color: '#D9F6FB', lineHeight: 22 }}>
-            {isManager ? t('allTasksForProject') : t('tasksAssignedToYou')}
+            {scope === 'mine' ? t('tasksAssignedToYou') : t('allTasksForProject')}
           </Text>
         </View>
 
-        {/* Anyone may add a task now. The insert stamps created_by, which is
-            what the row policy checks, and a worker can only ever delete one
-            they created. */}
+        {/* View and scope. This screen replaced the separate Schedule tile, so it
+            has to answer both "what is on me" and "what is everyone doing, and
+            when" without being two screens again. */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {([['list', t('listView')], ['dates', t('byDateView')]] as const).map(([k, label]) => (
+            <Pressable key={k} onPress={() => setView(k as 'list' | 'dates')}
+              style={{ flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: view === k ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: view === k ? COLORS.navy : COLORS.border }}>
+              <Text style={{ color: view === k ? COLORS.white : COLORS.subtext, fontWeight: '800' }}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          {([['mine', t('scopeMine')], ['all', t('scopeEveryone')]] as const).map(([k, label]) => (
+            <Pressable key={k} onPress={() => setScope(k as 'mine' | 'all')}
+              style={{ flex: 1, paddingVertical: 9, borderRadius: 12, alignItems: 'center', backgroundColor: scope === k ? COLORS.tealSoft : COLORS.card, borderWidth: 1, borderColor: scope === k ? COLORS.teal : COLORS.border }}>
+              <Text style={{ color: scope === k ? COLORS.teal : COLORS.subtext, fontWeight: '800' }}>
+                {label} ({k === 'mine' ? tasks.filter(x => x.assigned_to === currentUserId).length : tasks.length})
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Anyone may add a task. The insert stamps created_by, which is what
+            the row policy checks, and a worker can only ever delete one they
+            created. */}
         {(
           <Pressable
             onPress={openCreate}
@@ -479,20 +565,28 @@ export default function ProjectTasksScreen() {
           </Pressable>
         )}
 
-        {tasks.length === 0 ? (
+        {rows.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 22, borderWidth: 1, borderColor: COLORS.border, padding: 24 }}>
             <Text style={{ color: COLORS.subtext, textAlign: 'center' }}>
-              {isManager ? t('noTasksManager') : t('noTasksWorker')}
+              {scope === 'mine' ? t('noTasksWorker') : t('noTasksManager')}
             </Text>
           </View>
         ) : (
-          tasks.map(task => {
+          rows.map(row => {
+            if (row.header) {
+              return (
+                <Text key={row.key} style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 12, letterSpacing: 0.4, marginTop: 6, marginBottom: 6 }}>
+                  {row.header.toUpperCase()}
+                </Text>
+              )
+            }
+            const task = row.task!
             const cfg = STATUS_CONFIG[task.status]
             const editable = canEdit(task)
             const overdue = isTaskOverdue(task)
             return (
               <Pressable
-                key={task.id}
+                key={row.key}
                 onPress={() => editable && openEdit(task)}
                 style={{
                   backgroundColor: COLORS.card,
@@ -534,6 +628,16 @@ export default function ProjectTasksScreen() {
                 <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', marginBottom: 6 }}>
                   {task.title}
                 </Text>
+
+                {/* Contracted scope reads differently from something typed in on
+                    site: one is work you are being paid for, the other usually
+                    is not. The bar knows which it is; the crew could not tell. */}
+                {task.source_task_id ? (
+                  <View style={{ alignSelf: 'flex-start', backgroundColor: '#FFF3E0', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <MaterialCommunityIcons name="package-variant-closed" size={12} color="#E65100" />
+                    <Text style={{ color: '#E65100', fontSize: 11, fontWeight: '800' }}>{t('fromJobKit')}</Text>
+                  </View>
+                ) : null}
 
                 {task.notes ? (
                   <View style={{ backgroundColor: '#FAFBFD', borderRadius: 10, padding: 12, marginTop: 6 }}>

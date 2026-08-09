@@ -426,19 +426,16 @@ export default function ProjectDetailScreen() {
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="clipboard-list-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={isManager ? t('openTasks') : t('myTasks')}
-            onPress={() => router.push(`/project/${id}/tasks`)}
-          />
+          {/* One tile, not two. Open Tasks and Schedule read the same rows —
+              project_tasks — and only differed in presentation, which is now a
+              toggle inside the screen. The checklist people actually want is
+              the job kit, and that has its own tile above. */}
           <BigActionCard
             icon="calendar-month-outline"
             iconBg={COLORS.navySoft}
             iconColor={COLORS.navy}
             title={t('projectSchedule')}
-            onPress={() => router.push(`/project/${id}/schedule`)}
+            onPress={() => router.push(`/project/${id}/tasks`)}
           />
           <BigActionCard
             icon="clipboard-check-outline"

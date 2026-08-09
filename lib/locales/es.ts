@@ -187,6 +187,11 @@ const es: Record<TranslationKey, string> = {
 
   // ── Mi horario ──────────────────────────────────────────────────────
   mySchedule: 'Mis Tareas',
+  listView: 'Lista',
+  byDateView: 'Por fecha',
+  scopeMine: 'Mías',
+  scopeEveryone: 'Todos',
+  fromJobKit: 'Del kit',
   scheduledWork: 'Trabajo Programado',
   jobKitTasks: 'Tareas del Kit',
   myScheduleSubtitle: 'Tareas asignadas a ti en todos los proyectos. Toca para actualizar el estado.',
