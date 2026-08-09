@@ -951,6 +951,7 @@ const en = {
   yourCompany: 'Your Company',
   jobKit: 'Job Kit',
   viewJobKit: 'View Job Kit',
+  projectTasks: 'Project Tasks',
   loadingJobKit: 'Loading job kit…',
   noJobKitTitle: 'No job kit yet',
   noJobKitMsg: "Your manager hasn't built a job kit for this project yet.",
@@ -1923,6 +1924,7 @@ const en = {
   rfiAnswerSent: 'Answer sent',
 
   matReqTitle: 'Material Requests',
+  fieldSection: 'Materials & Photos',
   matReqSubtitle: 'Flag material you’re missing on the field',
   matReqNew: 'Request material',
   matReqMaterial: 'Material',

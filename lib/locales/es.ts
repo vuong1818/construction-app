@@ -943,6 +943,7 @@ const es: Record<TranslationKey, string> = {
   yourCompany: 'Tu Empresa',
   jobKit: 'Kit de Trabajo',
   viewJobKit: 'Ver Kit de Trabajo',
+  projectTasks: 'Tareas del Proyecto',
   loadingJobKit: 'Cargando kit…',
   noJobKitTitle: 'Aún no hay kit',
   noJobKitMsg: 'Tu supervisor aún no ha creado un kit para este proyecto.',
@@ -1914,6 +1915,7 @@ const es: Record<TranslationKey, string> = {
   rfiAnswerSent: 'Respuesta enviada',
 
   matReqTitle: 'Solicitudes de material',
+  fieldSection: 'Materiales y Fotos',
   matReqSubtitle: 'Reporta material que falta en el campo',
   matReqNew: 'Solicitar material',
   matReqMaterial: 'Material',

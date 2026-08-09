@@ -372,6 +372,37 @@ export default function ProjectDetailScreen() {
         {/* Job Kit leads: it is the scope everything else on this screen is
             derived from, so it gets the accent and the first slot. */}
         <SectionTitle
+          icon="folder-outline"
+          iconBg={COLORS.navySoft}
+          iconColor={COLORS.navy}
+          title={t('documents')}
+        />
+
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <BigActionCard
+            icon="file-pdf-box"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={t('viewPlans')}
+            onPress={openPlansViewer}
+          />
+          <BigActionCard
+            icon="file-document-outline"
+            iconBg={COLORS.navySoft}
+            iconColor={COLORS.navy}
+            title={t('viewDocuments')}
+            onPress={openDocumentsViewer}
+          />
+          <BigActionCard
+            icon="cash-plus"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            title={isManager ? t('expenses') : t('myExpenses')}
+            onPress={() => router.push(`/project/${id}/expenses`)}
+          />
+        </View>
+
+        <SectionTitle
           icon="toolbox-outline"
           iconBg="#FFF3E0"
           iconColor="#E65100"
@@ -383,53 +414,9 @@ export default function ProjectDetailScreen() {
             icon="package-variant-closed"
             iconBg="#FFF3E0"
             iconColor="#E65100"
-            title={t('viewJobKit')}
+            title={t('projectTasks')}
             onPress={() => router.push(`/project/${id}/job-kit`)}
           />
-          <BigActionCard
-            icon="image-search-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('photos')}
-            onPress={openPhotoViewer}
-          />
-          {/* Adding a project photo had no entry point at all — the screen could
-              only view what the web had uploaded, which is what Android users
-              were reporting as "cannot add photos". */}
-          <BigActionCard
-            icon="camera-plus-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={uploadingPhoto ? t('uploadingDots') : t('uploadPhoto')}
-            onPress={() => {
-              if (uploadingPhoto) return
-              choosePhotoSource(async from => {
-                setUploadingPhoto(true)
-                const res = await pickAndUploadPhotos(
-                  from,
-                  { projectId, folder: 'photos' },
-                  currentUserId ?? null,
-                )
-                setUploadingPhoto(false)
-                reportUpload(res)
-                if (res.ok > 0) await refreshAll()
-              })
-            }}
-          />
-        </View>
-
-        <SectionTitle
-          icon="format-list-checks"
-          iconBg={COLORS.tealSoft}
-          iconColor={COLORS.teal}
-          title={t('tasks')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          {/* One tile, not two. Open Tasks and Schedule read the same rows —
-              project_tasks — and only differed in presentation, which is now a
-              toggle inside the screen. The checklist people actually want is
-              the job kit, and that has its own tile above. */}
           <BigActionCard
             icon="calendar-month-outline"
             iconBg={COLORS.navySoft}
@@ -477,11 +464,14 @@ export default function ProjectDetailScreen() {
           />
         </View>
 
+        {/* Requests and photos are the same errand from the crew's side: both
+            are "here is what the job needs / here is what it looks like",
+            raised from site. The tile inside is still Material Requests. */}
         <SectionTitle
           icon="package-variant"
           iconBg={COLORS.navySoft}
           iconColor={COLORS.navy}
-          title={t('matReqTitle')}
+          title={t('fieldSection')}
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -492,36 +482,35 @@ export default function ProjectDetailScreen() {
             title={t('matReqTitle')}
             onPress={() => router.push(`/project/${id}/material-requests`)}
           />
-        </View>
-
-        <SectionTitle
-          icon="folder-outline"
-          iconBg={COLORS.navySoft}
-          iconColor={COLORS.navy}
-          title={t('documents')}
-        />
-
-        <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
-            icon="file-pdf-box"
+            icon="image-search-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={t('viewPlans')}
-            onPress={openPlansViewer}
+            title={t('photos')}
+            onPress={openPhotoViewer}
           />
+          {/* Adding a project photo had no entry point at all — the screen could
+              only view what the web had uploaded, which is what Android users
+              were reporting as "cannot add photos". */}
           <BigActionCard
-            icon="file-document-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={t('viewDocuments')}
-            onPress={openDocumentsViewer}
-          />
-          <BigActionCard
-            icon="cash-plus"
+            icon="camera-plus-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
-            title={isManager ? t('expenses') : t('myExpenses')}
-            onPress={() => router.push(`/project/${id}/expenses`)}
+            title={uploadingPhoto ? t('uploadingDots') : t('uploadPhoto')}
+            onPress={() => {
+              if (uploadingPhoto) return
+              choosePhotoSource(async from => {
+                setUploadingPhoto(true)
+                const res = await pickAndUploadPhotos(
+                  from,
+                  { projectId, folder: 'photos' },
+                  currentUserId ?? null,
+                )
+                setUploadingPhoto(false)
+                reportUpload(res)
+                if (res.ok > 0) await refreshAll()
+              })
+            }}
           />
         </View>
 
