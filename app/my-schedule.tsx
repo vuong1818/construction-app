@@ -11,6 +11,18 @@ import { SkeletonList } from '../components/SkeletonCard'
 
 // My Tasks = the step-check tasks assigned to me across every job kit. Check-off writes to
 // project_playbook_checks (stamps me + now); un-check removes it. Mirrors the web Tasks tab.
+// Scheduled work lives in project_tasks — the Gantt / Master Schedule system.
+// Job-kit checklist tasks live in project_playbook_step_checks. They are two
+// different tables and this screen only ever read the second, so anything a
+// manager scheduled and assigned was invisible on the phone.
+type Scheduled = {
+  id: number
+  title: string
+  status: string | null
+  projectName: string
+  when: string | null
+}
+
 type Task = {
   id: number
   kitId: number
@@ -30,6 +42,7 @@ export default function MyTasksScreen() {
   const [errorMessage, setErrorMessage] = useState('')
   const [uid, setUid] = useState<string | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
+  const [scheduled, setScheduled] = useState<Scheduled[]>([])
   const [tab, setTab] = useState<'open' | 'done'>('open')
   const [savingId, setSavingId] = useState<number | null>(null)
 
@@ -40,6 +53,25 @@ export default function MyTasksScreen() {
       const me = session.user.id
       setUid(me)
 
+      // Scheduled work, assigned the old way — one owner per row. Matches the
+      // web's My Schedule page exactly (assigned_to = me).
+      const { data: sched } = await supabase.from('project_tasks')
+        .select('id, project_id, title, status, task_date, start_date, end_date')
+        .eq('assigned_to', me)
+        .order('start_date', { ascending: true })
+      const schedProjIds = [...new Set((sched || []).map((r: any) => r.project_id).filter(Boolean))]
+      const { data: schedProjs } = schedProjIds.length
+        ? await supabase.from('projects').select('id, name').in('id', schedProjIds)
+        : { data: [] as any[] }
+      const schedProjMap: Record<number, string> = Object.fromEntries((schedProjs || []).map((p: any) => [p.id, p.name]))
+      setScheduled((sched || []).map((r: any) => ({
+        id: r.id,
+        title: r.title || 'Task',
+        status: r.status,
+        projectName: schedProjMap[r.project_id] || '—',
+        when: r.start_date || r.task_date || null,
+      })))
+
       // Tasks are crewed, not owned: read the assignee join table rather than
       // the single assigned_to column, or a worker only sees the jobs where
       // they happen to be listed first.
@@ -47,6 +79,7 @@ export default function MyTasksScreen() {
         .select('task_id').eq('user_id', me)
       const myTaskIds = [...new Set((mine || []).map((a: any) => a.task_id))]
       if (myTaskIds.length === 0) { setTasks([]); setLoading(false); return }
+      // NOTE: returning here is fine — scheduled work is already in state.
 
       const { data: raw } = await supabase.from('project_playbook_step_checks')
         .select('id, step_id, label, description, notes').in('id', myTaskIds)
@@ -161,7 +194,35 @@ export default function MyTasksScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 0, gap: 10 }}>
-        {shown.length === 0 ? (
+        {/* Scheduled work — added on the web under Schedule > Gantt > Add Task.
+            A different table from the job-kit checklist below, so it gets its
+            own block rather than being mixed in and looking checkable. */}
+        {tab === 'open' && scheduled.length > 0 && (
+          <>
+            <Text style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 12, letterSpacing: 0.4, marginTop: 4 }}>
+              {t('scheduledWork').toUpperCase()}
+            </Text>
+            {scheduled.map(sch => (
+              <View key={`sch-${sch.id}`} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.navySoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <MaterialCommunityIcons name="calendar-check" size={20} color={COLORS.navy} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15 }}>{sch.title}</Text>
+                  <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
+                    {sch.projectName}
+                    {sch.when ? ` · ${new Date(sch.when + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                    {sch.status ? ` · ${sch.status}` : ''}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            <Text style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 12, letterSpacing: 0.4, marginTop: 10 }}>
+              {t('jobKitTasks').toUpperCase()}
+            </Text>
+          </>
+        )}
+        {shown.length === 0 && scheduled.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 32, alignItems: 'center' }}>
             <MaterialCommunityIcons name="checkbox-marked-circle-outline" size={44} color={COLORS.muted} />
             <Text style={{ color: COLORS.subtext, marginTop: 10 }}>{tab === 'open' ? 'No tasks assigned to you.' : 'Nothing completed yet.'}</Text>

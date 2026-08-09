@@ -884,15 +884,36 @@ export default function HomeScreen() {
             {activeEntry ? ` · ${getProjectName(activeEntry.project_id)}` : ''}
           </Text>
 
-          {/* Safety gate notice — shown here (not on the Safety screen) only while the
-              worker still owes an acknowledgement. */}
-          {!safetyCompleted() && (
-            <View style={{ backgroundColor: 'rgba(239,68,68,0.18)', borderRadius: 14, padding: 12, marginTop: 12, borderWidth: 1, borderColor: 'rgba(248,113,113,0.5)' }}>
-              <Text style={{ color: '#FECACA', fontWeight: '700', lineHeight: 19 }}>
-                {t(language, 'workersClockInBlockedNotice')}
+          {/* Safety gate status — shown in BOTH states so a worker can tell at a
+              glance whether they are clear to clock in, rather than inferring it
+              from the absence of a warning. */}
+          <View style={{
+            backgroundColor: safetyCompleted() ? 'rgba(34,197,94,0.18)' : 'rgba(239,68,68,0.18)',
+            borderRadius: 14, padding: 12, marginTop: 12,
+            borderWidth: 1, borderColor: safetyCompleted() ? 'rgba(74,222,128,0.5)' : 'rgba(248,113,113,0.5)',
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+          }}>
+            <Ionicons
+              name={safetyCompleted() ? 'checkmark-circle' : 'alert-circle'}
+              size={18}
+              color={safetyCompleted() ? '#BBF7D0' : '#FECACA'}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: safetyCompleted() ? '#BBF7D0' : '#FECACA', fontWeight: '700', lineHeight: 19 }}>
+                {t(language, safetyCompleted() ? 'clockInAllowed' : 'safetySignatureRequired')}
               </Text>
+              {/* Naming what is outstanding, because "Safety Signature Required"
+                  on its own does not tell a worker where to go. */}
+              {!safetyCompleted() && (
+                <Text style={{ color: '#FECACA', opacity: 0.85, fontSize: 12, marginTop: 2 }}>
+                  {[
+                    !manualAcknowledged ? t(language, 'safetyManual') : null,
+                    !meetingAcknowledged ? t(language, 'weeklySafetyMeeting') : null,
+                  ].filter(Boolean).join(' · ')}
+                </Text>
+              )}
             </View>
-          )}
+          </View>
 
           {/* Pending sync chip — shows when one or more clock-ins were saved
               offline and haven't reached the server yet. Tap to force a
