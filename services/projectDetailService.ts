@@ -152,8 +152,12 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
   const [plansResult, photosResult, documentsResult, reportsResult] = await Promise.all([
     supabase.from('project_plans').select('id, project_id, name, plan_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
+    // Receipts are mirrored into this table too, but they belong to the expense
+    // they came from, not to the site album — the Expenses screen is where they
+    // are read, by the people RLS lets read the expense. See
+    // 20260809000001_expense_photos_follow_the_expense.sql.
     supabase.from('project_photos').select('id, project_id, file_path, file_url, caption, uploaded_by, created_at')
-      .eq('project_id', projectId).order('created_at', { ascending: false }),
+      .eq('project_id', projectId).neq('source', 'expense').order('created_at', { ascending: false }),
     supabase.from('project_documents').select('id, project_id, name, doc_type, file_path, created_at')
       .eq('project_id', projectId).order('created_at', { ascending: false }),
     supabase.from('daily_reports').select('*').eq('project_id', projectId)
@@ -249,8 +253,8 @@ export async function openDocument(doc: ProjectFile) {
 
 export async function reloadPhotos(projectId: number) {
   const { data, error } = await supabase
-    .from('project_photos').select('id, project_id, file_path, file_url, caption, created_at')
-    .eq('project_id', projectId).order('created_at', { ascending: false })
+    .from('project_photos').select('id, project_id, file_path, file_url, caption, uploaded_by, created_at')
+    .eq('project_id', projectId).neq('source', 'expense').order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data || []).map(mapPhoto).filter(isViewable)
 }
