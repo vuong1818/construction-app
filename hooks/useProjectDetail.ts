@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
+import { useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { Alert } from 'react-native'
 import {
@@ -112,9 +113,20 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     }
   }, [projectId])
 
-  useEffect(() => {
-    refreshAll()
-  }, [refreshAll])
+  // On focus, not on mount. The project screen stays mounted underneath
+  // anything pushed on top of it, so coming back from New Daily Report — or
+  // from any other screen that adds a file — used to leave this list showing
+  // whatever it held when the screen first opened. A report saved on the phone
+  // was invisible until the screen was destroyed and rebuilt, which read as
+  // "There are no reports to view yet."
+  //
+  // useFocusEffect fires on the first focus too, so this replaces the mount
+  // effect rather than adding to it — no double fetch.
+  useFocusEffect(
+    useCallback(() => {
+      refreshAll()
+    }, [refreshAll]),
+  )
 
   async function refreshPhotosOnly() {
     if (!projectId) return

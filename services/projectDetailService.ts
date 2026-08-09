@@ -164,6 +164,22 @@ export async function loadProjectDetail(projectId: number): Promise<ProjectDetai
       .order('report_date', { ascending: false }),
   ])
 
+  // A failed query returns { data: null, error } rather than throwing, so
+  // `data || []` quietly turns "could not load" into "there is nothing here".
+  // Say so instead — an empty list the user cannot explain is worse than an
+  // error they can.
+  const failed = [
+    ['plans', plansResult.error],
+    ['photos', photosResult.error],
+    ['documents', documentsResult.error],
+    ['reports', reportsResult.error],
+  ].filter(([, e]) => e) as [string, { message: string }][]
+  if (failed.length) {
+    throw new Error(
+      failed.map(([what, e]) => `Could not load ${what}: ${e.message}`).join('\n'),
+    )
+  }
+
   return {
     project: projectData,
     photos:    (photosResult.data    || []).map(mapPhoto).filter(isViewable),
