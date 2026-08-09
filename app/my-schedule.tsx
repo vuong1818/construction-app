@@ -17,6 +17,7 @@ import { SkeletonList } from '../components/SkeletonCard'
 // manager scheduled and assigned was invisible on the phone.
 type Scheduled = {
   id: number
+  projectId: number | null
   title: string
   status: string | null
   projectName: string
@@ -66,6 +67,7 @@ export default function MyTasksScreen() {
       const schedProjMap: Record<number, string> = Object.fromEntries((schedProjs || []).map((p: any) => [p.id, p.name]))
       setScheduled((sched || []).map((r: any) => ({
         id: r.id,
+        projectId: r.project_id ?? null,
         title: r.title || 'Task',
         status: r.status,
         projectName: schedProjMap[r.project_id] || '—',
@@ -203,7 +205,14 @@ export default function MyTasksScreen() {
               {t('scheduledWork').toUpperCase()}
             </Text>
             {scheduled.map(sch => (
-              <View key={`sch-${sch.id}`} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+              // Tapping opens the project's task screen with this task already
+              // in the editor — one screen, one set of permissions, rather than
+              // a second editor here that would drift from it.
+              <Pressable
+                key={`sch-${sch.id}`}
+                onPress={() => sch.projectId && router.push(`/project/${sch.projectId}/tasks?task=${sch.id}` as any)}
+                disabled={!sch.projectId}
+                style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', gap: 12, alignItems: 'center' }}>
                 <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.navySoft, alignItems: 'center', justifyContent: 'center' }}>
                   <MaterialCommunityIcons name="calendar-check" size={20} color={COLORS.navy} />
                 </View>
@@ -215,7 +224,8 @@ export default function MyTasksScreen() {
                     {sch.status ? ` · ${sch.status}` : ''}
                   </Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+              </Pressable>
             ))}
             <Text style={{ color: COLORS.subtext, fontWeight: '800', fontSize: 12, letterSpacing: 0.4, marginTop: 10 }}>
               {t('jobKitTasks').toUpperCase()}

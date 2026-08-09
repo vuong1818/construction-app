@@ -94,7 +94,7 @@ function formatDate(d: string | null) {
 }
 
 export default function ProjectTasksScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
+  const { id, task: focusTaskId } = useLocalSearchParams<{ id: string; task?: string }>()
   const router = useRouter()
   const projectId = Number(id)
   const { t } = useLanguage()
@@ -197,6 +197,17 @@ export default function ProjectTasksScreen() {
   }, [projectId])
 
   useEffect(() => { load() }, [load])
+
+  // Arriving from the home screen's My Tasks with ?task=<id>: open that task in
+  // the editor as if it had been tapped here, so there is one task screen with
+  // one set of rules rather than a second half-editor on the dashboard.
+  const [focusHandled, setFocusHandled] = useState(false)
+  useEffect(() => {
+    if (focusHandled || !focusTaskId || tasks.length === 0) return
+    const target = tasks.find(x => String(x.id) === String(focusTaskId))
+    if (target) openEdit(target)
+    setFocusHandled(true)
+  }, [focusTaskId, tasks, focusHandled])
 
   // Live updates when tasks change for this project
   useRealtimeRefetch(
@@ -448,7 +459,10 @@ export default function ProjectTasksScreen() {
           </Text>
         </View>
 
-        {isManager && (
+        {/* Anyone may add a task now. The insert stamps created_by, which is
+            what the row policy checks, and a worker can only ever delete one
+            they created. */}
+        {(
           <Pressable
             onPress={openCreate}
             style={{
@@ -577,7 +591,7 @@ export default function ProjectTasksScreen() {
                       </Text>
                     </Pressable>
                   )}
-                  {isManager && (
+                  {(isManager || task.created_by === currentUserId) && (
                     <Pressable
                       onPress={() => confirmDelete(task)}
                       style={{ backgroundColor: COLORS.redSoft, paddingHorizontal: TOUCH.pillPaddingH, paddingVertical: TOUCH.pillPaddingV, minHeight: TOUCH.minHeight, borderRadius: 12, justifyContent: 'center' }}
