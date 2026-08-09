@@ -31,8 +31,30 @@ const REST = "/rest/v1/";
 
 export type QueryFailure = {
   table: string; status: number; message: string;
-  details: string | null; hint: string | null;
+  details: string | null; hint: string | null; fingerprint: string;
 };
+
+// Never log a failure caused by the logger itself. Without this, one broken
+// insert into app_error_logs becomes an insert per retry, forever.
+const SELF = "app_error_logs";
+
+// The same broken query usually fires on every render and every refetch. One
+// row a minute per distinct problem is enough to spot it; more is just noise
+// that buries everything else.
+const QUIET_MS = 60_000;
+const lastSeen = new Map<string, number>();
+
+function shouldReport(fingerprint: string): boolean {
+  const now = Date.now();
+  const prev = lastSeen.get(fingerprint);
+  if (prev && now - prev < QUIET_MS) return false;
+  lastSeen.set(fingerprint, now);
+  // The map is bounded by the number of distinct failures, but trim anyway.
+  if (lastSeen.size > 200) {
+    for (const [k, t] of lastSeen) if (now - t > QUIET_MS) lastSeen.delete(k);
+  }
+  return true;
+}
 
 /** Pull the table name back out of a PostgREST url, for a readable log line. */
 function tableOf(url: unknown): string {
@@ -45,8 +67,9 @@ function tableOf(url: unknown): string {
  * Wraps fetch so failed PostgREST calls are reported. Pass to createClient as
  * `{ global: { fetch: loggingFetch } }`.
  *
- * `onError` receives { table, status, message, details, hint } — the web app
- * only logs; a caller could route it somewhere louder.
+ * `onError` receives { table, status, message, details, hint, fingerprint } and
+ * is where persistence happens — see lib/supabase.js. It is called at most once
+ * a minute per distinct failure and must never throw.
  */
 export function makeLoggingFetch(onError?: (info: QueryFailure) => void) {
   return async function loggingFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -55,27 +78,34 @@ export function makeLoggingFetch(onError?: (info: QueryFailure) => void) {
 
     const url = typeof input === "string" ? input : (input as Request)?.url || String(input);
     if (!String(url).includes(REST)) return res;
+    if (String(url).includes(SELF)) return res;
 
     // Read the body from a clone so the caller still gets an unconsumed stream.
     let body: any = {};
     try { body = await res.clone().json(); } catch { /* not json, never mind */ }
 
+    const table = tableOf(url);
+    const message = body?.message || res.statusText;
     const info = {
-      table: tableOf(url),
+      table,
       status: res.status,
-      message: body?.message || res.statusText,
+      message,
       details: body?.details || null,
       hint: body?.hint || null,
+      // Groups "this same problem again" without the row ids that make every
+      // occurrence look unique.
+      fingerprint: `rest:${res.status}:${table}:${String(message).slice(0, 80)}`,
     };
 
-    // eslint-disable-next-line no-console
     console.error(
       `[supabase] ${info.status} on ${info.table}: ${info.message}` +
       (info.hint ? ` — ${info.hint}` : ""),
       info.details || "",
     );
 
-    try { onError?.(info); } catch { /* a reporter must never break a request */ }
+    if (shouldReport(info.fingerprint)) {
+      try { onError?.(info); } catch { /* a reporter must never break a request */ }
+    }
     return res;
   };
 }
