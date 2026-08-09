@@ -32,12 +32,18 @@ export function useProjectFinance(projectId: number | undefined) {
     if (!projectId || !Number.isFinite(projectId)) { setLoading(false); return }
     const [{ data: proj }, { data: cos }, { data: exps }, { data: payApps }] = await Promise.all([
       supabase.from('projects').select('contract_amount').eq('id', projectId).single(),
-      supabase.from('project_change_orders').select('amount').eq('project_id', projectId),
+      // Change orders are SOV lines flagged is_change_order, the same place the
+      // web reads them (app/portal/finance/page.js). This used to query
+      // project_change_orders, a table that no longer exists — the error was
+      // swallowed by `|| []`, so Total Contract silently omitted every change
+      // order. See audit 2026-08-09, P4.
+      supabase.from('project_pay_app_items').select('scheduled_value')
+        .eq('project_id', projectId).eq('is_change_order', true),
       supabase.from('project_expenses').select('amount, is_paid, payment_method').eq('project_id', projectId),
       supabase.from('project_pay_apps').select('id, retainage_pct, amount_paid').eq('project_id', projectId),
     ])
     const contract = Number(proj?.contract_amount) || 0
-    const changeOrders = (cos || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
+    const changeOrders = (cos || []).reduce((s, c) => s + (Number(c.scheduled_value) || 0), 0)
     const expenses     = (exps || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     const totalContract = contract + changeOrders
 
@@ -85,7 +91,7 @@ export function useProjectFinance(projectId: number | undefined) {
   }, [projectId])
 
   useEffect(() => { load() }, [load])
-  useRealtimeRefetch('project_change_orders', load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
+  useRealtimeRefetch('project_pay_app_items', load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
   useRealtimeRefetch('project_expenses',      load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
   useRealtimeRefetch('project_pay_apps',      load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
   useRealtimeRefetch('projects',              load, projectId ? `id=eq.${projectId}`         : undefined, !loading && !!projectId)
