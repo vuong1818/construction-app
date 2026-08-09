@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
+import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
@@ -48,8 +49,17 @@ export default function RfisScreen() {
   const [busyPhoto, setBusyPhoto] = useState(false)
   const [toast, setToast] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
+  // Only what the reader has toggled; everything else follows the status rule
+  // in isExpanded, so an RFI arriving from realtime needs no state seeded.
+  const [toggled, setToggled] = useState<Record<number, boolean>>({})
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200) }
+
+  // An open RFI is a question somebody is waiting on, so it reads expanded.
+  // Answered and closed ones are history and fold away until asked for.
+  function isExpanded(rfi: Rfi) {
+    return toggled[rfi.id] ?? (rfi.status === 'open')
+  }
 
   function canEdit(rfi: Rfi) {
     return isManager || (rfi.asked_by === uid && rfi.status === 'open')
@@ -140,6 +150,15 @@ export default function RfisScreen() {
   }, [projectId])
 
   useEffect(() => { load() }, [load])
+
+  // rfis only started publishing in 20260809000003 — before that this channel
+  // opened and delivered nothing.
+  useRealtimeRefetch(
+    'rfis',
+    load,
+    Number.isFinite(projectId) ? `project_id=eq.${projectId}` : undefined,
+    Number.isFinite(projectId),
+  )
 
   function resetForm() { setSubject(''); setQuestion(''); setPlanRef(''); setNewPhotoUrl(''); setEditingId(null) }
 
@@ -248,7 +267,11 @@ export default function RfisScreen() {
           const s = STATUS[rfi.status] || STATUS.open
           return (
             <View key={rfi.id} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <Pressable
+                onPress={() => setToggled(x => ({ ...x, [rfi.id]: !isExpanded(rfi) }))}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+              >
+                <Text style={{ color: COLORS.subtext, fontSize: 12, width: 14 }}>{isExpanded(rfi) ? '▼' : '▶'}</Text>
                 <View style={{ backgroundColor: s.bg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
                   <Text style={{ color: s.fg, fontWeight: '800', fontSize: 11 }}>{t(s.key)}</Text>
                 </View>
@@ -258,11 +281,14 @@ export default function RfisScreen() {
                   </View>
                 ) : null}
                 <Text style={{ fontWeight: '800', color: COLORS.navy, fontSize: 16, flexShrink: 1 }}>{rfi.subject}</Text>
-              </View>
-              {rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
-              {rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
-              {rfi.photo_url ? <SignedImage bucket={PHOTO_BUCKET} value={rfi.photo_url} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
-              {canEdit(rfi) && (
+                {/* Collapsed, these say what is inside without opening it. */}
+                {!isExpanded(rfi) && rfi.photo_url ? <Text style={{ fontSize: 13 }}>📎</Text> : null}
+                {!isExpanded(rfi) && rfi.answer ? <Text style={{ color: '#166534', fontSize: 11, fontWeight: '700' }}>{t('rfiAnswerLabel')}</Text> : null}
+              </Pressable>
+              {isExpanded(rfi) && rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
+              {isExpanded(rfi) && rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
+              {isExpanded(rfi) && rfi.photo_url ? <SignedImage bucket={PHOTO_BUCKET} value={rfi.photo_url} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
+              {isExpanded(rfi) && canEdit(rfi) && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   <SmallBtn label={t('rfiEdit')} onPress={() => startEdit(rfi)} />
                   <SmallBtn label={busyPhoto ? '…' : (rfi.photo_url ? 'Replace photo' : '📷 Add photo')} onPress={() => setRfiPhoto(rfi)} />
@@ -273,7 +299,7 @@ export default function RfisScreen() {
                 {t('rfiAskedBy')} {names[rfi.asked_by || ''] || '—'} · {new Date(rfi.created_at).toLocaleDateString()}
               </Text>
 
-              {rfi.answer ? (
+              {isExpanded(rfi) && rfi.answer ? (
                 <View style={{ marginTop: 10, backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: '#22C55E', borderRadius: 8, padding: 12 }}>
                   <Text style={{ fontWeight: '800', color: '#166534', fontSize: 12, marginBottom: 3 }}>{t('rfiAnswerLabel')}</Text>
                   <Text style={{ color: '#14532D', lineHeight: 20 }}>{rfi.answer}</Text>
@@ -283,7 +309,7 @@ export default function RfisScreen() {
                 </View>
               ) : null}
 
-              {isManager && (
+              {isExpanded(rfi) && isManager && (
                 <View style={{ marginTop: 10 }}>
                   {rfi.status !== 'closed' && (
                     <>
