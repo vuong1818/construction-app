@@ -4,7 +4,26 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 
 1. **Type-check first** — run `npx tsc --noEmit` and make sure the files you changed introduce no new errors (the repo has some pre-existing errors in unrelated files; don't let those block you, but don't add new ones in your files).
 2. **Then commit + push** — `git add` only the files you changed (no `-A`/`.`), commit with a brief lowercase message in the existing style plus the standard `Co-Authored-By: Claude` line, then `git push origin main`.
-3. **Then publish an OTA update (JS-only changes)** — standing authorization from the user (2026-07-15): after each mobile change ships, run `npx eas update --channel production --message "<recap>" --non-interactive` so the live TestFlight build picks it up (runtime 1.0.0). This is JS-only delivery — it reaches existing builds without a rebuild.
+3. **Then publish an OTA update to BOTH branches (JS-only changes)** — standing authorization from the user (2026-07-15):
+
+   ```
+   npx eas update --branch production --message "<recap>" --non-interactive
+   npx eas update --branch preview    --message "<recap>" --non-interactive
+   ```
+
+   **Both, every time.** iOS ships through TestFlight on the `production`
+   channel; Android ships as a direct-download APK built from the `preview`
+   profile, which is pinned to the `preview` channel (see `eas.json`). Updating
+   only production leaves every Android user behind, silently — they keep
+   running whatever JS their APK was built with and nothing warns anybody.
+
+   That is not hypothetical. On 2026-08-08 Android users could not save a photo
+   at all: "new row violates row-level security policy". The org-scoped storage
+   wrapper had gone out on production two days earlier, the database started
+   enforcing the matching write policy the next day, and `preview` was still
+   four days stale — so Android was uploading to unprefixed paths the database
+   now refused. iOS was fine throughout, which is exactly what makes this kind
+   of drift hard to spot.
    - **Skip OTA and note a rebuild is needed** when the change is NOT JS-only: a new/updated native dependency, an `app.json` plugin/native-config change, or a `runtimeVersion` bump. OTA can't deliver native changes.
 
 **Don't push mid-task.** Wait for a logical unit (feature, fix, related set of changes) to be complete and type-checking clean, then push + OTA the whole thing as one commit.
