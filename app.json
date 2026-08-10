@@ -89,7 +89,8 @@
           "locationWhenInUsePermission": "Verify you are on the job site when you clock in or out."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -26,6 +26,29 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
    of drift hard to spot.
    - **Skip OTA and note a rebuild is needed** when the change is NOT JS-only: a new/updated native dependency, an `app.json` plugin/native-config change, or a `runtimeVersion` bump. OTA can't deliver native changes.
 
+### Sentry / EXPO_PUBLIC_SENTRY_DSN — the one that can brick the fleet
+
+`@sentry/react-native` is a NATIVE module. It exists only in a binary built
+with it. `runtimeVersion` is `{"policy": "appVersion"}`, so every phone in the
+field is on runtime `1.0.0` and an OTA published today reaches all of them.
+
+If a bundle that touches Sentry is delivered over the air to a binary built
+before Sentry was added, that app crashes on startup — every user, both
+platforms, unrecoverable without a store release.
+
+`lib/crashReporting.ts` is written so this cannot happen by accident: with no
+DSN it returns before the `require()`, so the module is never evaluated. The
+DSN is inlined at BUILD time, so old binaries can never have one.
+
+The rule that code cannot enforce:
+
+> **Introducing `EXPO_PUBLIC_SENTRY_DSN` must happen in the same change as an
+> `app.json` version bump, and must ship as an EAS build — never as an OTA.**
+
+The version bump gives the new binary its own `runtimeVersion`, so updates
+carrying a DSN can only ever reach binaries that have the native module. Old
+binaries stay on their old runtime and never see it.
+
 **Don't push mid-task.** Wait for a logical unit (feature, fix, related set of changes) to be complete and type-checking clean, then push + OTA the whole thing as one commit.
 
 **Backend note.** DB schema/RLS lives in the web repo (`nguyenmep-website/supabase/migrations`), not here. If a mobile change needs a schema change, make the migration in the web repo (its own autopilot rules apply) and apply it before shipping the mobile code that depends on it.

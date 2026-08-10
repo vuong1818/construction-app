@@ -1,6 +1,7 @@
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
 import { LanguageProvider } from '../lib/i18n'
+import { initCrashReporting, setCrashUser } from '../lib/crashReporting'
 import { installGlobalErrorLogger } from '../lib/logger'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
@@ -8,12 +9,22 @@ import { COLORS } from '../lib/theme'
 // Capture uncaught JS errors app-wide into the error log.
 installGlobalErrorLogger()
 
+// Native crashes — the ones that kill the process before any JS can run, so
+// installGlobalErrorLogger above never sees them. Inert without a DSN, and
+// inert on any binary built before the native module existed.
+initCrashReporting()
+
 export default function RootLayout() {
   // Global auth listener — redirect to sign-in if session expires or token refresh fails
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+        setCrashUser(null)
         router.replace('/sign-in')
+      } else if (session?.user?.id) {
+        // Id only — a crash report is a debugging artefact, not somewhere to
+        // copy the customer's directory.
+        setCrashUser(session.user.id)
       }
     })
     return () => subscription.unsubscribe()
