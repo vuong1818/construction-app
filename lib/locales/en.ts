@@ -367,7 +367,11 @@ const en = {
   needsMeetingMessage: 'You still need to sign the Weekly Safety Meeting acknowledgement before clocking in this week.',
   workersClockInBlockedNotice: 'Workers cannot clock in until both the Safety Manual acknowledgement and the Weekly Safety Meeting acknowledgement are completed.',
   safetySignatureRequired: 'Safety Signature Required',
+  // Two different facts, and the banner used to show only the first: "you MAY
+  // clock in" vs "you ARE clocked in". A worker already on the clock read
+  // "Clock-In Allowed" as "you still need to clock in".
   clockInAllowed: 'Clock-In Allowed',
+  youAreClockedIn: "You're Clocked In",
   requiredSafetyActions: 'Required Safety Actions',
   safetyManual: 'Safety Manual',
   safetyManualSubtitle: 'Review and sign the company safety manual.',

@@ -900,7 +900,13 @@ export default function HomeScreen() {
             />
             <View style={{ flex: 1 }}>
               <Text style={{ color: safetyCompleted() ? '#BBF7D0' : '#FECACA', fontWeight: '700', lineHeight: 19 }}>
-                {t(language, safetyCompleted() ? 'clockInAllowed' : 'safetySignatureRequired')}
+                {/* "Clock-In Allowed" is a statement about permission, and it
+                    read as an instruction to a worker who was already on the
+                    clock — they took it to mean the clock-in had not gone
+                    through. Once they are clocked in, permission is no longer
+                    the news; say what is actually true. */}
+                {t(language, !safetyCompleted() ? 'safetySignatureRequired'
+                  : activeEntry ? 'youAreClockedIn' : 'clockInAllowed')}
               </Text>
               {/* Naming what is outstanding, because "Safety Signature Required"
                   on its own does not tell a worker where to go. */}

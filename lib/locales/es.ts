@@ -360,6 +360,7 @@ const es: Record<TranslationKey, string> = {
   workersClockInBlockedNotice: 'Los trabajadores no pueden fichar hasta que se completen ambos reconocimientos: el Manual de Seguridad y la Reunión Semanal de Seguridad.',
   safetySignatureRequired: 'Se Requiere Firma de Seguridad',
   clockInAllowed: 'Fichaje Permitido',
+  youAreClockedIn: 'Ya Has Fichado',
   requiredSafetyActions: 'Acciones de seguridad requeridas',
   safetyManual: 'Manual de Seguridad',
   safetyManualSubtitle: 'Revisa y firma el manual de seguridad de la empresa.',
