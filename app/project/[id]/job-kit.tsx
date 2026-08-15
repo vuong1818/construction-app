@@ -19,9 +19,9 @@ const PHASE_ORDER = ['Underground', 'Rough-in', 'Trim', 'Cutover', 'Final']
 // The crew checks off TASKS as they complete them; the materials list is the aggregated
 // pull list from every task. Tools route through inventory check-out.
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
-type Tool = { id: number; project_playbook_id: number; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
+type Tool = { id: number; project_playbook_id: number; step_id: number | null; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
-type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null }
+type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; assigned_team_id: number | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 // Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
@@ -42,6 +42,13 @@ export default function JobKitScreen() {
   const [checks, setChecks] = useState<Set<string>>(new Set())
   const [uid, setUid] = useState<string | null>(null)
   const [busyPhotoTask, setBusyPhotoTask] = useState<number | null>(null)
+  // Teams: the badge says who is responsible, the filter narrows a long kit
+  // to the work THIS worker is on. Both read the same two lookups.
+  const [teamNames, setTeamNames] = useState<Record<number, string>>({})
+  const [myTeamIds, setMyTeamIds] = useState<Set<number>>(new Set())
+  const [myTeamOnly, setMyTeamOnly] = useState(false)
+  // Equipment photos, so a tool is matched against a picture and not a name.
+  const [equipPhotos, setEquipPhotos] = useState<Record<number, string>>({})
   const [isManager, setIsManager] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [templates, setTemplates] = useState<Template[]>([])
@@ -89,7 +96,7 @@ export default function JobKitScreen() {
     }
     const ids = kitList.map(x => x.id)
     const [{ data: tl }, { data: sp }, { data: ck }] = await Promise.all([
-      supabase.from('project_playbook_tools').select('id, project_playbook_id, name, qty, unit, equipment_id').in('project_playbook_id', ids).order('sort_order'),
+      supabase.from('project_playbook_tools').select('id, project_playbook_id, step_id, name, qty, unit, equipment_id').in('project_playbook_id', ids).order('sort_order'),
       supabase.from('project_playbook_steps').select('id, project_playbook_id, title, category, sort_order').in('project_playbook_id', ids).order('sort_order'),
       supabase.from('project_playbook_checks').select('item_type, item_id').in('project_playbook_id', ids),
     ])
@@ -100,7 +107,7 @@ export default function JobKitScreen() {
 
     const stepIds = stepList.map(s => s.id)
     if (stepIds.length) {
-      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes').in('step_id', stepIds).order('sort_order')
+      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes, assigned_team_id').in('step_id', stepIds).order('sort_order')
       const taskList = (tk as Task[]) || []
       setTasks(taskList)
       const taskIds = taskList.map(x => x.id)
@@ -115,6 +122,25 @@ export default function JobKitScreen() {
         setTaskPhotos(pm)
       } else { setTaskMats([]); setTaskPhotos(new Map()) }
     } else { setTasks([]); setTaskMats([]); setTaskPhotos(new Map()) }
+
+    // Team names for the badge, and which teams this worker is on for the
+    // filter. Day-labour members carry no user_id, so they never match here —
+    // correct, since they have no login to filter for.
+    const { data: { user } } = await supabase.auth.getUser()
+    const [{ data: tms }, { data: mine }] = await Promise.all([
+      supabase.from('teams').select('id, name'),
+      user ? supabase.from('team_members').select('team_id').eq('user_id', user.id) : Promise.resolve({ data: [] as any[] }),
+    ])
+    setTeamNames(Object.fromEntries(((tms as any[]) || []).map(x => [x.id, x.name])))
+    setMyTeamIds(new Set(((mine as any[]) || []).map(x => x.team_id)))
+
+    // Photos only for the assets this kit's tools point at.
+    const eqIds = Array.from(new Set(((tl as Tool[]) || []).map(x => x.equipment_id).filter((x): x is number => x != null)))
+    if (eqIds.length) {
+      const { data: eqp } = await supabase.from('equipment').select('id, photo_url').in('id', eqIds)
+      setEquipPhotos(Object.fromEntries(((eqp as any[]) || []).filter(e => e.photo_url).map(e => [e.id, e.photo_url])))
+    } else { setEquipPhotos({}) }
+
     setLoading(false)
   }, [projectId])
 
@@ -509,7 +535,13 @@ export default function JobKitScreen() {
           const kt = tools.filter(x => x.project_playbook_id === kit.id)
           const ks = steps.filter(x => x.project_playbook_id === kit.id)
           const kitStepIds = new Set(ks.map(s => s.id))
-          const kitTasks = tasks.filter(x => kitStepIds.has(x.step_id))
+          const allKitTasks = tasks.filter(x => kitStepIds.has(x.step_id))
+          // "My team only" hides work another team owns. Unassigned tasks stay
+          // visible: nobody owns them yet, so hiding them is how they get missed.
+          const kitTasks = myTeamOnly
+            ? allKitTasks.filter(x => x.assigned_team_id == null || myTeamIds.has(x.assigned_team_id))
+            : allKitTasks
+          const hiddenByFilter = allKitTasks.length - kitTasks.length
           return (
             <View key={kit.id} style={{ marginBottom: 20 }}>
               {editMode && isManager ? (
@@ -597,6 +629,20 @@ export default function JobKitScreen() {
                 </View>
               ) : null}
 
+              {/* My team only — the reason a worker opens this screen is to find
+                  their own work, and a full kit can run to dozens of tasks. */}
+              {myTeamIds.size > 0 && (
+                <Pressable
+                  onPress={() => setMyTeamOnly(v => !v)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: myTeamOnly ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: myTeamOnly ? COLORS.navy : COLORS.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}>
+                  <MaterialCommunityIcons name={myTeamOnly ? 'account-group' : 'account-group-outline'} size={18} color={myTeamOnly ? '#fff' : COLORS.teal} />
+                  <Text style={{ flex: 1, fontWeight: '800', fontSize: 13, color: myTeamOnly ? '#fff' : COLORS.navy }}>{t('jkMyTeamOnly')}</Text>
+                  {myTeamOnly && hiddenByFilter > 0 && (
+                    <Text style={{ color: '#D9F6FB', fontSize: 12, fontWeight: '700' }}>{hiddenByFilter} {t('jkHidden')}</Text>
+                  )}
+                </Pressable>
+              )}
+
               {/* Collapse / expand all steps for a quick overview of a long kit */}
               {ks.length > 1 && (
                 <Pressable
@@ -629,6 +675,21 @@ export default function JobKitScreen() {
                           <MaterialCommunityIcons name="file-pdf-box" size={16} color={COLORS.teal} />
                           <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12 }}>{t('exportStepPdf')}</Text>
                         </Pressable>
+                        {(() => {
+                          const stepTools = kt.filter(x => x.step_id === step.id)
+                          if (!stepTools.length) return null
+                          return (
+                            <View style={{ marginBottom: 10 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.teal, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>{t('jkStepTools')}</Text>
+                              {stepTools.map(x => (
+                                <CheckRow key={x.id} checked={checks.has(`tool:${x.id}`)} onPress={() => toggleTool(x)}
+                                  title={x.name}
+                                  photo={x.equipment_id ? equipPhotos[x.equipment_id] : null}
+                                  sub={`${t('jkNeed')} ${Number(x.qty || 1).toLocaleString('en-US')} ${x.unit || ''}${x.equipment_id ? ` · ${t('jkChecksOut')}` : ''}`} />
+                              ))}
+                            </View>
+                          )
+                        })()}
                         {st.length === 0 ? (
                           <Text style={{ color: COLORS.subtext, fontSize: 13, paddingBottom: 6 }}>—</Text>
                         ) : st.map(task => {
@@ -643,7 +704,21 @@ export default function JobKitScreen() {
                                 <MaterialCommunityIcons name={checked ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'} size={26} color={checked ? '#2E7D32' : COLORS.border} />
                                 <View style={{ flex: 1 }}>
                                   <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 16, textDecorationLine: checked ? 'line-through' : 'none' }}>{task.description || task.label || 'Task'}</Text>
-                                  {(Number(task.qty) || 1) > 1 ? <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 3 }}>×{Number(task.qty)}</Text> : null}
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: (Number(task.qty) || 1) > 1 || task.assigned_team_id ? 5 : 0 }}>
+                                    {/* A quantity above 1 is the difference between hanging one
+                                        fixture and hanging twelve. As small grey text it got missed. */}
+                                    {(Number(task.qty) || 1) > 1 ? (
+                                      <View style={{ backgroundColor: COLORS.navy, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>× {Number(task.qty)}</Text>
+                                      </View>
+                                    ) : null}
+                                    {task.assigned_team_id && teamNames[task.assigned_team_id] ? (
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: myTeamIds.has(task.assigned_team_id) ? '#EDE9FE' : COLORS.background, borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: myTeamIds.has(task.assigned_team_id) ? '#DDD6FE' : COLORS.border }}>
+                                        <MaterialCommunityIcons name="account-group" size={12} color={myTeamIds.has(task.assigned_team_id) ? '#5B21B6' : COLORS.subtext} />
+                                        <Text style={{ color: myTeamIds.has(task.assigned_team_id) ? '#5B21B6' : COLORS.subtext, fontWeight: '800', fontSize: 11 }}>{teamNames[task.assigned_team_id]}</Text>
+                                      </View>
+                                    ) : null}
+                                  </View>
                                 </View>
                               </Pressable>
                               <Pressable onPress={() => toggleTaskExpanded(task.id)} hitSlop={6} style={{ paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center' }}>
@@ -694,11 +769,12 @@ export default function JobKitScreen() {
               })}
 
               {/* Tools (check-out) */}
-              {kt.length > 0 && (
+              {kt.some(x => x.step_id == null) && (
                 <Section icon="wrench-outline" label={t('jkTools')}>
-                  {kt.map(x => (
+                  {kt.filter(x => x.step_id == null).map(x => (
                     <CheckRow key={x.id} checked={checks.has(`tool:${x.id}`)} onPress={() => toggleTool(x)}
                       title={x.name}
+                      photo={x.equipment_id ? equipPhotos[x.equipment_id] : null}
                       sub={`${t('jkNeed')} ${Number(x.qty || 1).toLocaleString('en-US')} ${x.unit || ''}${x.equipment_id ? ` · ${t('jkChecksOut')}` : ''}`} />
                   ))}
                 </Section>
@@ -750,10 +826,11 @@ function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel, indent
   )
 }
 
-function CheckRow({ checked, onPress, title, sub, note }: { checked: boolean; onPress: () => void; title: string; sub?: string; note?: string }) {
+function CheckRow({ checked, onPress, title, sub, note, photo }: { checked: boolean; onPress: () => void; title: string; sub?: string; note?: string; photo?: string | null }) {
   return (
     <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: checked ? '#E8F5E9' : COLORS.card, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: checked ? '#A5D6A7' : COLORS.border }}>
       <MaterialCommunityIcons name={checked ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'} size={26} color={checked ? '#2E7D32' : COLORS.border} />
+      {photo ? <SignedImage bucket="inventory-photos" value={photo} style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: COLORS.background }} /> : null}
       <View style={{ flex: 1 }}>
         <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 16, textDecorationLine: checked ? 'line-through' : 'none' }}>{title}</Text>
         {sub ? <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 3, lineHeight: 19 }}>{sub}</Text> : null}
