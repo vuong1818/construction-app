@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, Text, 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
+import { SignedImage } from '../../components/SignedImage'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
@@ -101,7 +102,7 @@ export default function CrewStatusScreen() {
             <View key={r.id} style={{ backgroundColor: COLORS.card, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 14, flexDirection: 'row', gap: 12 }}>
               {r.clock_in_snapshot_url ? (
                 <Pressable onPress={() => setPreview(r.clock_in_snapshot_url)}>
-                  <Image source={{ uri: r.clock_in_snapshot_url }} style={{ width: 64, height: 64, borderRadius: 10, borderWidth: r.clock_in_offsite ? 2 : 1, borderColor: r.clock_in_offsite ? '#E57373' : COLORS.border }} />
+                  <SignedImage bucket="time-entry-snapshots" value={r.clock_in_snapshot_url} style={{ width: 64, height: 64, borderRadius: 10, borderWidth: r.clock_in_offsite ? 2 : 1, borderColor: r.clock_in_offsite ? '#E57373' : COLORS.border }} />
                 </Pressable>
               ) : (
                 <View style={{ width: 64, height: 64, borderRadius: 10, backgroundColor: COLORS.navySoft, alignItems: 'center', justifyContent: 'center' }}>
@@ -136,7 +137,7 @@ export default function CrewStatusScreen() {
 
       <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
         <Pressable onPress={() => setPreview(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          {preview ? <Image source={{ uri: preview }} style={{ width: '100%', height: '70%', borderRadius: 12 }} resizeMode="contain" /> : null}
+          {preview ? <SignedImage bucket="time-entry-snapshots" value={preview} style={{ width: '100%', height: '70%', borderRadius: 12 }} resizeMode="contain" /> : null}
         </Pressable>
       </Modal>
     </SafeAreaView>
