@@ -882,7 +882,7 @@ const es: Record<TranslationKey, string> = {
   ltOther: 'Otra',
 
   // ── Finance summary ───────────────────────────────────────────────────
-  contract: 'Contrato',
+  contract: 'Estimaciones aceptadas',
   changeOrders: 'Órdenes de cambio',
   totalContract: 'Contrato total',
   net: 'Neto',

@@ -893,7 +893,10 @@ const en = {
   ltOther: 'Other',
 
   // ── Finance summary ───────────────────────────────────────────────────
-  contract: 'Contract',
+  // Named for what it is measured from. This figure is the sum of accepted,
+  // non-archived estimates, not a contract sum anyone typed in — the web portal
+  // calls the same number "Accepted Estimates" and the two should not disagree.
+  contract: 'Accepted Estimates',
   changeOrders: 'Change Orders',
   totalContract: 'Total Contract',
   net: 'Net',

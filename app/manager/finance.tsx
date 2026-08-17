@@ -15,7 +15,7 @@ import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
-type Project = { id: number; name: string; status: string | null; contract_amount: number | null }
+type Project = { id: number; name: string; status: string | null }
 // A change order is an SOV line flagged is_change_order, the same source the
 // web portal reports from. It used to read project_change_orders — a legacy
 // table that nothing has written to, so this tile has been showing $0 on every
@@ -36,6 +36,7 @@ export default function ManagerFinanceScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [projects, setProjects] = useState<Project[]>([])
+  const [estimateTotals, setEstimateTotals] = useState<Map<number, number>>(new Map())
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [payApps, setPayApps] = useState<PayApp[]>([])
@@ -50,8 +51,14 @@ export default function ManagerFinanceScreen() {
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     if (!['manager', 'owner'].includes(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
-    const [{ data: pr }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
-      supabase.from('projects').select('id, name, status, contract_amount').order('name'),
+    const [{ data: pr }, { data: est }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
+      supabase.from('projects').select('id, name, status').order('name'),
+      // Contract value is derived from accepted, non-archived estimates — the
+      // same rule the web portal uses (components/FinanceTab.js). The old
+      // projects.contract_amount column is gone; selecting it 400'd the whole
+      // projects query, so this screen listed nothing at all.
+      supabase.from('project_estimates').select('project_id, total_amount')
+        .eq('status', 'accepted').is('archived_at', null),
       supabase.from('project_pay_app_items')
         .select('id, project_id, scheduled_value')
         .eq('is_change_order', true),
@@ -59,6 +66,11 @@ export default function ManagerFinanceScreen() {
       supabase.from('project_draws').select('id, project_id, retainage_pct, amount_paid'),
     ])
     setProjects((pr as Project[]) || [])
+    const byProject = new Map<number, number>()
+    ;((est as any[]) || []).forEach(e => {
+      byProject.set(e.project_id, (byProject.get(e.project_id) || 0) + (Number(e.total_amount) || 0))
+    })
+    setEstimateTotals(byProject)
     setChangeOrders(((co as any[]) || []).map(r => ({
       id: r.id, project_id: r.project_id, amount: Number(r.scheduled_value) || 0,
     })))
@@ -80,6 +92,7 @@ export default function ManagerFinanceScreen() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useRealtimeRefetch('project_estimates',     load, undefined, !loading)
   useRealtimeRefetch('project_pay_app_items', load, undefined, !loading)
   useRealtimeRefetch('project_expenses',      load, undefined, !loading)
   useRealtimeRefetch('project_draws',          load, undefined, !loading)
@@ -112,7 +125,7 @@ export default function ManagerFinanceScreen() {
   }
 
   const rows = projects.map(p => {
-    const base = Number(p.contract_amount) || 0
+    const base = estimateTotals.get(p.id) || 0
     const co   = changeOrders.filter(c => c.project_id === p.id).reduce((s, c) => s + (Number(c.amount) || 0), 0)
     const projExps = expenses.filter(e => e.project_id === p.id)
     const exp  = projExps.reduce((s, e) => s + (Number(e.amount) || 0), 0)

@@ -30,8 +30,13 @@ export function useProjectFinance(projectId: number | undefined) {
 
   const load = useCallback(async () => {
     if (!projectId || !Number.isFinite(projectId)) { setLoading(false); return }
-    const [{ data: proj }, { data: cos }, { data: exps }, { data: payApps }] = await Promise.all([
-      supabase.from('projects').select('contract_amount').eq('id', projectId).single(),
+    const [{ data: ests }, { data: cos }, { data: exps }, { data: draws }] = await Promise.all([
+      // Contract value is DERIVED, not stored: accepted, non-archived estimates
+      // plus change orders. projects.contract_amount was dropped when the web
+      // portal stopped surfacing it (components/FinanceTab.js), and mobile kept
+      // asking for it — a 400 on every launch, swallowed into a contract of $0.
+      supabase.from('project_estimates').select('total_amount')
+        .eq('project_id', projectId).eq('status', 'accepted').is('archived_at', null),
       // Change orders are SOV lines flagged is_change_order, the same place the
       // web reads them (app/portal/finance/page.js). This used to query
       // project_change_orders, a table that no longer exists — the error was
@@ -40,9 +45,14 @@ export function useProjectFinance(projectId: number | undefined) {
       supabase.from('project_pay_app_items').select('scheduled_value')
         .eq('project_id', projectId).eq('is_change_order', true),
       supabase.from('project_expenses').select('amount, is_paid, payment_method').eq('project_id', projectId),
-      supabase.from('project_pay_apps').select('id, retainage_pct, amount_paid').eq('project_id', projectId),
+      // A DRAW is the billing event and the thing that carries amount_paid.
+      // project_pay_apps is the container above it and has no such column, so
+      // this query 400'd every time and left payApps null — which meant the
+      // lines fetch below never ran and billed-to-date and A/R sat at zero
+      // regardless of what had been billed or received.
+      supabase.from('project_draws').select('id, retainage_pct, amount_paid').eq('project_id', projectId),
     ])
-    const contract = Number(proj?.contract_amount) || 0
+    const contract = (ests || []).reduce((s, e) => s + (Number(e.total_amount) || 0), 0)
     const changeOrders = (cos || []).reduce((s, c) => s + (Number(c.scheduled_value) || 0), 0)
     const expenses     = (exps || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     const totalContract = contract + changeOrders
@@ -56,19 +66,19 @@ export function useProjectFinance(projectId: number | undefined) {
     // Billed-to-date and A/R from pay apps
     let billedToDate = 0
     let accountsReceivable = 0
-    const payAppIds = (payApps || []).map(p => p.id)
+    const payAppIds = (draws || []).map(d => d.id)
     if (payAppIds.length > 0) {
       const { data: lines } = await supabase
-        .from('project_pay_app_lines')
-        .select('pay_app_id, from_previous, this_period, materials_stored')
-        .in('pay_app_id', payAppIds)
+        .from('project_draw_lines')
+        .select('draw_id, from_previous, this_period, materials_stored')
+        .in('draw_id', payAppIds)
       const completedByApp = new Map<number, number>()
       ;(lines || []).forEach(l => {
         const v = (Number(l.from_previous) || 0) + (Number(l.this_period) || 0) + (Number(l.materials_stored) || 0)
-        completedByApp.set(l.pay_app_id, (completedByApp.get(l.pay_app_id) || 0) + v)
+        completedByApp.set(l.draw_id, (completedByApp.get(l.draw_id) || 0) + v)
         billedToDate += v
       })
-      ;(payApps || []).forEach(a => {
+      ;(draws || []).forEach(a => {
         const completed = completedByApp.get(a.id) || 0
         const netBilled = completed * (1 - (Number(a.retainage_pct) || 0) / 100)
         const outstanding = Math.max(0, netBilled - (Number(a.amount_paid) || 0))
@@ -91,10 +101,13 @@ export function useProjectFinance(projectId: number | undefined) {
   }, [projectId])
 
   useEffect(() => { load() }, [load])
+  // Subscribe to what the numbers are actually made of. 'projects' was here for
+  // contract_amount, which no longer exists; accepted estimates and draws are
+  // what move these totals now.
+  useRealtimeRefetch('project_estimates',     load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
   useRealtimeRefetch('project_pay_app_items', load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
   useRealtimeRefetch('project_expenses',      load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
-  useRealtimeRefetch('project_pay_apps',      load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
-  useRealtimeRefetch('projects',              load, projectId ? `id=eq.${projectId}`         : undefined, !loading && !!projectId)
+  useRealtimeRefetch('project_draws',         load, projectId ? `project_id=eq.${projectId}` : undefined, !loading && !!projectId)
 
   return { totals, loading, refresh: load }
 }
