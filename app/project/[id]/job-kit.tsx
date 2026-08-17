@@ -7,6 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { WEB_BASE } from '../../../lib/config'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
+import * as FileSystem from 'expo-file-system/legacy'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
@@ -218,25 +221,56 @@ export default function JobKitScreen() {
     setTaskPhotos(prev => { const m = new Map(prev); m.set(photo.step_check_id, (m.get(photo.step_check_id) || []).filter(p => p.id !== photo.id)); return m })
   }
 
-  // Export a step (its tasks + photos) as a print-ready PDF — opens the server
-  // doc endpoint in the browser, where the OS "Save as PDF" / share sheet takes over.
-  async function exportStep(stepId: number) {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
-    const url = `${WEB_BASE}/api/portal/step-doc?token=${encodeURIComponent(token)}&step=${stepId}`
-    Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
+  /**
+   * Fetch a server doc and hand it to the share sheet as a real PDF FILE.
+   *
+   * These used to be Linking.openURL — the document opened in the browser, and
+   * saving it meant going through the browser's print dialog and picking
+   * "Save as PDF". On a phone that is the wrong tool: what a foreman wants is
+   * to send the sheet to the super, drop it in Drive, or text it.
+   *
+   * printToFileAsync renders the same html to a PDF; the share sheet then
+   * offers Files, Drive, Messages, Mail — whatever the phone has.
+   */
+  const [sharingDoc, setSharingDoc] = useState(false)
+  async function shareServerDoc(path: string, filename: string) {
+    if (sharingDoc) return
+    setSharingDoc(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
+
+      const res = await fetch(`${WEB_BASE}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`)
+      if (!res.ok) { Alert.alert(t('saveFailed'), `HTTP ${res.status}`); return }
+      const html = await res.text()
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false })
+      // printToFileAsync names the file with a uuid; the share sheet shows that
+      // name, so rename it to something a person would recognise in Drive.
+      let out = uri
+      try {
+        const dest = `${FileSystem.cacheDirectory}${filename}.pdf`
+        await FileSystem.moveAsync({ from: uri, to: dest })
+        out = dest
+      } catch { /* keep the uuid name rather than fail the share */ }
+
+      if (!(await Sharing.isAvailableAsync())) { Alert.alert(t('saveFailed'), t('couldNotOpen')); return }
+      await Sharing.shareAsync(out, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: filename })
+    } catch (e: any) {
+      Alert.alert(t('saveFailed'), e?.message || String(e))
+    } finally { setSharingDoc(false) }
   }
 
-  // Open a print-ready job kit doc in the browser (Save-as-PDF / share sheet).
-  // `mode` picks the layout (task_checklist, material_checklist, combined, report).
+  async function exportStep(stepId: number) {
+    await shareServerDoc(`/api/portal/step-doc?step=${stepId}`, 'scope-of-work')
+  }
+
   async function exportKitReport(kitId: number, mode?: string) {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) { Alert.alert(t('saveFailed'), t('notAuthenticatedShort')); return }
     const m = mode ? `&mode=${encodeURIComponent(mode)}` : ''
-    const url = `${WEB_BASE}/api/portal/kit-doc?token=${encodeURIComponent(token)}&pp=${kitId}${m}`
-    Linking.openURL(url).catch(() => Alert.alert(t('saveFailed'), t('couldNotOpen')))
+    const kit = kits.find(k => k.id === kitId)
+    const safe = (kit?.title || 'job-kit').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40)
+    await shareServerDoc(`/api/portal/kit-doc?pp=${kitId}${m}`, `${safe}-${mode || 'report'}`)
   }
   // Offer the four print docs: task checklist, material checklist, combined
   // (tasks with their materials), and the field results report.
@@ -244,6 +278,7 @@ export default function JobKitScreen() {
     Alert.alert(t('jkPrint'), t('jkPrintChoose'), [
       { text: t('jkTaskChecklist'), onPress: () => exportKitReport(kitId, 'task_checklist') },
       { text: t('jkMaterialChecklist'), onPress: () => exportKitReport(kitId, 'material_checklist') },
+      { text: t('jkStepTools'), onPress: () => exportKitReport(kitId, 'tool_list') },
       { text: t('jkCombinedChecklist'), onPress: () => exportKitReport(kitId, 'combined') },
       { text: t('jkReport'), onPress: () => exportKitReport(kitId, 'report') },
       { text: t('cancel'), style: 'cancel' as const },
