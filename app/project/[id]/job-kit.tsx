@@ -24,7 +24,7 @@ const PHASE_ORDER = ['Underground', 'Rough-in', 'Trim', 'Cutover', 'Final']
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
 type Tool = { id: number; project_playbook_id: number; step_id: number | null; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
-type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; assigned_team_id: number | null }
+type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; assigned_team_id: number | null; blocked_by_task_id: number | null }
 type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 // Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
@@ -110,7 +110,7 @@ export default function JobKitScreen() {
 
     const stepIds = stepList.map(s => s.id)
     if (stepIds.length) {
-      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes, assigned_team_id').in('step_id', stepIds).order('sort_order')
+      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes, assigned_team_id, blocked_by_task_id').in('step_id', stepIds).order('sort_order')
       const taskList = (tk as Task[]) || []
       setTasks(taskList)
       const taskIds = taskList.map(x => x.id)
@@ -156,7 +156,13 @@ export default function JobKitScreen() {
     const { error } = has
       ? await supabase.from('project_playbook_checks').delete().eq('project_playbook_id', kitId).eq('item_type', 'step_check').eq('item_id', taskId)
       : await supabase.from('project_playbook_checks').insert({ project_playbook_id: kitId, item_type: 'step_check', item_id: taskId, checked_by: uid })
-    if (error) load()
+    if (error) {
+      // Order is enforced in the database, so it holds however the tick
+      // arrives — this screen, the web, or a queued offline write. The message
+      // it sends already names the task being waited on.
+      if (error.message?.includes('waits on')) Alert.alert(t('jkOutOfOrder'), error.message)
+      load()
+    }
   }
 
   // ── Task photos: pick from camera/library → jobkit-photos bucket → row (mirrors to project photo pot) ──
@@ -745,6 +751,14 @@ export default function JobKitScreen() {
                                     {(Number(task.qty) || 1) > 1 ? (
                                       <View style={{ backgroundColor: COLORS.navy, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
                                         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>× {Number(task.qty)}</Text>
+                                      </View>
+                                    ) : null}
+                                    {task.blocked_by_task_id && !checks.has(`step_check:${task.blocked_by_task_id}`) ? (
+                                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3 }}>
+                                        <MaterialCommunityIcons name="timer-sand" size={12} color="#92400E" />
+                                        <Text style={{ color: '#92400E', fontWeight: '800', fontSize: 11 }}>
+                                          {t('jkWaitsOn')} {(kitTasks.find(x => x.id === task.blocked_by_task_id)?.description || '').slice(0, 20) || t('jkEarlierTask')}
+                                        </Text>
                                       </View>
                                     ) : null}
                                     {task.assigned_team_id && teamNames[task.assigned_team_id] ? (
