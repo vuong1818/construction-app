@@ -25,7 +25,7 @@ type Kit = { id: number; title: string | null; scope_of_work: string | null; mod
 type Tool = { id: number; project_playbook_id: number; step_id: number | null; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
 type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; assigned_team_id: number | null; blocked_by_task_id: number | null }
-type TaskMat = { task_id: number; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
+type TaskMat = { task_id: number; material_id: number | null; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 // Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
 type Template = { id: number; title: string | null; module_type: string | null }
@@ -116,7 +116,7 @@ export default function JobKitScreen() {
       const taskIds = taskList.map(x => x.id)
       if (taskIds.length) {
         const [{ data: tm }, { data: ph }] = await Promise.all([
-          supabase.from('task_materials').select('task_id, description, unit, qty, line_type').in('task_id', taskIds),
+          supabase.from('task_materials').select('task_id, material_id, description, unit, qty, line_type').in('task_id', taskIds),
           supabase.from('project_playbook_task_photos').select('id, step_check_id, photo_url, storage_path, uploaded_by').in('step_check_id', taskIds).order('created_at'),
         ])
         setTaskMats((tm as TaskMat[]) || [])
@@ -402,16 +402,39 @@ export default function JobKitScreen() {
     return { done: keys.filter(k => checks.has(k)).length, total: keys.length }
   }
 
+  // Send one kit material straight to Material Requests.
+  //
+  // material_id carries across when the line came from the catalog, which is
+  // what lets the office turn the request into a purchase order instead of
+  // reading a name and looking it up again.
+  const [requesting, setRequesting] = useState<string | null>(null)
+  async function requestMaterial(m: { name: string; unit: string; qty: number; materialId: number | null }, key: string) {
+    if (requesting) return
+    setRequesting(key)
+    const { data: { session } } = await supabase.auth.getSession()
+    const { error } = await supabase.from('material_requests').insert({
+      project_id: projectId,
+      item_name: m.name,
+      qty: m.qty || 1,
+      unit: m.unit || 'EA',
+      material_id: m.materialId ?? null,
+      requested_by: session?.user?.id ?? null,
+    })
+    setRequesting(null)
+    if (error) { Alert.alert('Could not request it', error.message); return }
+    Alert.alert('Requested', `${m.qty} ${m.unit} of ${m.name} sent to Material Requests.`)
+  }
+
   // Each task's OWN materials (labor excluded), qty × the task qty — for the combined
   // checklist where materials sit under their task instead of one aggregated list.
   const matsByTask = useMemo(() => {
     const qtyByTask = new Map(tasks.map(x => [x.id, Number(x.qty) || 1]))
-    const m = new Map<number, { name: string; unit: string; qty: number }[]>()
+    const m = new Map<number, { name: string; unit: string; qty: number; materialId: number | null }[]>()
     for (const mat of taskMats) {
       if (mat.line_type === 'labor') continue
       const tq = qtyByTask.get(mat.task_id) || 1
       const arr = m.get(mat.task_id) || []
-      arr.push({ name: mat.description || 'Material', unit: mat.unit || 'EA', qty: (Number(mat.qty) || 0) * tq })
+      arr.push({ name: mat.description || 'Material', unit: mat.unit || 'EA', qty: (Number(mat.qty) || 0) * tq, materialId: (mat as any).material_id ?? null })
       m.set(mat.task_id, arr)
     }
     return m
@@ -784,6 +807,19 @@ export default function JobKitScreen() {
                                       <View key={mi} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, padding: 10, marginBottom: 4, borderWidth: 1, borderColor: COLORS.border }}>
                                         <Text style={{ color: COLORS.navy, fontWeight: '600', flex: 1 }}>{m.name}</Text>
                                         <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{m.qty.toLocaleString('en-US', { maximumFractionDigits: 2 })} {m.unit}</Text>
+                                        {/* The kit already knows the material, the quantity and the
+                                            unit. Re-typing all three into a request is where the
+                                            transcription errors come from. */}
+                                        <Pressable
+                                          onPress={() => requestMaterial(m, `${task.id}-${mi}`)}
+                                          disabled={requesting === `${task.id}-${mi}`}
+                                          hitSlop={6}
+                                          style={{ marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: COLORS.teal, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                                          <MaterialCommunityIcons name="cart-plus" size={14} color={COLORS.teal} />
+                                          <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 11 }}>
+                                            {requesting === `${task.id}-${mi}` ? '…' : 'Request'}
+                                          </Text>
+                                        </Pressable>
                                       </View>
                                     ))}
                                   </View>

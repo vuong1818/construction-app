@@ -21,10 +21,15 @@ type Req = {
   photo_url: string | null; barcode: string | null; batch_id: string | null
 }
 
-type Draft = { key: string; name: string; qty: string; unit: string; barcode: string | null; photoUri: string | null }
+type Draft = { key: string; name: string; qty: string; unit: string; barcode: string | null; photoUri: string | null; materialId: number | null }
 type Mode = 'type' | 'scan' | 'photo'
+type CatalogHit = { id: number; description: string; unit: string | null; trade: string | null; group_name: string | null; item_code: string | null; base_unit_cost: number | null }
 
 const PHOTO_BUCKET = 'material-photos'
+
+// The trades the catalog is filed under. A short list on purpose: these are
+// the chips a thumb can hit, and the search box covers everything else.
+const TRADES = ['electrical', 'plumbing', 'hvac', 'concrete', 'drywall', 'site_work', 'general_conditions', 'acoustical_ceilings', 'equipment', 'roofing']
 
 const STATUS: Record<string, { bg: string; fg: string; key: 'matReqStatusRequested' | 'matReqStatusOrdered' | 'matReqStatusFulfilled' | 'matReqStatusCancelled' }> = {
   requested: { bg: '#FEF3C7', fg: '#92400E', key: 'matReqStatusRequested' },
@@ -70,6 +75,12 @@ export default function MaterialRequestsScreen() {
   const [barcode, setBarcode] = useState<string | null>(null)
   const [photoUri, setPhotoUri] = useState<string | null>(null)
   const [scanned, setScanned] = useState(false)
+  // The catalog material this line resolved to, if any. Null means free text.
+  const [materialId, setMaterialId] = useState<number | null>(null)
+  const [search, setSearch] = useState('')
+  const [catalogHits, setCatalogHits] = useState<CatalogHit[]>([])
+  const [trade, setTrade] = useState('')
+  const [group, setGroup] = useState('')
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2400) }
 
@@ -98,6 +109,7 @@ export default function MaterialRequestsScreen() {
 
   function resetItem() {
     setMode('type'); setName(''); setQty('1'); setUnit('EA'); setBarcode(null); setPhotoUri(null); setScanned(false)
+    setMaterialId(null); setSearch(''); setCatalogHits([]); setTrade(''); setGroup('')
   }
   function openItem() { resetItem(); setItemOpen(true) }
 
@@ -113,9 +125,52 @@ export default function MaterialRequestsScreen() {
     if (scanned) return
     setScanned(true)
     setBarcode(data)
-    // If we recognize the barcode, prefill the name so the office sees a known item.
+    // The CATALOG first. A request that resolves to a material carries its unit,
+    // its cost and its preferred vendor, and can become a purchase order; one
+    // holding a barcode string is a note for someone in the office to decode.
+    const { data: mat } = await supabase
+      .from('materials').select('id, description, unit')
+      .eq('barcode', data).is('deleted_at', null).limit(1).maybeSingle()
+    if (mat) {
+      setName((mat as any).description || '')
+      if ((mat as any).unit) setUnit((mat as any).unit)
+      setMaterialId((mat as any).id)
+      return
+    }
+    // Then the warehouse, which is where this looked before the catalog had
+    // barcodes at all. Still worth asking: a yard item may be stocked without
+    // being a catalog line.
     const { data: found } = await supabase.from('inventory_items').select('name, unit').eq('barcode', data).limit(1).maybeSingle()
     if (found) { setName((found as any).name || ''); if ((found as any).unit) setUnit((found as any).unit) }
+  }
+
+  // ── Catalog search, for the Type tab ──
+  // Asked of the server as you type rather than by pulling the catalog down:
+  // it is a thousand-plus rows, and a phone on site signal should not fetch all
+  // of them to pick one. Trade and group narrow it the same way the web
+  // estimator's picker does.
+  const searchCatalog = useCallback(async (term: string, trade: string, group: string) => {
+    const q = term.trim()
+    if (q.length < 2 && !trade) { setCatalogHits([]); return }
+    let sel = supabase
+      .from('materials')
+      .select('id, description, unit, trade, group_name, item_code, base_unit_cost')
+      .is('deleted_at', null)
+      .order('description')
+      .limit(25)
+    if (q) sel = sel.or(`description.ilike.%${q}%,item_code.ilike.%${q}%`)
+    if (trade) sel = sel.eq('trade', trade)
+    if (group) sel = sel.eq('group_name', group)
+    const { data } = await sel
+    setCatalogHits((data as CatalogHit[]) || [])
+  }, [])
+
+  function pickCatalog(m: CatalogHit) {
+    setName(m.description || '')
+    if (m.unit) setUnit(m.unit)
+    setMaterialId(m.id)
+    setCatalogHits([])
+    setSearch('')
   }
 
   async function pickPhoto(source: 'camera' | 'library') {
@@ -134,7 +189,7 @@ export default function MaterialRequestsScreen() {
     if (!name.trim() && !barcode && !photoUri) { flash(t('matReqNeedItem')); return }
     const n = Number(qty)
     if (!n || n <= 0) { flash(t('matReqQtyRequired')); return }
-    setDraft(d => [...d, { key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: name.trim(), qty, unit: unit.trim() || 'EA', barcode, photoUri }])
+    setDraft(d => [...d, { key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: name.trim(), qty, unit: unit.trim() || 'EA', barcode, photoUri, materialId }])
     setItemOpen(false)
   }
 
@@ -164,6 +219,9 @@ export default function MaterialRequestsScreen() {
         item_name: it.name || (it.barcode ? `Barcode ${it.barcode}` : t('matReqPhotoItem')),
         qty: Number(it.qty) || 1, unit: it.unit || 'EA',
         note: noteVal, barcode: it.barcode, photo_url, batch_id: batchId, requested_by: uid,
+        // The whole point of picking from the catalog: the office gets a row
+        // that knows its unit, its cost and its preferred vendor.
+        material_id: it.materialId ?? null,
       })
     }
     const { error } = await supabase.from('material_requests').insert(rowsToInsert)
@@ -392,6 +450,59 @@ export default function MaterialRequestsScreen() {
                       <Pressable onPress={() => pickPhoto('library')} style={{ flex: 1, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingVertical: 16, alignItems: 'center', gap: 6 }}>
                         <Ionicons name="images-outline" size={26} color={COLORS.navy} />
                         <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13 }}>{t('matReqChoosePhoto')}</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Catalog search. Free text still works underneath — the field
+                  will always need something the catalog has never heard of, and
+                  refusing that just sends people back to the phone. Picking a
+                  match is what lets the request become a purchase order. */}
+              {mode === 'type' && (
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginBottom: 5 }}>Search the catalog</Text>
+                  <TextInput
+                    style={inputStyle}
+                    value={search}
+                    onChangeText={(v) => { setSearch(v); searchCatalog(v, trade, group) }}
+                    placeholder="Type 2 letters — name or item code"
+                    placeholderTextColor={COLORS.subtext}
+                    autoCorrect={false}
+                  />
+                  {(trade || catalogHits.length > 0) && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                      {['', ...TRADES].map(tr => (
+                        <Pressable key={tr || 'all'}
+                          onPress={() => { setTrade(tr); setGroup(''); searchCatalog(search, tr, '') }}
+                          style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, marginRight: 6, backgroundColor: trade === tr ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: trade === tr ? COLORS.navy : COLORS.border }}>
+                          <Text style={{ color: trade === tr ? 'white' : COLORS.text, fontWeight: '700', fontSize: 12 }}>
+                            {tr ? tr.replace(/_/g, ' ') : 'All trades'}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  )}
+                  {catalogHits.length > 0 && (
+                    <View style={{ marginTop: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, overflow: 'hidden' }}>
+                      {catalogHits.map(m => (
+                        <Pressable key={m.id} onPress={() => pickCatalog(m)}
+                          style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: 'white' }}>
+                          <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={2}>{m.description}</Text>
+                          <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
+                            {[m.item_code, m.group_name, m.unit].filter(Boolean).join(' · ')}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {materialId != null && (
+                    <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.tealSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                      <MaterialCommunityIcons name="check-circle-outline" size={18} color={COLORS.teal} />
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>From the catalog — the office gets the price and vendor</Text>
+                      <Pressable onPress={() => setMaterialId(null)}>
+                        <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Clear</Text>
                       </Pressable>
                     </View>
                   )}
