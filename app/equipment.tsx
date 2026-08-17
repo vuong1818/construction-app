@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 
 type Item = { id: number; name: string; category: string | null; tag: string | null }
-type Ck = { id: number; equipment_id: number; user_id: string | null; user_name: string | null }
+type Ck = { id: number; equipment_id: number; user_id: string | null; user_name: string | null; checked_out_at: string | null; checked_in_at?: string | null }
 
 export default function Equipment() {
   const { t } = useLanguage()
@@ -18,14 +18,33 @@ export default function Equipment() {
   const [items, setItems] = useState<Item[]>([])
   const [openCk, setOpenCk] = useState<Ck[]>([])
   const [busy, setBusy] = useState<number | null>(null)
+  const [lastIn, setLastIn] = useState<Map<number, { user_name: string | null; checked_in_at: string | null }>>(new Map())
 
   const load = useCallback(async () => {
     const [{ data: eq }, { data: ck }] = await Promise.all([
       supabase.from('equipment').select('id, name, category, tag').order('name'),
-      supabase.from('equipment_checkouts').select('id, equipment_id, user_id, user_name').is('checked_in_at', null),
+      supabase.from('equipment_checkouts').select('id, equipment_id, user_id, user_name, checked_out_at').is('checked_in_at', null),
     ])
     setItems((eq as Item[]) || [])
     setOpenCk((ck as Ck[]) || [])
+
+    // Who had it last, and when they brought it back.
+    //
+    // The point is accountability rather than history: a tool that comes back
+    // damaged should not land on whoever picks it up next, and the manager
+    // needs to know who had it before that. Ordered newest first, so the first
+    // row seen for an equipment id is its most recent return.
+    const { data: closed } = await supabase
+      .from('equipment_checkouts')
+      .select('equipment_id, user_name, checked_in_at')
+      .not('checked_in_at', 'is', null)
+      .order('checked_in_at', { ascending: false })
+      .limit(400)
+    const last = new Map<number, { user_name: string | null; checked_in_at: string | null }>()
+    ;((closed as any[]) || []).forEach(c => {
+      if (!last.has(c.equipment_id)) last.set(c.equipment_id, { user_name: c.user_name, checked_in_at: c.checked_in_at })
+    })
+    setLastIn(last)
     setLoading(false)
   }, [])
 
@@ -40,6 +59,13 @@ export default function Equipment() {
     })()
   }, [load])
 
+  // Short and local: a crew reading this wants "Tue 3:40 PM", not an ISO string.
+  const fmtWhen = (iso: string | null | undefined) => {
+    if (!iso) return null
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  }
   const holderOf = (eid: number) => openCk.find((c) => c.equipment_id === eid) || null
 
   async function checkOut(item: Item) {
@@ -90,6 +116,7 @@ export default function Equipment() {
               <View style={{ flex: 1 }}>
                 <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15 }}>{it.name}</Text>
                 {sub(it) ? <Text style={{ color: COLORS.subtext, fontSize: 13 }}>{sub(it)}</Text> : null}
+                {fmtWhen(ck.checked_out_at) ? <Text style={{ color: COLORS.subtext, fontSize: 12 }}>Since {fmtWhen(ck.checked_out_at)}</Text> : null}
               </View>
               <Pressable onPress={() => returnItem(ck)} disabled={busy === it.id} style={{ backgroundColor: COLORS.green, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 }}>
                 {busy === it.id ? <ActivityIndicator color={COLORS.white} /> : <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('returnTool')}</Text>}
@@ -107,6 +134,14 @@ export default function Equipment() {
             <View style={{ flex: 1 }}>
               <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15 }}>{it.name}</Text>
               {sub(it) ? <Text style={{ color: COLORS.subtext, fontSize: 13 }}>{sub(it)}</Text> : null}
+              {/* Who brought it back, and when. Whoever picks it up next should
+                  not inherit the blame for damage that was already there, and
+                  the manager needs a name to ask. */}
+              {lastIn.get(it.id)?.checked_in_at ? (
+                <Text style={{ color: COLORS.subtext, fontSize: 12 }}>
+                  Last in: {lastIn.get(it.id)!.user_name || t('worker')} · {fmtWhen(lastIn.get(it.id)!.checked_in_at)}
+                </Text>
+              ) : null}
             </View>
             <Pressable onPress={() => checkOut(it)} disabled={busy === it.id} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 }}>
               {busy === it.id ? <ActivityIndicator color={COLORS.white} /> : <Text style={{ color: COLORS.white, fontWeight: '700' }}>{t('checkOut')}</Text>}
@@ -125,6 +160,7 @@ export default function Equipment() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: COLORS.text, fontWeight: '700', fontSize: 15 }}>{it.name}</Text>
                     <Text style={{ color: COLORS.subtext, fontSize: 13 }}>{ck.user_name || t('worker')}</Text>
+                    {fmtWhen(ck.checked_out_at) ? <Text style={{ color: COLORS.subtext, fontSize: 12 }}>Since {fmtWhen(ck.checked_out_at)}</Text> : null}
                   </View>
                 </View>
               )
