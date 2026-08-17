@@ -31,19 +31,20 @@ export function useProjectFinance(projectId: number | undefined) {
   const load = useCallback(async () => {
     if (!projectId || !Number.isFinite(projectId)) { setLoading(false); return }
     const [{ data: ests }, { data: cos }, { data: exps }, { data: draws }] = await Promise.all([
-      // Contract value is DERIVED, not stored: accepted, non-archived estimates
-      // plus change orders. projects.contract_amount was dropped when the web
-      // portal stopped surfacing it (components/FinanceTab.js), and mobile kept
-      // asking for it — a 400 on every launch, swallowed into a contract of $0.
+      // Contract value is DERIVED, not stored. projects.contract_amount was
+      // dropped when the web portal stopped surfacing it, and mobile kept asking
+      // for it — a 400 on every launch, swallowed into a contract of $0.
+      //
+      // The accepted estimate's total is the FALLBACK, not the source. The
+      // schedule of values is: it starts equal to the estimate and is the only
+      // one of the two that moves when an unbilled line is renegotiated. Web
+      // reads it the same way (components/FinanceTab.js) — the two must agree,
+      // or the office and the field quote different contract values.
       supabase.from('project_estimates').select('total_amount')
         .eq('project_id', projectId).eq('status', 'accepted').is('archived_at', null),
-      // Change orders are SOV lines flagged is_change_order, the same place the
-      // web reads them (app/portal/finance/page.js). This used to query
-      // project_change_orders, a table that no longer exists — the error was
-      // swallowed by `|| []`, so Total Contract silently omitted every change
-      // order. See audit 2026-08-09, P4.
-      supabase.from('project_pay_app_items').select('scheduled_value')
-        .eq('project_id', projectId).eq('is_change_order', true),
+      // The whole SOV: base lines and change-order lines together.
+      supabase.from('project_pay_app_items').select('scheduled_value, is_change_order')
+        .eq('project_id', projectId),
       supabase.from('project_expenses').select('amount, is_paid, payment_method').eq('project_id', projectId),
       // A DRAW is the billing event and the thing that carries amount_paid.
       // project_pay_apps is the container above it and has no such column, so
@@ -52,8 +53,16 @@ export function useProjectFinance(projectId: number | undefined) {
       // regardless of what had been billed or received.
       supabase.from('project_draws').select('id, retainage_pct, amount_paid').eq('project_id', projectId),
     ])
-    const contract = (ests || []).reduce((s, e) => s + (Number(e.total_amount) || 0), 0)
-    const changeOrders = (cos || []).reduce((s, c) => s + (Number(c.scheduled_value) || 0), 0)
+    const sovBase = (cos || [])
+      .filter(i => !i.is_change_order)
+      .reduce((s, i) => s + (Number(i.scheduled_value) || 0), 0)
+    const estTotal = (ests || []).reduce((s, e) => s + (Number(e.total_amount) || 0), 0)
+    // Falls back to the estimate total for anything accepted before the SOV
+    // existed, which would otherwise report a contract of zero.
+    const contract = sovBase || estTotal
+    const changeOrders = (cos || [])
+      .filter(i => i.is_change_order)
+      .reduce((s, c) => s + (Number(c.scheduled_value) || 0), 0)
     const expenses     = (exps || []).reduce((s, e) => s + (Number(e.amount) || 0), 0)
     const totalContract = contract + changeOrders
 
