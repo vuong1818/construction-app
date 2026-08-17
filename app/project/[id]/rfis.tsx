@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
@@ -241,7 +241,14 @@ export default function RfisScreen() {
             <View style={{ marginBottom: 12 }}>
               {newPhotoUrl ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Image source={{ uri: newPhotoUrl }} style={{ width: 72, height: 72, borderRadius: 8 }} />
+                  {/* SignedImage, not a bare Image. pickAndUpload returns a
+                      STORAGE PATH in a private bucket — the same value the
+                      submitted RFI renders below through SignedImage. Handing
+                      that path to <Image> fetches nothing, so the photo went up
+                      fine and the preview stayed blank while Replace and Remove
+                      appeared beside it: the state said a photo was attached and
+                      the picture said it was not. */}
+                  <SignedImage bucket={PHOTO_BUCKET} value={newPhotoUrl} style={{ width: 72, height: 72, borderRadius: 8 }} />
                   <SmallBtn label={busyPhoto ? '…' : 'Replace'} onPress={addNewPhoto} />
                   <SmallBtn label="Remove" onPress={async () => { await deletePhotoObject(newPhotoUrl); setNewPhotoUrl('') }} />
                 </View>
