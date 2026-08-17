@@ -24,7 +24,7 @@ const PHASE_ORDER = ['Underground', 'Rough-in', 'Trim', 'Cutover', 'Final']
 type Kit = { id: number; title: string | null; scope_of_work: string | null; module_type: string | null }
 type Tool = { id: number; project_playbook_id: number; step_id: number | null; name: string; qty: number | null; unit: string | null; equipment_id: number | null }
 type Step = { id: number; project_playbook_id: number; title: string | null; category: string | null; sort_order: number | null }
-type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; assigned_team_id: number | null; blocked_by_task_id: number | null }
+type Task = { id: number; step_id: number; label: string | null; description: string | null; qty: number | null; notes: string | null; instructions: string | null; assigned_team_id: number | null; blocked_by_task_id: number | null }
 type TaskMat = { task_id: number; material_id: number | null; description: string | null; unit: string | null; qty: number | null; line_type: string | null }
 type TaskPhoto = { id: number; step_check_id: number; photo_url: string; storage_path: string | null; uploaded_by: string | null }
 // Org job-kit templates a manager can drop onto this project (add_playbook_to_project).
@@ -110,7 +110,7 @@ export default function JobKitScreen() {
 
     const stepIds = stepList.map(s => s.id)
     if (stepIds.length) {
-      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes, assigned_team_id, blocked_by_task_id').in('step_id', stepIds).order('sort_order')
+      const { data: tk } = await supabase.from('project_playbook_step_checks').select('id, step_id, label, description, qty, notes, instructions, assigned_team_id, blocked_by_task_id').in('step_id', stepIds).order('sort_order')
       const taskList = (tk as Task[]) || []
       setTasks(taskList)
       const taskIds = taskList.map(x => x.id)
@@ -824,6 +824,18 @@ export default function JobKitScreen() {
                                     ))}
                                   </View>
                                 )}
+                                {/* Instructions come from the kit and are read
+                                    only here — the crew's own note is the box
+                                    below. Two different things: how it is done,
+                                    and what happened today. */}
+                                {task.instructions ? (
+                                  <View style={{ marginBottom: 8, backgroundColor: '#EEF6FF', borderRadius: 10, borderWidth: 1, borderColor: '#BFDBFE', padding: 10 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#0369A1', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                                      Instructions
+                                    </Text>
+                                    <Text selectable style={{ color: COLORS.text, lineHeight: 20 }}>{task.instructions}</Text>
+                                  </View>
+                                ) : null}
                                 <TextInput
                                   key={`note-${task.id}-${task.notes || ''}`}
                                   defaultValue={task.notes || ''}
