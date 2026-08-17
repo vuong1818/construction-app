@@ -20,6 +20,7 @@ import { WebView } from 'react-native-webview'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
+import { fmtLocalDate, getWorkWeekStartDay, workWeekStartDate } from '../../../lib/workWeek'
 import { COLORS } from '../../../lib/theme'
 
 type WeekOption = {
@@ -48,24 +49,23 @@ type SafetyDocument = {
   is_active: boolean
 }
 
-function getCurrentWorkWeekRange(baseDate = new Date()) {
-  const now = new Date()
-  const currentDay = now.getDay()
-  const daysSinceFriday = (currentDay - 5 + 7) % 7
-
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() - daysSinceFriday)
-  weekStart.setHours(0, 0, 0, 0)
-
+// The org's work week, not a hard-coded one.
+//
+// This computed the week from a literal Friday and ignored its own baseDate
+// argument, so on any company whose week does not start on Friday it disagreed
+// with every other screen — and they all read the same acknowledgement rows.
+// company_settings.work_week_start_day is the answer, and lib/workWeek is the
+// one place that reads it; the SQL side has work_week_start() to match.
+function getCurrentWorkWeekRange(startDay: number, baseDate = new Date()) {
+  const weekStart = workWeekStartDate(baseDate, startDay)
   const weekEnd = new Date(weekStart)
   weekEnd.setDate(weekStart.getDate() + 6)
   weekEnd.setHours(23, 59, 59, 999)
-
   return { weekStart, weekEnd }
 }
 
-function buildWeekOptions(count = 16): WeekOption[] {
-  const { weekStart: currentStart } = getCurrentWorkWeekRange()
+function buildWeekOptions(startDay: number, count = 16): WeekOption[] {
+  const { weekStart: currentStart } = getCurrentWorkWeekRange(startDay)
   const options: WeekOption[] = []
 
   for (let i = 0; i < count; i++) {
@@ -88,8 +88,11 @@ function buildWeekOptions(count = 16): WeekOption[] {
   return options
 }
 
+// Local date. toISOString() renders in UTC, which lands on the previous day
+// for any local midnight east of Greenwich — a week_start off by one silently
+// reads the wrong week.
 function weekStartDateString(date: Date) {
-  return date.toISOString().split('T')[0]
+  return fmtLocalDate(date)
 }
 
 function formatSignedAt(value: string | null) {
@@ -157,7 +160,11 @@ async function uploadPdfToSafetyDocuments(uri: string, storagePath: string) {
 
 export default function ManagerSafetyManualScreen() {
   const { t } = useLanguage()
-  const weekOptions = useMemo(() => buildWeekOptions(16), [])
+  const [weekStartDay, setWeekStartDay] = useState<number | null>(null)
+  useEffect(() => { getWorkWeekStartDay().then(setWeekStartDay) }, [])
+  // Nothing is listed until the org setting lands, rather than listing a
+  // guessed week that then shifts under the reader.
+  const weekOptions = useMemo(() => weekStartDay == null ? [] : buildWeekOptions(weekStartDay, 16), [weekStartDay])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
@@ -175,7 +182,9 @@ export default function ManagerSafetyManualScreen() {
     if (selectedWeek) {
       loadScreen(selectedWeek.start)
     }
-  }, [selectedWeekKey])
+    // weekOptions too: it starts empty while the org setting loads, so a
+    // dependency on the key alone never fired once the list arrived.
+  }, [selectedWeekKey, weekOptions])
 
   async function loadScreen(weekStart: Date) {
     setLoading(true)
