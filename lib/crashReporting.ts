@@ -17,8 +17,16 @@
 // What this file can do:
 //
 //   With no DSN, init() returns before the require(), so the module is never
-//   evaluated and nothing native is ever reached. That is what makes the
-//   current bundle safe to ship anywhere today — no DSN is set.
+//   evaluated and nothing native is ever reached. That is what kept every
+//   bundle safe to ship anywhere while no DSN existed.
+//
+//   A DSN now exists (added 2026-08-17, in the same change as the 1.0.0 → 1.1.0
+//   version bump). The guard above is no longer what protects the fleet —
+//   runtimeVersion is. Binaries built before 1.1.0 are on runtime 1.0.0 and can
+//   never be sent a bundle built from 1.1.0, so they can never receive one
+//   carrying a DSN. Keep the early return anyway: it is what makes a build with
+//   the DSN absent (the development profile) behave sensibly instead of
+//   throwing.
 //
 // What this file CANNOT do, and the reason the rule below matters:
 //

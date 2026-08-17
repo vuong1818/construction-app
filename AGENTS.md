@@ -49,6 +49,23 @@ The version bump gives the new binary its own `runtimeVersion`, so updates
 carrying a DSN can only ever reach binaries that have the native module. Old
 binaries stay on their old runtime and never see it.
 
+**Status: done, 2026-08-17.** The DSN is set in `eas.json` under the `preview`
+and `production` build profiles, in the same commit as the `1.0.0 → 1.1.0`
+version bump. A DSN is not a secret — it only permits SENDING events, and it is
+inlined into the shipped binary anyway — so it lives in the repo rather than in
+EAS secrets, where it is visible next to the profile it belongs to.
+
+What this means for OTAs from now on:
+
+- Runtime is now `1.1.0`. **Every phone in the field is still on `1.0.0` until
+  the new build is installed**, so `eas update` reaches NOBODY in the meantime.
+  Publishing one is harmless but pointless; don't mistake a successful
+  `eas update` for a shipped change until the build is out.
+- Once phones are on 1.1.0, normal JS-only OTA rules resume, and they are safe:
+  a 1.1.0 bundle can only reach a 1.1.0 binary, which has the native module.
+- The `development` profile deliberately has no DSN, so dev-client runs do not
+  report into Sentry and a dev build without the native module still starts.
+
 **Don't push mid-task.** Wait for a logical unit (feature, fix, related set of changes) to be complete and type-checking clean, then push + OTA the whole thing as one commit.
 
 **Backend note.** DB schema/RLS lives in the web repo (`nguyenmep-website/supabase/migrations`), not here. If a mobile change needs a schema change, make the migration in the web repo (its own autopilot rules apply) and apply it before shipping the mobile code that depends on it.

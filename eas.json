@@ -12,6 +12,9 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://767c6476c32455d47c405731e60161f2@o4511927595302912.ingest.us.sentry.io/4511927621779456"
+      },
       "ios": {
         "simulator": false
       },
@@ -22,6 +25,9 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SENTRY_DSN": "https://767c6476c32455d47c405731e60161f2@o4511927595302912.ingest.us.sentry.io/4511927621779456"
+      },
       "ios": {
         "resourceClass": "m-medium"
       }
