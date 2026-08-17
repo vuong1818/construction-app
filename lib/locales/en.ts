@@ -976,7 +976,9 @@ const en = {
   jkConsumables: 'Consumables',
   jkNeed: 'Need',
   jkScope: 'Scope of Work',
-  jkSteps: 'Scope of Work',
+  // jkScope above stays "Scope of Work": it labels the kit's free-text scope
+  // field, which is narrative, not a step. These two are the step vocabulary.
+  jkSteps: 'Step',
   jkAddPhoto: 'Add photo',
   uploadComplete: 'Upload complete',
   photosAdded: 'photo(s) added.',
@@ -986,7 +988,7 @@ const en = {
   jkEdit: 'Edit',
   jkDoneEditing: 'Done',
   jkAddKit: 'Add job kit',
-  jkAddStep: 'Add Scope of Work',
+  jkAddStep: 'Add Step',
   jkAddTask: 'Add task',
   jkNewKit: 'New job kit',
   jkAddFromTemplate: 'Add from template',
