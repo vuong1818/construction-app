@@ -55,6 +55,8 @@ export default function InventoryScreen() {
   const [editing, setEditing] = useState<typeof EMPTY | null>(null)
   const [catalogQ, setCatalogQ] = useState('')
   const [catalogHits, setCatalogHits] = useState<CatalogHit[]>([])
+  // The linked material's own barcode, kept only to notice a disagreement.
+  const [catalogBarcode, setCatalogBarcode] = useState<string | null>(null)
 
   // Asked of the server as you type. The catalog is a thousand-plus rows and
   // a phone should not download it to pick one.
@@ -87,6 +89,7 @@ export default function InventoryScreen() {
       barcode: p.barcode || m.barcode || '',
       material_id: m.id,
     } : p)
+    setCatalogBarcode(m.barcode || null)
     setCatalogHits([])
     setCatalogQ('')
   }
@@ -327,6 +330,26 @@ export default function InventoryScreen() {
                       <Pressable onPress={() => setEditing(p => (p ? { ...p, material_id: null } : p))}>
                         <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Unlink</Text>
                       </Pressable>
+                    </View>
+                  ) : null}
+                  {/* A scanned code is kept over the catalog's, because it came
+                      off the box in front of the crew. But scans go wrong —
+                      a neighbouring label, a shelf tag, the wrong side of the
+                      carton — so when the two disagree, say so and make the swap
+                      one tap. Silently preferring either one is what leaves a
+                      barcode nobody can explain. */}
+                  {editing?.material_id && catalogBarcode && editing.barcode && catalogBarcode !== editing.barcode ? (
+                    <View style={{ marginTop: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                      <Text style={{ color: '#92400E', fontWeight: '800', fontSize: 12 }}>This barcode differs from the catalog&apos;s</Text>
+                      <Text style={{ color: '#92400E', fontSize: 12, marginTop: 2 }}>Scanned {editing.barcode} · catalog {catalogBarcode}</Text>
+                      <View style={{ flexDirection: 'row', gap: 14, marginTop: 6 }}>
+                        <Pressable onPress={() => setEditing(p => (p ? { ...p, barcode: catalogBarcode } : p))}>
+                          <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Use the catalog&apos;s</Text>
+                        </Pressable>
+                        <Pressable onPress={() => setCatalogBarcode(null)}>
+                          <Text style={{ color: COLORS.subtext, fontWeight: '800' }}>Keep the scan</Text>
+                        </Pressable>
+                      </View>
                     </View>
                   ) : null}
                 </View>

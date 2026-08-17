@@ -17,6 +17,7 @@ import MileageHistory from '../../components/MileageHistory'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
+import { BuildInfo } from '../../components/BuildInfo'
 
 export default function Profile() {
   const { t, language } = useLanguage()
@@ -180,6 +181,8 @@ export default function Profile() {
             <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('changePassword')}</Text>
             <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
           </Pressable>
+
+          <BuildInfo />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
