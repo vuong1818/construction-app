@@ -118,8 +118,21 @@ export default function InventoryScan() {
                 <Ionicons name="help-circle-outline" size={44} color={COLORS.subtext} />
                 <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 16, marginTop: 8 }}>{t('scanNotFound')}</Text>
                 <Text style={{ color: COLORS.subtext, marginTop: 4 }}>{result.notFound}</Text>
-                <Text style={{ color: COLORS.subtext, fontSize: 12, textAlign: 'center', marginTop: 8 }}>{t('scanAddFirst')}</Text>
-                <Pressable onPress={dismiss} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 18 }}>
+                {/* Was a dead end telling the crew to go and use the web portal —
+                    which is not where they are, standing in the yard holding the
+                    box. It opens the same form the + button opens, with the code
+                    already in it, and that form can pull the rest out of the
+                    material catalog. */}
+                <Text style={{ color: COLORS.subtext, fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+                  Add it now — the barcode is filled in, and you can pull the rest from the material catalog.
+                </Text>
+                <Pressable
+                  onPress={() => { const code = result.notFound!; dismiss(); router.replace({ pathname: '/inventory', params: { newBarcode: code } }) }}
+                  style={{ backgroundColor: COLORS.teal, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Create this item</Text>
+                </Pressable>
+                <Pressable onPress={dismiss} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 10 }}>
                   <Text style={{ color: '#fff', fontWeight: '800' }}>{t('scanAgain')}</Text>
                 </Pressable>
               </View>

@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
@@ -36,9 +36,15 @@ type Item = {
 
 const EMPTY = {
   id: null as number | null,
-  name: '', sku: '', unit: 'EA',
+  name: '', sku: '', unit: 'EA', barcode: '',
   qty_on_hand: '0', reorder_point: '', unit_cost: '', location: '', notes: '',
+  trade: '', group_name: '', size_rating: '',
+  // Set when the item was pulled from the catalog. Keeps the stock row and
+  // the priced material pointed at each other instead of merely alike.
+  material_id: null as number | null,
 }
+
+type CatalogHit = { id: number; description: string; unit: string | null; trade: string | null; group_name: string | null; size_rating: string | null; item_code: string | null; barcode: string | null; base_unit_cost: number | null }
 
 export default function InventoryScreen() {
   const router = useRouter()
@@ -47,6 +53,43 @@ export default function InventoryScreen() {
   const [items, setItems] = useState<Item[]>([])
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState<typeof EMPTY | null>(null)
+  const [catalogQ, setCatalogQ] = useState('')
+  const [catalogHits, setCatalogHits] = useState<CatalogHit[]>([])
+
+  // Asked of the server as you type. The catalog is a thousand-plus rows and
+  // a phone should not download it to pick one.
+  const searchCatalog = useCallback(async (term: string) => {
+    const q = term.trim()
+    if (q.length < 2) { setCatalogHits([]); return }
+    const { data } = await supabase
+      .from('materials')
+      .select('id, description, unit, trade, group_name, size_rating, item_code, barcode, base_unit_cost')
+      .is('deleted_at', null)
+      .or(`description.ilike.%${q}%,item_code.ilike.%${q}%`)
+      .order('description')
+      .limit(25)
+    setCatalogHits((data as CatalogHit[]) || [])
+  }, [])
+
+  // Fill from the catalog, but never overwrite a barcode already on the form:
+  // it came off the box the crew is holding, and that is the more specific
+  // truth than whatever the catalog happens to carry.
+  function applyCatalog(m: CatalogHit) {
+    setEditing(p => p ? {
+      ...p,
+      name: m.description || p.name,
+      unit: m.unit || p.unit,
+      unit_cost: m.base_unit_cost == null ? p.unit_cost : String(m.base_unit_cost),
+      trade: m.trade || '',
+      group_name: m.group_name || '',
+      size_rating: m.size_rating || '',
+      sku: p.sku || m.item_code || '',
+      barcode: p.barcode || m.barcode || '',
+      material_id: m.id,
+    } : p)
+    setCatalogHits([])
+    setCatalogQ('')
+  }
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
@@ -59,7 +102,7 @@ export default function InventoryScreen() {
     if (ok) {
       const { data, error } = await supabase
         .from('inventory_items')
-        .select('id, name, sku, unit, qty_on_hand, reorder_point, unit_cost, location, notes, is_active')
+        .select('id, name, sku, unit, barcode, qty_on_hand, reorder_point, unit_cost, location, notes, is_active, trade, group_name, size_rating, material_id')
         .order('name')
       if (error) Alert.alert('Could not load inventory', error.message)
       setItems((data as any) || [])
@@ -68,6 +111,17 @@ export default function InventoryScreen() {
   }, [router])
 
   useEffect(() => { load() }, [load])
+
+  // Arriving from a scan that found nothing: open the same form the + button
+  // opens, with the code already in it. One form, two ways in — two forms
+  // writing one table drift, and only one of them would have the catalog
+  // search that keeps the data matching.
+  const { newBarcode } = useLocalSearchParams<{ newBarcode?: string }>()
+  useEffect(() => {
+    if (!newBarcode || !allowed) return
+    setEditing({ ...EMPTY, barcode: String(newBarcode) })
+    router.setParams({ newBarcode: undefined } as any)
+  }, [newBarcode, allowed, router])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -91,6 +145,11 @@ export default function InventoryScreen() {
       unit_cost: editing.unit_cost === '' ? null : Number(editing.unit_cost),
       location: editing.location.trim() || null,
       notes: editing.notes.trim() || null,
+      barcode: editing.barcode.trim() || null,
+      trade: editing.trade.trim() || null,
+      group_name: editing.group_name.trim() || null,
+      size_rating: editing.size_rating.trim() || null,
+      material_id: editing.material_id ?? null,
     }
     const { error } = editing.id
       ? await supabase.from('inventory_items').update(payload).eq('id', editing.id)
@@ -188,6 +247,9 @@ export default function InventoryScreen() {
                 reorder_point: it.reorder_point == null ? '' : String(it.reorder_point),
                 unit_cost: it.unit_cost == null ? '' : String(it.unit_cost),
                 location: it.location || '', notes: it.notes || '',
+                barcode: (it as any).barcode || '', trade: (it as any).trade || '',
+                group_name: (it as any).group_name || '', size_rating: (it as any).size_rating || '',
+                material_id: (it as any).material_id ?? null,
               })}
               onLongPress={() => remove(it)}
               style={{
@@ -228,13 +290,59 @@ export default function InventoryScreen() {
                 {editing?.id ? 'Edit item' : 'New item'}
               </Text>
 
+              {/* Pull it out of the catalog instead of retyping it.
+                  This is what keeps a stock row and its priced material saying
+                  the same thing: name, unit, cost, trade, group, size and
+                  barcode all arrive together, and material_id links the two so
+                  they stay pointed at each other. Typing the same values by
+                  hand looks identical on the day and drifts by the month. */}
+              {!editing?.id && (
+                <View>
+                  <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6, fontSize: 13 }}>Find it in the material catalog</Text>
+                  <TextInput
+                    value={catalogQ}
+                    onChangeText={(v) => { setCatalogQ(v); searchCatalog(v) }}
+                    placeholder="Type 2 letters — name or item code"
+                    placeholderTextColor={COLORS.subtext}
+                    autoCorrect={false}
+                    style={{ backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text }}
+                  />
+                  {catalogHits.length > 0 && (
+                    <View style={{ marginTop: 8, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, overflow: 'hidden' }}>
+                      {catalogHits.map(m => (
+                        <Pressable key={m.id} onPress={() => applyCatalog(m)}
+                          style={{ paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border, backgroundColor: COLORS.card }}>
+                          <Text style={{ color: COLORS.text, fontWeight: '700' }} numberOfLines={2}>{m.description}</Text>
+                          <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
+                            {[m.item_code, m.trade, m.group_name, m.unit].filter(Boolean).join(' · ')}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {editing?.material_id ? (
+                    <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.tealSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
+                      <MaterialCommunityIcons name="link-variant" size={16} color={COLORS.teal} />
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>Linked to the catalog</Text>
+                      <Pressable onPress={() => setEditing(p => (p ? { ...p, material_id: null } : p))}>
+                        <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Unlink</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+
               {([
                 ['name', 'Name *', 'default'],
                 ['sku', 'SKU', 'default'],
+                ['barcode', 'Barcode', 'default'],
                 ['unit', 'Unit', 'default'],
                 ['qty_on_hand', 'Quantity on hand', 'numeric'],
                 ['reorder_point', 'Reorder point', 'numeric'],
                 ['unit_cost', 'Unit cost', 'numeric'],
+                ['trade', 'Trade', 'default'],
+                ['group_name', 'Group', 'default'],
+                ['size_rating', 'Size / rating', 'default'],
                 ['location', 'Location', 'default'],
                 ['notes', 'Notes', 'default'],
               ] as const).map(([key, label, kb]) => (
