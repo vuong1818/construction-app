@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -31,6 +31,15 @@ export default function InventoryScan() {
   const [projId, setProjId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // Material going to a job rides on a ticket — the same ticket the web portal
+  // writes, so what a job is charged does not depend on which device the shop
+  // happened to use. Scanning is the natural way to fill one: one ticket per
+  // trip to the counter, one scan per armful.
+  const [ticketId, setTicketId] = useState<number | null>(null)
+  const [ticketCount, setTicketCount] = useState(0)
+  const [ticketProj, setTicketProj] = useState<number | null>(null)
+  const [closing, setClosing] = useState(false)
+
   useEffect(() => { if (permission && !permission.granted) requestPermission() }, [permission])
 
   useEffect(() => {
@@ -43,6 +52,21 @@ export default function InventoryScan() {
       ])
       const ls = (loc as Loc[]) || []
       setLocations(ls); setProjects((pr as Proj[]) || []); setLocId(ls[0]?.id ?? null)
+
+      // Pick a ticket back up rather than orphan it. Anything already on it has
+      // physically left the shelf, and a phone that slept or a screen that was
+      // closed must not lose the job it belongs to.
+      if (user?.id) {
+        const { data: open } = await supabase.from('inventory_issue_tickets')
+          .select('id, project_id').eq('status', 'open').eq('created_by', user.id)
+          .order('id', { ascending: false }).limit(1).maybeSingle()
+        if (open) {
+          setTicketId(open.id); setTicketProj(open.project_id); setProjId(open.project_id)
+          const { count } = await supabase.from('inventory_movements')
+            .select('id', { count: 'exact', head: true }).eq('ticket_id', open.id)
+          setTicketCount(count || 0)
+        }
+      }
     })()
   }, [])
 
@@ -61,15 +85,50 @@ export default function InventoryScan() {
     const item = result?.item; if (!item) return
     const n = Number(qty); if (!n || n <= 0) return
     setSaving(true)
+
+    // Going to a job: put it on a ticket, so the job picks up the cost and
+    // there is a document saying who took what. Everything else — receiving,
+    // or taking something out for no job in particular — is a plain movement.
+    if (dir === 'out' && projId) {
+      let tid = ticketId
+      if (!tid) {
+        const { data, error } = await supabase.rpc('open_issue_ticket', { p_project_id: projId })
+        if (error) { setSaving(false); Alert.alert(t('error'), error.message); return }
+        tid = data as number
+        setTicketId(tid); setTicketProj(projId)
+      }
+      const { error } = await supabase.rpc('add_issue_ticket_line', {
+        p_ticket_id: tid, p_item_id: item.id, p_qty: n, p_from_location_id: locId,
+      })
+      setSaving(false)
+      if (error) { Alert.alert(t('error'), error.message); return }
+      setTicketCount(c => c + 1)
+      dismiss()
+      return
+    }
+
     const from = dir === 'out' ? locId : null
     const to = dir === 'in' ? locId : null
-    const reason = dir === 'in' ? 'receive' : (projId ? 'issue' : 'consume')
+    const reason = dir === 'in' ? 'receive' : 'consume'
     const { error } = await supabase.from('inventory_movements').insert({
       item_id: item.id, qty: n, from_location_id: from, to_location_id: to,
-      project_id: dir === 'out' ? projId : null, user_id: uid, reason,
+      project_id: null, user_id: uid, reason,
     })
     setSaving(false)
     if (!error) dismiss() // resume scanning for the next item
+  }
+
+  // Close the ticket: the job picks up what the material cost, and the shop has
+  // a numbered record of what it handed over.
+  async function finishTicket() {
+    if (!ticketId) return
+    setClosing(true)
+    const { data, error } = await supabase.rpc('close_issue_ticket', { p_ticket_id: ticketId })
+    setClosing(false)
+    if (error) { Alert.alert(t('error'), error.message); return }
+    const job = projects.find(p => p.id === ticketProj)?.name || ''
+    setTicketId(null); setTicketCount(0); setTicketProj(null); setProjId(null)
+    Alert.alert(t('ticketFinished'), `${data} · ${job}`)
   }
 
   const header = (
@@ -108,6 +167,24 @@ export default function InventoryScan() {
           <Text style={{ color: '#fff', marginTop: 16, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}>{t('scanAim')}</Text>
         </View>
       </CameraView>
+
+      {/* The open ticket, always in sight while scanning. Everything counted
+          here has already left the shelf; closing it is what charges the job. */}
+      {ticketId != null && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.tealSoft, borderTopWidth: 1, borderTopColor: COLORS.border }}>
+          <Ionicons name="receipt-outline" size={22} color={COLORS.teal} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 14 }}>{t('ticketOpen')}</Text>
+            <Text style={{ color: COLORS.subtext, fontSize: 12 }}>
+              {ticketCount} {t('ticketItems')} · {projects.find(p => p.id === ticketProj)?.name || ''}
+            </Text>
+          </View>
+          <Pressable onPress={finishTicket} disabled={closing || ticketCount === 0}
+            style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11, opacity: (closing || ticketCount === 0) ? 0.5 : 1 }}>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{closing ? '…' : t('ticketFinish')}</Text>
+          </Pressable>
+        </View>
+      )}
 
       {/* Popup: the scanned item, with take-out / add-in + quantity + location */}
       <Modal visible={!!result} transparent animationType="slide" onRequestClose={dismiss}>
@@ -172,16 +249,24 @@ export default function InventoryScan() {
                 {dir === 'out' && (
                   <>
                     <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.subtext, textTransform: 'uppercase', marginBottom: 6 }}>{t('scanProjLabel')}</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-                      <Pressable onPress={() => setProjId(null)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === null ? COLORS.teal : COLORS.border, backgroundColor: projId === null ? COLORS.tealSoft : COLORS.background }}>
-                        <Text style={{ color: projId === null ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{t('scanNoProject')}</Text>
-                      </Pressable>
-                      {projects.map(p => (
-                        <Pressable key={p.id} onPress={() => setProjId(p.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === p.id ? COLORS.teal : COLORS.border, backgroundColor: projId === p.id ? COLORS.tealSoft : COLORS.background }}>
+                    {/* A ticket belongs to one job. While one is open the choice
+                        is made — switching jobs mid-armful is how material ends
+                        up charged to the wrong one. */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: ticketId ? 8 : 18 }}>
+                      {!ticketId && (
+                        <Pressable onPress={() => setProjId(null)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === null ? COLORS.teal : COLORS.border, backgroundColor: projId === null ? COLORS.tealSoft : COLORS.background }}>
+                          <Text style={{ color: projId === null ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{t('scanNoProject')}</Text>
+                        </Pressable>
+                      )}
+                      {projects.filter(p => !ticketId || p.id === ticketProj).map(p => (
+                        <Pressable key={p.id} onPress={() => !ticketId && setProjId(p.id)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: projId === p.id ? COLORS.teal : COLORS.border, backgroundColor: projId === p.id ? COLORS.tealSoft : COLORS.background }}>
                           <Text style={{ color: projId === p.id ? COLORS.teal : COLORS.subtext, fontWeight: '700', fontSize: 13 }}>{p.name}</Text>
                         </Pressable>
                       ))}
                     </View>
+                    {ticketId
+                      ? <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 18 }}>{t('ticketLockedProject')}</Text>
+                      : projId ? <Text style={{ color: COLORS.subtext, fontSize: 12, marginBottom: 18 }}>{t('ticketAtCost')}</Text> : null}
                   </>
                 )}
 
