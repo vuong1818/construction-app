@@ -38,7 +38,7 @@ const EMPTY = {
   id: null as number | null,
   name: '', sku: '', unit: 'EA', barcode: '',
   qty_on_hand: '0', reorder_point: '', unit_cost: '', location: '', notes: '',
-  trade: '', group_name: '', size_rating: '',
+  trade: '', group_name: '', size_rating: '', is_active: true,
   // Set when the item was pulled from the catalog. Keeps the stock row and
   // the priced material pointed at each other instead of merely alike.
   material_id: null as number | null,
@@ -57,6 +57,29 @@ export default function InventoryScreen() {
   const [catalogHits, setCatalogHits] = useState<CatalogHit[]>([])
   // The linked material's own barcode, kept only to notice a disagreement.
   const [catalogBarcode, setCatalogBarcode] = useState<string | null>(null)
+  const [showInactive, setShowInactive] = useState(false)
+
+  // How many stock movements this item has, fetched when the sheet opens.
+  //
+  // The point is to ASK BEFORE offering, not to attempt a delete and report the
+  // foreign key that stops it. A worker mid-count cannot act on "violates
+  // foreign key constraint"; they can act on "this has 14 movements, so it can
+  // be deactivated but not deleted".
+  //
+  // null = not known yet, so neither action is offered and nothing is guessed.
+  const [historyCount, setHistoryCount] = useState<number | null>(null)
+
+  const openEditor = useCallback(async (next: typeof EMPTY) => {
+    setEditing(next)
+    setCatalogBarcode(null)
+    if (!next.id) { setHistoryCount(0); return }
+    setHistoryCount(null)
+    const { count } = await supabase
+      .from('inventory_movements')
+      .select('id', { count: 'exact', head: true })
+      .eq('item_id', next.id)
+    setHistoryCount(count ?? 0)
+  }, [])
 
   // Asked of the server as you type. The catalog is a thousand-plus rows and
   // a phone should not download it to pick one.
@@ -122,18 +145,24 @@ export default function InventoryScreen() {
   const { newBarcode } = useLocalSearchParams<{ newBarcode?: string }>()
   useEffect(() => {
     if (!newBarcode || !allowed) return
-    setEditing({ ...EMPTY, barcode: String(newBarcode) })
+    openEditor({ ...EMPTY, barcode: String(newBarcode) })
     router.setParams({ newBarcode: undefined } as any)
-  }, [newBarcode, allowed, router])
+  }, [newBarcode, allowed, router, openEditor])
+
+  // Deactivating has to actually remove it from view, or the toggle looks
+  // broken: is_active was loaded and then ignored, so an item marked inactive
+  // stayed in the list exactly as before.
+  const inactiveCount = useMemo(() => items.filter(i => i.is_active === false).length, [items])
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return items
-    return items.filter(i =>
+    const base = showInactive ? items : items.filter(i => i.is_active !== false)
+    if (!needle) return base
+    return base.filter(i =>
       (i.name || '').toLowerCase().includes(needle) ||
       (i.sku || '').toLowerCase().includes(needle) ||
       (i.location || '').toLowerCase().includes(needle))
-  }, [items, q])
+  }, [items, q, showInactive])
 
   async function save() {
     if (!editing) return
@@ -153,6 +182,7 @@ export default function InventoryScreen() {
       group_name: editing.group_name.trim() || null,
       size_rating: editing.size_rating.trim() || null,
       material_id: editing.material_id ?? null,
+      is_active: editing.is_active !== false,
     }
     const { error } = editing.id
       ? await supabase.from('inventory_items').update(payload).eq('id', editing.id)
@@ -163,20 +193,28 @@ export default function InventoryScreen() {
     await load()
   }
 
+  // Only reachable when the item has no movements — the sheet checks first and
+  // offers Inactive instead when it does. The error branch stays as a backstop:
+  // a purchase-order line can reference an item too, and that reference is not
+  // in the movement count.
   function remove(item: Item) {
     Alert.alert(
       `Delete ${item.name}?`,
-      'The stock ledger keeps its history, but the item disappears from the list.',
+      'Nothing has moved against this item, so it can go for good.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete', style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('inventory_items').delete().eq('id', item.id)
-            // A delete blocked by a foreign key is a real answer, not a failure:
-            // the item is referenced by movements or an order.
-            if (error) Alert.alert('Could not delete', error.message + '\n\nDeactivate it instead if it has history.')
-            else await load()
+            if (error) {
+              Alert.alert(
+                'Could not delete',
+                'Something still refers to this item — an order line, most likely.\n\nSwitch it to Inactive instead: it leaves the list and keeps its history.')
+              return
+            }
+            setEditing(null)
+            await load()
           },
         },
       ])
@@ -217,7 +255,7 @@ export default function InventoryScreen() {
             }}
           />
           <Pressable
-            onPress={() => setEditing({ ...EMPTY })}
+            onPress={() => openEditor({ ...EMPTY })}
             style={{ backgroundColor: COLORS.navy, borderRadius: 14, paddingHorizontal: 18, justifyContent: 'center' }}
           >
             <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 20 }}>+</Text>
@@ -230,6 +268,21 @@ export default function InventoryScreen() {
           <MaterialCommunityIcons name="barcode-scan" size={20} color={COLORS.teal} />
           <Text style={{ color: COLORS.teal, fontWeight: '700' }}>Scan a barcode</Text>
         </Pressable>
+        {/* Retired stock is out of the way but not out of reach — otherwise
+            deactivating is a one-way door and the only way back is a desktop. */}
+        {inactiveCount > 0 && (
+          <Pressable
+            onPress={() => setShowInactive(v => !v)}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8 }}>
+            <MaterialCommunityIcons
+              name={showInactive ? 'eye-off-outline' : 'eye-outline'}
+              size={18}
+              color={COLORS.subtext} />
+            <Text style={{ color: COLORS.subtext, fontWeight: '700', fontSize: 13 }}>
+              {showInactive ? 'Hide inactive' : `Show inactive (${inactiveCount})`}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 0, paddingBottom: 40, gap: 10 }}>
@@ -244,7 +297,7 @@ export default function InventoryScreen() {
           return (
             <Pressable
               key={it.id}
-              onPress={() => setEditing({
+              onPress={() => openEditor({
                 id: it.id, name: it.name || '', sku: it.sku || '', unit: it.unit || 'EA',
                 qty_on_hand: String(it.qty_on_hand ?? 0),
                 reorder_point: it.reorder_point == null ? '' : String(it.reorder_point),
@@ -253,12 +306,15 @@ export default function InventoryScreen() {
                 barcode: (it as any).barcode || '', trade: (it as any).trade || '',
                 group_name: (it as any).group_name || '', size_rating: (it as any).size_rating || '',
                 material_id: (it as any).material_id ?? null,
+                is_active: it.is_active !== false,
               })}
-              onLongPress={() => remove(it)}
+
               style={{
                 backgroundColor: COLORS.card, borderRadius: 16, padding: 14,
                 borderWidth: 1, borderColor: low ? '#F2B01E' : COLORS.border,
                 flexDirection: 'row', alignItems: 'center', gap: 12,
+                // Visible when Show inactive is on, but obviously retired.
+                opacity: it.is_active === false ? 0.55 : 1,
               }}
             >
               <View style={{ flex: 1 }}>
@@ -385,6 +441,51 @@ export default function InventoryScreen() {
                   />
                 </View>
               ))}
+
+              {/* Active, and what can be done with it.
+                  Retiring stock is the normal case: the item existed, it moved,
+                  and the ledger still has to mean something. Deleting is for the
+                  one you just typed by mistake. Which of the two is offered is
+                  decided by whether anything has ever moved, asked before the
+                  fact rather than discovered through a foreign-key error. */}
+              {editing?.id ? (
+                <View style={{ marginTop: 4, backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: 12 }}>
+                  <Pressable
+                    onPress={() => setEditing(p => (p ? { ...p, is_active: !(p.is_active !== false) } : p))}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <MaterialCommunityIcons
+                      name={editing.is_active !== false ? 'toggle-switch' : 'toggle-switch-off-outline'}
+                      size={30}
+                      color={editing.is_active !== false ? COLORS.green : COLORS.subtext} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.text, fontWeight: '800' }}>
+                        {editing.is_active !== false ? 'Active' : 'Inactive'}
+                      </Text>
+                      <Text style={{ color: COLORS.subtext, fontSize: 12 }}>
+                        {editing.is_active !== false
+                          ? 'Counted and shown in the list'
+                          : 'Hidden from the list; its history is kept'}
+                      </Text>
+                    </View>
+                  </Pressable>
+
+                  {historyCount === null ? (
+                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 10 }}>Checking its history…</Text>
+                  ) : historyCount > 0 ? (
+                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 10, lineHeight: 18 }}>
+                      {historyCount} stock movement{historyCount === 1 ? '' : 's'} recorded, so this cannot be deleted —
+                      the ledger would stop adding up. Switch it to Inactive instead.
+                    </Text>
+                  ) : (
+                    <Pressable
+                      onPress={() => remove({ id: editing.id, name: editing.name } as Item)}
+                      disabled={saving}
+                      style={{ marginTop: 12, borderWidth: 1, borderColor: '#FECACA', borderRadius: 12, paddingVertical: 11, alignItems: 'center' }}>
+                      <Text style={{ color: '#B91C1C', fontWeight: '800' }}>Delete — nothing has moved yet</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : null}
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
                 <Pressable
