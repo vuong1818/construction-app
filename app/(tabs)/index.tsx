@@ -16,6 +16,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { BuildInfoLine } from '../../components/BuildInfo'
 import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
@@ -769,6 +770,12 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* What this phone is running, where support can read it without asking
+            anyone to go hunting: first line of the first screen after sign-in.
+            Small and grey on purpose — it is a label, not information the crew
+            needs to do their job. The fuller version lives on Profile. */}
+        <BuildInfoLine />
+
         <View
           style={{
             flexDirection: 'row',
