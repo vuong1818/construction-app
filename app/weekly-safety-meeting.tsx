@@ -318,18 +318,22 @@ export default function WeeklySafetyMeetingScreen() {
       setTopicRow((topicData as WeeklyTopic) || null);
 
       if (topicData?.id) {
-        const { data: ackData, error: ackError } = await supabase
-          .from('weekly_meeting_acknowledgements')
-          .select('id, signed_name')
-          .eq('worker_id', user.id)
-          .eq('topic_id', topicData.id)
-          .eq('week_start', weekStart)
-          .limit(1)
-          .maybeSingle();
-
-        if (ackError && ackError.code !== 'PGRST116') throw ackError;
-        setAlreadySigned(!!ackData);
-        if (ackData?.signed_name) setWorkerName(ackData.signed_name);
+        // Covered-today, not key-match. See safety_ack_state: a signature keyed
+        // to a week the setting has since moved is still a signature.
+        const { data: state, error: ackError } = await supabase
+          .rpc('safety_ack_state', { p_worker: user.id });
+        if (ackError) throw ackError;
+        setAlreadySigned(!!state?.meeting);
+        if (state?.meeting) {
+          const { data: ackData } = await supabase
+            .from('weekly_meeting_acknowledgements')
+            .select('signed_name')
+            .eq('worker_id', user.id)
+            .order('signed_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (ackData?.signed_name) setWorkerName(ackData.signed_name);
+        }
       } else {
         setAlreadySigned(false);
       }

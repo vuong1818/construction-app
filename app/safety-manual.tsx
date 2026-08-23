@@ -361,19 +361,23 @@ export default function SafetyManualScreen() {
         setManual((manualData as ManualDoc) || null);
       } catch (e) { console.warn('Manual doc lookup skipped:', e); }
 
-      // Check if already signed this week (works with or without a manual_document_id)
+      // Already signed? Ask whether a signature COVERS today, rather than
+      // matching a week key computed here. The key is derived from
+      // work_week_start_day, so editing that setting used to hide signatures
+      // and send people back to sign again over paperwork they had done.
       try {
-        const weekStart = fmtLocalDate(await currentWorkWeekStart());
-        let query = supabase
-          .from('safety_manual_acknowledgements')
-          .select('id, signed_name')
-          .eq('worker_id', user.id)
-          .eq('week_start', weekStart)
-          .limit(1);
-
-        const { data: ackData } = await query.maybeSingle();
-        setAlreadySigned(!!ackData);
-        if (ackData?.signed_name) setWorkerName(prev => ackData.signed_name || prev);
+        const { data: state } = await supabase.rpc('safety_ack_state', { p_worker: user.id });
+        setAlreadySigned(!!state?.manual);
+        if (state?.manual) {
+          const { data: ackData } = await supabase
+            .from('safety_manual_acknowledgements')
+            .select('signed_name')
+            .eq('worker_id', user.id)
+            .order('signed_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (ackData?.signed_name) setWorkerName(prev => ackData.signed_name || prev);
+        }
       } catch (e) { console.warn('Ack check skipped:', e); }
 
     } catch (error) {

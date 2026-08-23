@@ -17,6 +17,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { BuildInfoLine } from '../../components/BuildInfo'
+import { logError } from '../../lib/logger'
 import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
@@ -37,7 +38,7 @@ import { clockIn as svcClockIn, clockOut as svcClockOut, switchProject as svcSwi
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
 import TravelCard from '../../components/TravelCard'
-import { currentWorkWeekStart, fmtLocalDate } from '../../lib/workWeek'
+
 
 type Project = {
   id: number
@@ -289,7 +290,6 @@ export default function HomeScreen() {
       // Safety acks are keyed to the configured work week (work_week_start_day,
       // default Friday) — same helper the signing screens + DB use. Using any
       // other week boundary here means a signed ack never matches this lookup.
-      const safetyWeekStart = fmtLocalDate(await currentWorkWeekStart())
 
       const weeklyResult = await supabase
         .from('time_entries')
@@ -324,24 +324,19 @@ export default function HomeScreen() {
 
       setTodayEntry(todayResult.data?.[0] || null)
 
-      const [manualResult, meetingResult] = await Promise.all([
-        supabase
-          .from('safety_manual_acknowledgements')
-          .select('id')
-          .eq('worker_id', currentUserId)
-          .eq('week_start', safetyWeekStart)  // work-week-based; matches signing screens
-          .maybeSingle(),
-
-        supabase
-          .from('weekly_meeting_acknowledgements')
-          .select('id')
-          .eq('worker_id', currentUserId)
-          .eq('week_start', safetyWeekStart)  // work-week-based; matches signing screens
-          .maybeSingle(),
-      ])
-
-      setManualAcknowledged(!!manualResult.data)
-      setMeetingAcknowledged(!!meetingResult.data)
+      // One question, answered by the database: is this worker covered today?
+      //
+      // This used to match week_start exactly against a key computed here in
+      // JavaScript. That key is derived from company_settings.work_week_start_day,
+      // so editing that setting made every existing signature unfindable — and a
+      // second implementation of the same rule is how signatures ended up filed
+      // under Mondays no org was configured for. safety_ack_state matches on the
+      // period a signature covers, and is the only implementation left.
+      const { data: safety, error: safetyErr } = await supabase
+        .rpc('safety_ack_state', { p_worker: currentUserId })
+      if (safetyErr) logError('safety_ack_state', safetyErr, { screen: 'dashboard' })
+      setManualAcknowledged(!!safety?.manual)
+      setMeetingAcknowledged(!!safety?.meeting)
     } catch (error: any) {
       setErrorMessage(error?.message || t(language, 'failedLoadHome'))
     } finally {
