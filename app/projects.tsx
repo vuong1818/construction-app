@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { SkeletonList } from '../components/SkeletonCard'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
+import { useSharedProjectOwners } from '../hooks/useProjectGrant'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
@@ -27,6 +28,10 @@ type Project = {
 export default function ProjectsScreen() {
   const router = useRouter()
   const { logoUrl } = useCompanyLogo()
+  // Which of these belong to another company. Without this a subcontractor's
+  // list mixes their own jobs and the GC's into one indistinguishable column,
+  // and the crew files work against the wrong one.
+  const sharedOwners = useSharedProjectOwners()
   const { t } = useLanguage()
 
   const [projects, setProjects] = useState<Project[]>([])
@@ -198,6 +203,22 @@ export default function ProjectsScreen() {
                 <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 22 }}>
                   {project.name}
                 </Text>
+                {sharedOwners[project.id] && (
+                  <View
+                    style={{
+                      alignSelf: 'flex-start',
+                      backgroundColor: '#F3E5F5',
+                      borderRadius: 100,
+                      paddingHorizontal: 10,
+                      paddingVertical: 3,
+                      marginTop: 6,
+                    }}
+                  >
+                    <Text style={{ color: '#7B1FA2', fontWeight: '800', fontSize: 11 }}>
+                      {`SHARED BY ${sharedOwners[project.id].toUpperCase()}`}
+                    </Text>
+                  </View>
+                )}
                 <Text style={{ color: COLORS.text, marginTop: 4 }}>
                   {`${t('addressLabel')}: ${project.address || t('noAddress')}`}
                 </Text>

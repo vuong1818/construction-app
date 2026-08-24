@@ -11,8 +11,10 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { supabase } from '../../../lib/supabase'
+
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
+import { useProjectGrant } from '../../../hooks/useProjectGrant'
 
 const JOBKIT_BUCKET = 'jobkit-photos'
 // Install phases a step can be tagged with (matches the web editor + report route).
@@ -36,6 +38,30 @@ export default function JobKitScreen() {
   const { t } = useLanguage()
 
   const [loading, setLoading] = useState(true)
+  // Which of these kits we are actually allowed to sign off. On our own
+  // projects: all of them. On a project another company shared with us: only
+  // the ones named on the grant, because a tick carries a name and an
+  // electrician must not be able to sign off plumbing.
+  const { grant, isGranted } = useProjectGrant(Number.isFinite(projectId) ? projectId : undefined)
+  const [grantedKitIds, setGrantedKitIds] = useState<Set<number>>(new Set())
+  useEffect(() => {
+    let alive = true
+    if (!grant?.id) { setGrantedKitIds(new Set()); return () => { alive = false } }
+    ;(async () => {
+      const { data } = await supabase
+        .from('project_access_kits')
+        .select('project_playbook_id')
+        .eq('grant_id', grant.id)
+      if (alive) setGrantedKitIds(new Set(((data as any[]) || []).map(r => r.project_playbook_id)))
+    })()
+    return () => { alive = false }
+  }, [grant?.id])
+
+  const canTickKit = useCallback(
+    (kitId: number) => !isGranted || (!!grant?.can_check_tasks && grantedKitIds.has(kitId)),
+    [isGranted, grant?.can_check_tasks, grantedKitIds],
+  )
+
   const [kits, setKits] = useState<Kit[]>([])
   const [tools, setTools] = useState<Tool[]>([])
   const [steps, setSteps] = useState<Step[]>([])
@@ -150,6 +176,16 @@ export default function JobKitScreen() {
   useEffect(() => { load() }, [load])
 
   async function toggleTask(kitId: number, taskId: number) {
+    // Without this the tick flips, the policy refuses it, and load() flips it
+    // back with no explanation — which reads as the app being broken rather
+    // than as the scope it actually is.
+    if (!canTickKit(kitId)) {
+      Alert.alert(
+        'Not your scope',
+        `${grant?.owner_org_name || 'The project owner'} did not include this kit in what your company was given. Ask them to add it.`,
+      )
+      return
+    }
     const key = `step_check:${taskId}`
     const has = checks.has(key)
     setChecks(prev => { const n = new Set(prev); has ? n.delete(key) : n.add(key); return n })
@@ -299,6 +335,13 @@ export default function JobKitScreen() {
   }
 
   async function toggleTool(tool: Tool) {
+    if (!canTickKit(tool.project_playbook_id)) {
+      Alert.alert(
+        'Not your scope',
+        `${grant?.owner_org_name || 'The project owner'} did not include this kit in what your company was given.`,
+      )
+      return
+    }
     const key = `tool:${tool.id}`
     const has = checks.has(key)
     setChecks(prev => { const n = new Set(prev); has ? n.delete(key) : n.add(key); return n })
@@ -540,6 +583,11 @@ export default function JobKitScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.navy }}>{kit.title || t('jobKit')}</Text>
                     {kit.module_type ? <Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700' }}>{kit.module_type}</Text> : null}
+                    {isGranted && !canTickKit(kit.id) && (
+                      <Text style={{ color: '#7B1FA2', fontSize: 11, fontWeight: '800', marginTop: 3 }}>
+                        VIEW ONLY — NOT YOUR SCOPE
+                      </Text>
+                    )}
                   </View>
                   <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.subtext} />
                 </View>

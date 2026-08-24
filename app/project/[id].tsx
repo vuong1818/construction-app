@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
+  Image,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -17,6 +19,7 @@ import {
 import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
+import { useProjectGrant } from '../../hooks/useProjectGrant'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
@@ -189,7 +192,8 @@ export default function ProjectDetailScreen() {
     handleDeletePlan,
     handleOpenDocument,
     handleDeleteDocument,
-    openPhotoViewer,
+    // openPhotoViewer is no longer used here: the Photos tile opens the
+    // contact sheet, and the full-screen viewer is entered from a tile on it.
     openPlansViewer,
     openReportsViewer,
     openDocumentsViewer,
@@ -201,16 +205,29 @@ export default function ProjectDetailScreen() {
 
   const { totals: financeTotals } = useProjectFinance(Number.isFinite(projectId) ? projectId : undefined)
 
-  const [isManager, setIsManager] = useState(false)
+  // Another company's job, reached through a grant. Same rule as the web: a
+  // grant OUTRANKS our own role here, because being a manager at our company
+  // says nothing about theirs.
+  const { grant, isGranted } = useProjectGrant(Number.isFinite(projectId) ? projectId : undefined)
+
+  const [isOwnCompanyManager, setIsOwnCompanyManager] = useState(false)
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
       const { data } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
-      setIsManager(['manager', 'owner'].includes(String(data?.role)))
+      setIsOwnCompanyManager(['manager', 'owner'].includes(String(data?.role)))
     })()
   }, [])
+  const isManager = isOwnCompanyManager && !isGranted
+
+  // What a subcontractor may actually do here, straight off the grant. Every
+  // one of these is enforced by RLS too — this only stops the screen offering
+  // a button that would come back refused.
+  const canAddPhotos    = !isGranted || !!grant?.can_add_photos
+  const canCreateReport = !isGranted || !!grant?.can_create_reports
+  const canRaiseRfi     = !isGranted || !!grant?.can_create_rfis
 
   // Open Google Maps directions to the jobsite — prefers precise lat/long, else the
   // address. Errors out when the project has neither.
@@ -228,6 +245,10 @@ export default function ProjectDetailScreen() {
 
   // Photo viewer state — pinch-to-zoom + swipe via react-native-image-viewing.
   const [photoIndex, setPhotoIndex] = useState(0)
+  // The gallery opens on a CONTACT SHEET, not on photo one of forty. Swiping
+  // through in order is how you look at a holiday album; on a jobsite you are
+  // hunting for one specific picture, and you recognise it by sight.
+  const [photoGridVisible, setPhotoGridVisible] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [captionEditing, setCaptionEditing] = useState(false)
   const [captionDraft, setCaptionDraft] = useState('')
@@ -236,16 +257,30 @@ export default function ProjectDetailScreen() {
   useEffect(() => { setCaptionEditing(false) }, [photoIndex])
 
   // Signing is a round trip, so the gallery resolves its uris once per photo
-  // set rather than per render. Unresolved entries stay out of the array — the
-  // lightbox would otherwise be handed { uri: '' } and sit spinning.
-  const [photoImages, setPhotoImages] = useState<{ uri: string }[]>([])
+  // set rather than per render. Unresolved entries stay out — the lightbox
+  // would otherwise be handed { uri: '' } and sit spinning.
+  //
+  // The row travels WITH its url. It used to be two arrays, one filtered and
+  // one not, so a single unsignable photo shifted every index after it: the
+  // caption you edited and the photo you deleted were the next one along.
+  const [gallery, setGallery] = useState<{ uri: string; photo: (typeof photos)[number] }[]>([])
   useEffect(() => {
     let alive = true
-    Promise.all(photos.map(p => getPhotoUrl(p)))
-      .then(urls => { if (alive) setPhotoImages(urls.filter(Boolean).map(uri => ({ uri }))) })
-      .catch(() => { if (alive) setPhotoImages([]) })
+    Promise.all(
+      photos.map(async p => {
+        try {
+          const uri = await getPhotoUrl(p)
+          return uri ? { uri, photo: p } : null
+        } catch {
+          return null
+        }
+      }),
+    )
+      .then(rows => { if (alive) setGallery(rows.filter(Boolean) as { uri: string; photo: (typeof photos)[number] }[]) })
+      .catch(() => { if (alive) setGallery([]) })
     return () => { alive = false }
   }, [photos])
+  const photoImages = useMemo(() => gallery.map(g => ({ uri: g.uri })), [gallery])
 
   if (loading) {
     return (
@@ -298,6 +333,35 @@ export default function ProjectDetailScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* Said at the top, in the crew's face, because the most expensive
+            mistake available on this screen is filing work against the wrong
+            company's job. */}
+        {isGranted && (
+          <View
+            style={{
+              backgroundColor: '#F3E5F5',
+              borderColor: '#E1BEE7',
+              borderWidth: 1,
+              borderRadius: 20,
+              padding: 16,
+              marginBottom: 14,
+              flexDirection: 'row',
+              gap: 10,
+            }}
+          >
+            <MaterialCommunityIcons name="handshake-outline" size={24} color="#7B1FA2" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 15 }}>
+                {`Shared by ${grant?.owner_org_name || 'another company'}`}
+              </Text>
+              <Text style={{ color: '#6A1B9A', marginTop: 4, lineHeight: 20 }}>
+                You are working on their jobsite. Their costs and other projects are not shown here, and your
+                hours, pay and expenses are never shown to them.
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View
           style={{
             backgroundColor: COLORS.card,
@@ -393,13 +457,17 @@ export default function ProjectDetailScreen() {
             title={t('viewDocuments')}
             onPress={openDocumentsViewer}
           />
-          <BigActionCard
-            icon="cash-plus"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={isManager ? t('expenses') : t('myExpenses')}
-            onPress={() => router.push(`/project/${id}/expenses`)}
-          />
+          {/* Expenses stay in the company that spent the money. On a shared
+              job there is nothing here to show and nothing here to add. */}
+          {!isGranted && (
+            <BigActionCard
+              icon="cash-plus"
+              iconBg={COLORS.tealSoft}
+              iconColor={COLORS.teal}
+              title={isManager ? t('expenses') : t('myExpenses')}
+              onPress={() => router.push(`/project/${id}/expenses`)}
+            />
+          )}
         </View>
 
         <SectionTitle
@@ -417,20 +485,27 @@ export default function ProjectDetailScreen() {
             title={t('projectTasks')}
             onPress={() => router.push(`/project/${id}/job-kit`)}
           />
-          <BigActionCard
-            icon="calendar-month-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={t('projectSchedule')}
-            onPress={() => router.push(`/project/${id}/tasks`)}
-          />
-          <BigActionCard
-            icon="clipboard-check-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={t('inspections')}
-            onPress={() => router.push(`/project/${id}/inspections`)}
-          />
+          {/* The schedule and the inspection log were never widened to
+              subcontractors, so on a shared job both open empty. Hidden rather
+              than shown broken. */}
+          {!isGranted && (
+            <BigActionCard
+              icon="calendar-month-outline"
+              iconBg={COLORS.navySoft}
+              iconColor={COLORS.navy}
+              title={t('projectSchedule')}
+              onPress={() => router.push(`/project/${id}/tasks`)}
+            />
+          )}
+          {!isGranted && (
+            <BigActionCard
+              icon="clipboard-check-outline"
+              iconBg={COLORS.navySoft}
+              iconColor={COLORS.navy}
+              title={t('inspections')}
+              onPress={() => router.push(`/project/${id}/inspections`)}
+            />
+          )}
         </View>
 
         <SectionTitle
@@ -441,20 +516,24 @@ export default function ProjectDetailScreen() {
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="comment-question-outline"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('rfisTitle')}
-            onPress={() => router.push(`/project/${id}/rfis`)}
-          />
-          <BigActionCard
-            icon="clipboard-plus-outline"
-            iconBg={COLORS.navySoft}
-            iconColor={COLORS.navy}
-            title={t('createReport')}
-            onPress={() => router.push(`/project/${id}/new-report`)}
-          />
+          {canRaiseRfi && (
+            <BigActionCard
+              icon="comment-question-outline"
+              iconBg={COLORS.tealSoft}
+              iconColor={COLORS.teal}
+              title={t('rfisTitle')}
+              onPress={() => router.push(`/project/${id}/rfis`)}
+            />
+          )}
+          {canCreateReport && (
+            <BigActionCard
+              icon="clipboard-plus-outline"
+              iconBg={COLORS.navySoft}
+              iconColor={COLORS.navy}
+              title={t('createReport')}
+              onPress={() => router.push(`/project/${id}/new-report`)}
+            />
+          )}
           <BigActionCard
             icon="clipboard-search-outline"
             iconBg={COLORS.tealSoft}
@@ -475,23 +554,35 @@ export default function ProjectDetailScreen() {
         />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <BigActionCard
-            icon="package-variant"
-            iconBg={COLORS.tealSoft}
-            iconColor={COLORS.teal}
-            title={t('matReqTitle')}
-            onPress={() => router.push(`/project/${id}/material-requests`)}
-          />
+          {/* A material request prices against OUR catalogue and gets bought
+              by OUR office. On a job we do not own it has nowhere to go, which
+              is why the web leaves the tab out too. */}
+          {!isGranted && (
+            <BigActionCard
+              icon="package-variant"
+              iconBg={COLORS.tealSoft}
+              iconColor={COLORS.teal}
+              title={t('matReqTitle')}
+              onPress={() => router.push(`/project/${id}/material-requests`)}
+            />
+          )}
           <BigActionCard
             icon="image-search-outline"
             iconBg={COLORS.tealSoft}
             iconColor={COLORS.teal}
             title={t('photos')}
-            onPress={openPhotoViewer}
+            onPress={() => {
+              if (photos.length === 0) {
+                Alert.alert(t('photos'), 'There are no photos to view yet.')
+                return
+              }
+              setPhotoGridVisible(true)
+            }}
           />
           {/* Adding a project photo had no entry point at all — the screen could
               only view what the web had uploaded, which is what Android users
               were reporting as "cannot add photos". */}
+          {canAddPhotos && (
           <BigActionCard
             icon="camera-plus-outline"
             iconBg={COLORS.tealSoft}
@@ -512,6 +603,7 @@ export default function ProjectDetailScreen() {
               })
             }}
           />
+          )}
         </View>
 
         {isManager && (
@@ -810,10 +902,83 @@ export default function ProjectDetailScreen() {
         </View>
       </Modal>
 
+      {/* Contact sheet. Three across is the most that stays tappable with a
+          glove on, and each tile is square so a portrait and a landscape shot
+          sit on the same grid line. */}
+      <Modal
+        visible={photoGridVisible}
+        animationType="slide"
+        onRequestClose={() => setPhotoGridVisible(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 20,
+              paddingVertical: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: COLORS.border,
+              backgroundColor: COLORS.card,
+            }}
+          >
+            <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.navy }}>
+              {`${t('photos')} (${photos.length})`}
+            </Text>
+            <Pressable onPress={() => setPhotoGridVisible(false)} hitSlop={12}>
+              <Ionicons name="close-circle" size={32} color={COLORS.subtext} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 12 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {gallery.map(({ uri, photo }, i) => {
+                const size = (Dimensions.get('window').width - 24 - 12) / 3
+                return (
+                  <Pressable
+                    key={photo.id}
+                    onPress={() => {
+                      setPhotoIndex(i)
+                      setPhotosModalVisible(true)
+                    }}
+                    style={{ width: size, height: size, margin: 2, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.border }}
+                  >
+                    <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    {!!photo.caption && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundColor: 'rgba(0,0,0,0.55)',
+                          paddingHorizontal: 5,
+                          paddingVertical: 3,
+                        }}
+                      >
+                        <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: 10 }}>
+                          {photo.caption}
+                        </Text>
+                      </View>
+                    )}
+                  </Pressable>
+                )
+              })}
+            </View>
+            {gallery.length < photos.length && (
+              <Text style={{ color: COLORS.subtext, textAlign: 'center', paddingVertical: 16 }}>
+                {`Loading ${photos.length - gallery.length} more…`}
+              </Text>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <ImageView
         images={photoImages}
         imageIndex={photoIndex}
-        visible={photosModalVisible && photos.length > 0}
+        visible={photosModalVisible && gallery.length > 0}
         onRequestClose={() => setPhotosModalVisible(false)}
         onImageIndexChange={setPhotoIndex}
         swipeToCloseEnabled
@@ -830,11 +995,11 @@ export default function ProjectDetailScreen() {
               }}
             >
               <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
-                {photos.length > 0 ? `${imageIndex + 1} / ${photos.length}` : t('photos')}
+                {gallery.length > 0 ? `${imageIndex + 1} / ${gallery.length}` : t('photos')}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                {(isManager || (currentUserId != null && photos[imageIndex]?.uploaded_by === currentUserId)) && (
-                  <Pressable onPress={() => photos[imageIndex] && handleDeletePhoto(photos[imageIndex])}>
+                {(isManager || (currentUserId != null && gallery[imageIndex]?.photo.uploaded_by === currentUserId)) && (
+                  <Pressable onPress={() => gallery[imageIndex] && handleDeletePhoto(gallery[imageIndex].photo)}>
                     <Ionicons name="trash-outline" size={26} color="#FFFFFF" />
                   </Pressable>
                 )}
@@ -846,7 +1011,7 @@ export default function ProjectDetailScreen() {
           </SafeAreaView>
         )}
         FooterComponent={({ imageIndex }) => {
-          const photo = photos[imageIndex]
+          const photo = gallery[imageIndex]?.photo
           if (!photo) return null
           const canEdit = isManager || (currentUserId != null && photo.uploaded_by === currentUserId)
           return (
