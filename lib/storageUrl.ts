@@ -39,6 +39,22 @@ export function bucketOf(value?: string | null): string | null {
 const cache = new Map<string, { url: string; expiresAt: number }>()
 const DEFAULT_TTL = 60 * 60
 
+// storageOrgScope prefixes every path with the CALLER's org, which is right
+// until the file belongs to a project another company shared with us. Their
+// plan is stored as `46/plan.pdf`, the wrapper makes it `{our org}/46/plan.pdf`,
+// and storage says "Object not found" — which is what a subcontractor saw on
+// every plan and every photo. The storage policy was always right: it reads the
+// owning org off the front of the path. It just never got a path with that org
+// on it. So callers on a shared project pass ownerOrg.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function withOwnerOrg(path: string | null, ownerOrg?: string | null): string | null {
+  if (!path || !ownerOrg) return path
+  const clean = String(path).replace(/^\/+/, '')
+  if (UUID_RE.test(clean.split('/')[0])) return clean
+  return `${ownerOrg}/${clean}`
+}
+
 /**
  * A signed, expiring url for one object, or null when it cannot be signed —
  * the caller shows whatever placeholder it already has rather than a broken
@@ -47,9 +63,9 @@ const DEFAULT_TTL = 60 * 60
 export async function signedUrl(
   bucket: string,
   value?: string | null,
-  opts?: { expiresIn?: number },
+  opts?: { expiresIn?: number; ownerOrg?: string | null },
 ): Promise<string | null> {
-  const path = objectPath(value)
+  const path = withOwnerOrg(objectPath(value), opts?.ownerOrg)
   if (!path) return null
   // A stored url naming its own bucket wins over the caller's guess: the row
   // knows where its file lives.
@@ -57,7 +73,8 @@ export async function signedUrl(
   if (!b) return null
 
   const expiresIn = opts?.expiresIn ?? DEFAULT_TTL
-  // The storage client prefixes the org for us (lib/storageOrgScope.ts).
+  // Already whole when ownerOrg was supplied; otherwise storageOrgScope adds
+  // our own org on the way through.
   const full = path
   const key = `${b}|${full}`
   const hit = cache.get(key)

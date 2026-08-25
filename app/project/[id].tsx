@@ -226,6 +226,9 @@ export default function ProjectDetailScreen() {
   // one of these is enforced by RLS too — this only stops the screen offering
   // a button that would come back refused.
   const canAddPhotos    = !isGranted || !!grant?.can_add_photos
+  // On a shared jobsite every stored path needs the OWNER's org on the front,
+  // or storage answers "not found" for all of it. See lib/storageUrl.ts.
+  const fileOwnerOrg = isGranted ? ((project as any)?.org_id ?? null) : null
   const canCreateReport = !isGranted || !!grant?.can_create_reports
   const canRaiseRfi     = !isGranted || !!grant?.can_create_rfis
 
@@ -269,7 +272,7 @@ export default function ProjectDetailScreen() {
     Promise.all(
       photos.map(async p => {
         try {
-          const uri = await getPhotoUrl(p)
+          const uri = await getPhotoUrl(p, fileOwnerOrg)
           return uri ? { uri, photo: p } : null
         } catch {
           return null
@@ -279,7 +282,7 @@ export default function ProjectDetailScreen() {
       .then(rows => { if (alive) setGallery(rows.filter(Boolean) as { uri: string; photo: (typeof photos)[number] }[]) })
       .catch(() => { if (alive) setGallery([]) })
     return () => { alive = false }
-  }, [photos])
+  }, [photos, fileOwnerOrg])
   const photoImages = useMemo(() => gallery.map(g => ({ uri: g.uri })), [gallery])
 
   if (loading) {

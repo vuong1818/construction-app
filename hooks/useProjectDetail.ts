@@ -67,6 +67,11 @@ type UseProjectDetailResult = {
 
 export function useProjectDetail(projectId?: number): UseProjectDetailResult {
   const [project, setProject] = useState<Project | null>(null)
+  // Whose storage this project's files live under. Null on our own jobs, where
+  // storageOrgScope's own prefixing is already right; set to the OWNER's org on
+  // a project another company shared with us, or every path resolves to an
+  // object that does not exist. See lib/storageUrl.ts.
+  const [fileOwnerOrg, setFileOwnerOrg] = useState<string | null>(null)
   const [photos, setPhotos] = useState<ProjectFile[]>([])
   const [plans, setPlans] = useState<ProjectFile[]>([])
   const [documents, setDocuments] = useState<ProjectFile[]>([])
@@ -97,6 +102,20 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     try {
       const data = await loadProjectDetail(projectId)
       setProject(data.project)
+      // Compare the project's tenancy with our own. Different means we are on a
+      // shared jobsite and every file path needs THEIR org on the front.
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const uid = session?.user?.id
+        const projOrg = (data.project as any)?.org_id ?? null
+        if (uid && projOrg) {
+          const { data: prof } = await supabase
+            .from('profiles').select('org_id').eq('id', uid).single()
+          setFileOwnerOrg(prof?.org_id && prof.org_id !== projOrg ? projOrg : null)
+        } else {
+          setFileOwnerOrg(null)
+        }
+      } catch { setFileOwnerOrg(null) }
       setPhotos(data.photos)
       setPlans(data.plans)
       setDocuments(data.documents)
@@ -104,6 +123,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
     } catch (error: any) {
       setErrorMessage(error?.message || 'Failed to load project.')
       setProject(null)
+      setFileOwnerOrg(null)
       setPhotos([])
       setPlans([])
       setDocuments([])
@@ -271,7 +291,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
 
   async function handleOpenPlan(plan: ProjectFile) {
     try {
-      await openPlan(plan)
+      await openPlan(plan, fileOwnerOrg)
     } catch (error: any) {
       Alert.alert('Missing File', error?.message || 'Could not open plan.')
     }
@@ -333,7 +353,7 @@ export function useProjectDetail(projectId?: number): UseProjectDetailResult {
 
   async function handleOpenDocument(doc: ProjectFile) {
     try {
-      await openDocument(doc)
+      await openDocument(doc, fileOwnerOrg)
     } catch (error: any) {
       Alert.alert('Missing File', error?.message || 'Could not open document.')
     }

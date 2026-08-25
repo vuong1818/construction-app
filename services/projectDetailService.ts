@@ -259,10 +259,15 @@ export async function deleteProjectPlan(plan: ProjectFile) {
   if (error) throw new Error(error.message)
 }
 
-export async function openDocument(doc: ProjectFile) {
+const OWNER_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export async function openDocument(doc: ProjectFile, ownerOrg?: string | null) {
   const bucket = doc.bucket_name || DOCUMENTS_BUCKET
+  const path = ownerOrg && !OWNER_UUID_RE.test(String(doc.file_path).split('/')[0])
+    ? `${ownerOrg}/${doc.file_path}`
+    : doc.file_path
   const { data, error } = await supabase.storage
-    .from(bucket).createSignedUrl(doc.file_path, 60 * 60)
+    .from(bucket).createSignedUrl(path, 60 * 60)
   if (error || !data?.signedUrl) throw new Error('This file could not be found in storage.')
   await Linking.openURL(data.signedUrl)
 }
@@ -370,15 +375,19 @@ export function photoRef(photo: ProjectFile): { bucket: string; value: string | 
 }
 
 /** A signed url for one photo, or '' when it cannot be resolved. */
-export async function getPhotoUrl(photo: ProjectFile): Promise<string> {
+export async function getPhotoUrl(photo: ProjectFile, ownerOrg?: string | null): Promise<string> {
   const { bucket, value } = photoRef(photo)
-  return (await signedUrl(bucket, value)) || ''
+  return (await signedUrl(bucket, value, ownerOrg ? { ownerOrg } : undefined)) || ''
 }
 
-export async function openPlan(plan: ProjectFile) {
+export async function openPlan(plan: ProjectFile, ownerOrg?: string | null) {
   const bucket = plan.bucket_name || 'project-plans'
+  // On a shared job the object lives under the OWNER's org, not ours.
+  const path = ownerOrg && !OWNER_UUID_RE.test(String(plan.file_path).split('/')[0])
+    ? `${ownerOrg}/${plan.file_path}`
+    : plan.file_path
   const { data, error } = await supabase.storage
-    .from(bucket).createSignedUrl(plan.file_path, 60 * 60)
+    .from(bucket).createSignedUrl(path, 60 * 60)
   if (error || !data?.signedUrl) throw new Error('This file could not be found in storage.')
   await Linking.openURL(data.signedUrl)
 }
