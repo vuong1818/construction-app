@@ -28,6 +28,10 @@ export type ProjectGrant = {
   can_create_reports: boolean
   can_upload_docs: boolean
   can_check_tasks: boolean
+  // Writing the METHOD under the owner's SCOPE. The web is where a manager
+  // actually writes a method statement out; the phone shows what was written
+  // and ticks it off, and does not author tasks yet.
+  can_edit_kit_tasks: boolean
 }
 
 export function useProjectGrant(projectId?: number) {
