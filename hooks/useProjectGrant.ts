@@ -71,15 +71,22 @@ export function useProjectGrant(projectId?: number) {
 }
 
 /**
- * Which projects in a list reached us through a grant, and from whom.
- * One query for the whole list rather than one per row.
+ * How a project list should present shared work. One query for the whole
+ * list rather than one per row.
  *
- * Returns a map of project id → the owning company's name, covering only
- * ACTIVE grants where we are the grantee. RLS already limits the rows to
- * grants this org is named on, so there is no org filter here.
+ * Mirrors the web's Projects screen:
+ *   ownerByProject   project id → the owning company, for THEIR row
+ *   hiddenProjects   their rows we suppress because one of OUR projects is
+ *                    linked to the same job — one job, one row
+ *   workingForByProject  our project id → the company we are doing it for
+ *
+ * RLS already limits grants to those this org is named on, so there is no org
+ * filter on the grant query beyond picking the side we are on.
  */
-export function useSharedProjectOwners() {
+export function useSharedProjectPresentation() {
   const [ownerByProject, setOwnerByProject] = useState<Record<number, string>>({})
+  const [hiddenProjects, setHiddenProjects] = useState<Set<number>>(new Set())
+  const [workingForByProject, setWorkingForByProject] = useState<Record<number, string>>({})
 
   useEffect(() => {
     let alive = true
@@ -91,21 +98,42 @@ export function useSharedProjectOwners() {
         .from('profiles').select('org_id').eq('id', uid).single()
       if (!prof?.org_id) return
 
-      const { data } = await supabase
-        .from('project_access_grants')
-        .select('project_id, owner_org_name')
-        .eq('grantee_org_id', prof.org_id)
-        .eq('status', 'active')
+      const [{ data: grants }, { data: mine }] = await Promise.all([
+        supabase
+          .from('project_access_grants')
+          .select('id, project_id, owner_org_name')
+          .eq('grantee_org_id', prof.org_id)
+          .eq('status', 'active'),
+        supabase
+          .from('projects')
+          .select('id, linked_grant_id')
+          .not('linked_grant_id', 'is', null),
+      ])
 
       if (!alive) return
-      const map: Record<number, string> = {}
-      for (const g of data || []) {
-        map[(g as any).project_id] = (g as any).owner_org_name || 'Another company'
+
+      const byGrant = new Map<number, any>()
+      const owners: Record<number, string> = {}
+      for (const g of grants || []) {
+        byGrant.set((g as any).id, g)
+        owners[(g as any).project_id] = (g as any).owner_org_name || 'Another company'
       }
-      setOwnerByProject(map)
+
+      const hidden = new Set<number>()
+      const workingFor: Record<number, string> = {}
+      for (const pr of mine || []) {
+        const g = byGrant.get((pr as any).linked_grant_id)
+        if (!g) continue
+        hidden.add(g.project_id)
+        workingFor[(pr as any).id] = g.owner_org_name || 'Another company'
+      }
+
+      setOwnerByProject(owners)
+      setHiddenProjects(hidden)
+      setWorkingForByProject(workingFor)
     })()
     return () => { alive = false }
   }, [])
 
-  return ownerByProject
+  return { ownerByProject, hiddenProjects, workingForByProject }
 }
