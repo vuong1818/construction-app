@@ -15,10 +15,12 @@ type Props = Omit<ImageProps, 'source'> & {
   bucket: string
   value?: string | null
   placeholder?: React.ReactNode
+  /** Set when the file belongs to a project another company shared with us. */
+  ownerOrg?: string | null
 }
 
-export function SignedImage({ bucket, value, placeholder, style, ...rest }: Props) {
-  const uri = useSignedUrl(bucket, value)
+export function SignedImage({ bucket, value, placeholder, style, ownerOrg = null, ...rest }: Props) {
+  const uri = useSignedUrl(bucket, value, ownerOrg ? { ownerOrg } : undefined)
   if (!uri) return placeholder ?? <View style={style} />
   return <Image source={{ uri }} style={style} {...rest} />
 }

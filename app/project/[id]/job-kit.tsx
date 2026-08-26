@@ -13,7 +13,9 @@ import * as Sharing from 'expo-sharing'
 import { supabase } from '../../../lib/supabase'
 
 import { COLORS } from '../../../lib/theme'
+import ImageView from 'react-native-image-viewing'
 import { SignedImage } from '../../../components/SignedImage'
+import { signedUrl } from '../../../lib/storageUrl'
 import { useProjectGrant } from '../../../hooks/useProjectGrant'
 
 const JOBKIT_BUCKET = 'jobkit-photos'
@@ -44,15 +46,35 @@ export default function JobKitScreen() {
   // electrician must not be able to sign off plumbing.
   const { grant, isGranted } = useProjectGrant(Number.isFinite(projectId) ? projectId : undefined)
   const [grantedKitIds, setGrantedKitIds] = useState<Set<number>>(new Set())
+  // Whose storage this kit's photos live under. Null on our own jobs; on a
+  // shared one it must be the OWNER's org or every path resolves to an object
+  // that is not there — which is why the thumbnails came back blank.
+  const [fileOwnerOrg, setFileOwnerOrg] = useState<string | null>(null)
+  // A 54px thumbnail is proof a photo exists, not a photo anybody can read.
+  // Tapping one opens that task's set, swipeable — there was no tap at all
+  // before, on any project.
+  const [viewer, setViewer] = useState<{ images: { uri: string }[]; index: number } | null>(null)
+
+  async function openPhotos(photos: TaskPhoto[], index: number) {
+    const urls = await Promise.all(
+      photos.map(ph => signedUrl(JOBKIT_BUCKET, ph.storage_path || ph.photo_url,
+        fileOwnerOrg ? { ownerOrg: fileOwnerOrg } : undefined)),
+    )
+    const images = urls.filter(Boolean).map(uri => ({ uri: uri as string }))
+    if (!images.length) return
+    setViewer({ images, index: Math.min(index, images.length - 1) })
+  }
   useEffect(() => {
     let alive = true
     if (!grant?.id) { setGrantedKitIds(new Set()); return () => { alive = false } }
     ;(async () => {
-      const { data } = await supabase
-        .from('project_access_kits')
-        .select('project_playbook_id')
-        .eq('grant_id', grant.id)
-      if (alive) setGrantedKitIds(new Set(((data as any[]) || []).map(r => r.project_playbook_id)))
+      const [{ data }, { data: proj }] = await Promise.all([
+        supabase.from('project_access_kits').select('project_playbook_id').eq('grant_id', grant.id),
+        supabase.from('projects').select('org_id').eq('id', projectId).maybeSingle(),
+      ])
+      if (!alive) return
+      setGrantedKitIds(new Set(((data as any[]) || []).map(r => r.project_playbook_id)))
+      setFileOwnerOrg((proj as any)?.org_id ?? null)
     })()
     return () => { alive = false }
   }, [grant?.id])
@@ -616,6 +638,14 @@ export default function JobKitScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <ImageView
+        images={viewer?.images || []}
+        imageIndex={viewer?.index || 0}
+        visible={!!viewer}
+        onRequestClose={() => setViewer(null)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+      />
       <ScrollView contentContainerStyle={{ padding: 18 }}>
         <Pressable onPress={() => { setSelectedKitId(null); setEditMode(false) }}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12, alignSelf: 'flex-start' }}>
@@ -899,6 +929,8 @@ export default function JobKitScreen() {
                                   canRemove={(p) => isManager || p.uploaded_by === uid}
                                   onAdd={() => addTaskPhoto(task.id)}
                                   onRemove={confirmRemovePhoto}
+                                  onOpen={openPhotos}
+                                  ownerOrg={fileOwnerOrg}
                                   addLabel={t('jkAddPhoto')}
                                   indent={0}
                                 />
@@ -947,15 +979,19 @@ function Section({ icon, label, children }: { icon: string; label: string; child
   )
 }
 
-function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, addLabel, indent = 38 }: {
+function TaskPhotos({ photos, busy, canRemove, onAdd, onRemove, onOpen, addLabel, indent = 38, ownerOrg = null }: {
   photos: TaskPhoto[]; busy: boolean; canRemove: (p: TaskPhoto) => boolean
-  onAdd: () => void; onRemove: (p: TaskPhoto) => void; addLabel: string; indent?: number
+  onAdd: () => void; onRemove: (p: TaskPhoto) => void
+  onOpen?: (photos: TaskPhoto[], index: number) => void
+  addLabel: string; indent?: number; ownerOrg?: string | null
 }) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: indent, marginBottom: 10 }}>
-      {photos.map(p => (
-        <Pressable key={p.id} onLongPress={() => canRemove(p) && onRemove(p)} style={{ position: 'relative' }}>
-          <SignedImage bucket="jobkit-photos" value={p.storage_path || p.photo_url} style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
+      {photos.map((p, i) => (
+        <Pressable key={p.id} onPress={() => onOpen?.(photos, i)}
+          onLongPress={() => canRemove(p) && onRemove(p)} style={{ position: 'relative' }}>
+          <SignedImage bucket="jobkit-photos" value={p.storage_path || p.photo_url} ownerOrg={ownerOrg}
+            style={{ width: 54, height: 54, borderRadius: 10, backgroundColor: COLORS.background }} />
           {canRemove(p) && (
             <View style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#B71C1C', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
               <MaterialCommunityIcons name="close" size={13} color="white" />

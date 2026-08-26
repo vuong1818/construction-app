@@ -115,21 +115,26 @@ export function forgetSignedUrl(bucket: string, value?: string | null) {
 export function useSignedUrl(
   bucket: string,
   value?: string | null,
-  opts?: { expiresIn?: number },
+  opts?: { expiresIn?: number; ownerOrg?: string | null },
 ): string | null {
   const [state, setState] = useState<{ key: string | null; url: string | null }>({ key: null, url: null })
   const expiresIn = opts?.expiresIn
-  const path = objectPath(value)
+  // Without this every SignedImage on a shared project asked storage for OUR
+  // org's copy of their file and got nothing — the fix went into signedUrl and
+  // stopped there, which covered the code that calls it directly and missed
+  // every component that renders through this hook.
+  const ownerOrg = opts?.ownerOrg ?? null
+  const path = withOwnerOrg(objectPath(value), ownerOrg)
   const key = path ? `${bucketOf(value) || bucket}|${path}` : null
 
   useEffect(() => {
     if (!key) return
     let alive = true
-    signedUrl(bucket, value, expiresIn ? { expiresIn } : undefined)
+    signedUrl(bucket, value, { ...(expiresIn ? { expiresIn } : {}), ownerOrg })
       .then((u) => { if (alive) setState({ key, url: u }) })
       .catch(() => { if (alive) setState({ key, url: null }) })
     return () => { alive = false }
-  }, [bucket, value, expiresIn, key])
+  }, [bucket, value, expiresIn, ownerOrg, key])
 
   return key && state.key === key ? state.url : null
 }
