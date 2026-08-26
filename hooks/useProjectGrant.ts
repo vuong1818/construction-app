@@ -75,6 +75,39 @@ export function useProjectGrant(projectId?: number) {
 }
 
 /**
+ * The reverse of useProjectGrant: this project is OURS, and it stands in for a
+ * job another company shared with us. Returns the grant so the screen can offer
+ * the way in.
+ *
+ * Without it the phone had no door at all. The list folds their row away — one
+ * job, one row — and the web puts the doorway on the project's Access tab,
+ * which the phone does not have. So a crew tapping their own job found no job
+ * kit and no way to reach the one they were given.
+ */
+export function useLinkedShare(projectId?: number) {
+  const [grant, setGrant] = useState<ProjectGrant | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    if (!Number.isFinite(projectId)) { setGrant(null); setLoading(false); return () => { alive = false } }
+    ;(async () => {
+      setLoading(true)
+      const { data: pr } = await supabase
+        .from('projects').select('linked_grant_id').eq('id', projectId as number).maybeSingle()
+      if (!pr?.linked_grant_id) { if (alive) { setGrant(null); setLoading(false) } ; return }
+      const { data } = await supabase
+        .from('project_access_grants').select('*')
+        .eq('id', pr.linked_grant_id).eq('status', 'active').maybeSingle()
+      if (alive) { setGrant((data as ProjectGrant) || null); setLoading(false) }
+    })()
+    return () => { alive = false }
+  }, [projectId])
+
+  return { grant, loading }
+}
+
+/**
  * How a project list should present shared work. One query for the whole
  * list rather than one per row.
  *

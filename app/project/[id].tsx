@@ -19,7 +19,7 @@ import {
 import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
-import { useProjectGrant } from '../../hooks/useProjectGrant'
+import { useLinkedShare, useProjectGrant } from '../../hooks/useProjectGrant'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
@@ -209,6 +209,10 @@ export default function ProjectDetailScreen() {
   // grant OUTRANKS our own role here, because being a manager at our company
   // says nothing about theirs.
   const { grant, isGranted } = useProjectGrant(Number.isFinite(projectId) ? projectId : undefined)
+  // The other direction: this is OUR job, standing in for one another company
+  // shared with us. Their row is folded out of the list, so without a door here
+  // the crew has no way to reach the job kit they were actually given.
+  const { grant: linkedShare } = useLinkedShare(Number.isFinite(projectId) ? projectId : undefined)
 
   const [isOwnCompanyManager, setIsOwnCompanyManager] = useState(false)
   useEffect(() => {
@@ -444,6 +448,35 @@ export default function ProjectDetailScreen() {
           iconColor={COLORS.navy}
           title={t('documents')}
         />
+
+        {linkedShare && (
+          <Pressable
+            onPress={() => router.push(`/project/${linkedShare.project_id}`)}
+            style={{
+              backgroundColor: '#F3E5F5',
+              borderColor: '#CE93D8',
+              borderWidth: 1,
+              borderRadius: 20,
+              padding: 16,
+              marginBottom: 14,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <MaterialCommunityIcons name="handshake-outline" size={28} color="#7B1FA2" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 16 }}>
+                {`Working for ${linkedShare.owner_org_name || 'another company'}`}
+              </Text>
+              <Text style={{ color: '#6A1B9A', marginTop: 3, lineHeight: 20 }}>
+                Their plans, reports and job kits are on their jobsite — tap to open it. Your hours and expenses stay
+                on this job.
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={26} color="#7B1FA2" />
+          </Pressable>
+        )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <BigActionCard
