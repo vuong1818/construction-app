@@ -517,7 +517,7 @@ export default function ProjectExpensesScreen() {
                 <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text }}>
                   {editing ? t('editExpense') : t('newExpense')}
                 </Text>
-                <Pressable onPress={closeForm} hitSlop={10} style={{ padding: 4 }}>
+                <Pressable onPress={closeForm} hitSlop={16} style={{ minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                   <Ionicons name="close" size={24} color={COLORS.subtext} />
                 </Pressable>
               </View>

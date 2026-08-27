@@ -1,5 +1,6 @@
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context'
 import { LanguageProvider } from '../lib/i18n'
 import { initCrashReporting, setCrashUser } from '../lib/crashReporting'
 import { installGlobalErrorLogger } from '../lib/logger'
@@ -31,6 +32,16 @@ export default function RootLayout() {
   }, [])
 
   return (
+    // Every SafeAreaView in this app was measuring nothing. react-native-safe-area-context
+    // returns zero insets without a provider above it, so "safe area" meant no
+    // padding at all — headers sat under the notch and their close buttons sat
+    // under the status bar, where the system swallows the tap. That is why the
+    // X "does not work or is very hard to tap" and why people were force-quitting
+    // the app to get out of a screen.
+    //
+    // initialWindowMetrics seeds the first frame from native, so the insets are
+    // right immediately instead of the layout jumping once they resolve.
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <LanguageProvider>
     <Stack
       screenOptions={{
@@ -69,5 +80,6 @@ export default function RootLayout() {
       <Stack.Screen name="smart-tools/backflow/[id]"  options={{ title: 'Backflow Test' }} />
     </Stack>
     </LanguageProvider>
+    </SafeAreaProvider>
   )
 }

@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native'
 import ImageView from 'react-native-image-viewing'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useLinkedShare, useProjectGrant } from '../../hooks/useProjectGrant'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
@@ -256,6 +256,10 @@ export default function ProjectDetailScreen() {
   // through in order is how you look at a holiday album; on a jobsite you are
   // hunting for one specific picture, and you recognise it by sight.
   const [photoGridVisible, setPhotoGridVisible] = useState(false)
+  // A Modal sits OUTSIDE the screen's SafeAreaView, so its own header has to
+  // account for the notch itself. Read rather than assumed — a wrong constant
+  // is how a title ends up printed over the clock.
+  const insets = useSafeAreaInsets()
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [captionEditing, setCaptionEditing] = useState(false)
   const [captionDraft, setCaptionDraft] = useState('')
@@ -946,14 +950,15 @@ export default function ProjectDetailScreen() {
         animationType="slide"
         onRequestClose={() => setPhotoGridVisible(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
               paddingHorizontal: 20,
-              paddingVertical: 14,
+              paddingTop: insets.top + 12,
+              paddingBottom: 14,
               borderBottomWidth: 1,
               borderBottomColor: COLORS.border,
               backgroundColor: COLORS.card,
@@ -962,8 +967,16 @@ export default function ProjectDetailScreen() {
             <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.navy }}>
               {`${t('photos')} (${photos.length})`}
             </Text>
-            <Pressable onPress={() => setPhotoGridVisible(false)} hitSlop={12}>
-              <Ionicons name="close-circle" size={32} color={COLORS.subtext} />
+            {/* 44pt is the smallest target a thumb reliably finds, and this one
+                gets pressed with a glove on. Labelled as well as drawn: an icon
+                alone in a corner is the control people miss. */}
+            <Pressable
+              onPress={() => setPhotoGridVisible(false)}
+              hitSlop={16}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 44, paddingHorizontal: 12, marginRight: -12 }}
+            >
+              <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 16 }}>{t('close')}</Text>
+              <Ionicons name="close-circle" size={30} color={COLORS.teal} />
             </Pressable>
           </View>
 
@@ -1008,7 +1021,7 @@ export default function ProjectDetailScreen() {
               </Text>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       <ImageView

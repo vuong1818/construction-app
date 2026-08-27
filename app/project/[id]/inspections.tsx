@@ -379,7 +379,7 @@ export default function ProjectInspectionsScreen() {
                 <Text style={{ color: COLORS.navy, fontSize: 18, fontWeight: '800', flex: 1 }}>
                   {editing?.itemLabel}
                 </Text>
-                <Pressable onPress={() => setEditing(null)} hitSlop={10} style={{ padding: 4 }}>
+                <Pressable onPress={() => setEditing(null)} hitSlop={16} style={{ minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' }}>
                   <MaterialCommunityIcons name="close" size={26} color={COLORS.subtext} />
                 </Pressable>
               </View>

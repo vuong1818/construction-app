@@ -383,7 +383,7 @@ export default function MaterialRequestsScreen() {
             <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.navy }}>{t('matReqAddItem')}</Text>
-                <Pressable onPress={() => setItemOpen(false)}><Ionicons name="close" size={26} color={COLORS.subtext} /></Pressable>
+                <Pressable onPress={() => setItemOpen(false)} hitSlop={16} style={{ minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' }}><Ionicons name="close" size={26} color={COLORS.subtext} /></Pressable>
               </View>
 
               {/* Mode tabs */}
@@ -541,7 +541,7 @@ export default function MaterialRequestsScreen() {
             <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.navy }}>{t('matReqEditTitle')}</Text>
-                <Pressable onPress={() => setEditing(null)}><Ionicons name="close" size={26} color={COLORS.subtext} /></Pressable>
+                <Pressable onPress={() => setEditing(null)} hitSlop={16} style={{ minWidth: 44, minHeight: 44, alignItems: 'flex-end', justifyContent: 'center' }}><Ionicons name="close" size={26} color={COLORS.subtext} /></Pressable>
               </View>
 
               <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginBottom: 5 }}>{t('matReqMaterial')}</Text>
