@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native'
 import ImageView from 'react-native-image-viewing'
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useLinkedShare, useProjectGrant } from '../../hooks/useProjectGrant'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
@@ -256,10 +256,6 @@ export default function ProjectDetailScreen() {
   // through in order is how you look at a holiday album; on a jobsite you are
   // hunting for one specific picture, and you recognise it by sight.
   const [photoGridVisible, setPhotoGridVisible] = useState(false)
-  // A Modal sits OUTSIDE the screen's SafeAreaView, so its own header has to
-  // account for the notch itself. Read rather than assumed — a wrong constant
-  // is how a title ends up printed over the clock.
-  const insets = useSafeAreaInsets()
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [captionEditing, setCaptionEditing] = useState(false)
   const [captionDraft, setCaptionDraft] = useState('')
@@ -945,20 +941,22 @@ export default function ProjectDetailScreen() {
       {/* Contact sheet. Three across is the most that stays tappable with a
           glove on, and each tile is square so a portrait and a landscape shot
           sit on the same grid line. */}
-      <Modal
-        visible={photoGridVisible}
-        animationType="slide"
-        onRequestClose={() => setPhotoGridVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      {/* An overlay, not a Modal. Tapping a tile opens the full-screen viewer,
+          which IS a Modal — and iOS refuses to present a second modal over one
+          already showing, silently. That is why tapping a photo did nothing:
+          the grid was a Modal, so the viewer never got presented.
+          Rendered inside the screen's SafeAreaView, so the notch is already
+          accounted for and this must NOT add its own inset on top. */}
+      {photoGridVisible && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                       backgroundColor: COLORS.background, zIndex: 20, elevation: 20 }}>
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
               paddingHorizontal: 20,
-              paddingTop: insets.top + 12,
-              paddingBottom: 14,
+              paddingVertical: 14,
               borderBottomWidth: 1,
               borderBottomColor: COLORS.border,
               backgroundColor: COLORS.card,
@@ -988,6 +986,8 @@ export default function ProjectDetailScreen() {
                   <Pressable
                     key={photo.id}
                     onPress={() => {
+                      // The grid stays mounted underneath, so closing the
+                      // viewer lands back on the sheet where the tile was.
                       setPhotoIndex(i)
                       setPhotosModalVisible(true)
                     }}
@@ -1022,7 +1022,7 @@ export default function ProjectDetailScreen() {
             )}
           </ScrollView>
         </View>
-      </Modal>
+      )}
 
       <ImageView
         images={photoImages}

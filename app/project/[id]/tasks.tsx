@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../../../components/DatePickerField'
 import PickerWrap from '../../../components/PickerWrap'
@@ -856,22 +857,18 @@ export default function ProjectTasksScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal visible={!!lightboxUrl} transparent animationType="fade" onRequestClose={() => setLightboxUrl(null)}>
-        <Pressable
-          onPress={() => setLightboxUrl(null)}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center', padding: 20 }}
-        >
-          {lightboxUrl && (
-            <Image source={{ uri: lightboxUrl }} style={{ width: '100%', height: '70%', resizeMode: 'contain' }} />
-          )}
-          <Pressable
-            onPress={() => setLightboxUrl(null)}
-            style={{ marginTop: 24, backgroundColor: COLORS.white, paddingHorizontal: 26, paddingVertical: 14, borderRadius: 100, minHeight: TOUCH.minHeight, justifyContent: 'center' }}
-          >
-            <Text style={{ color: COLORS.text, fontWeight: '800', fontSize: TYPE.bodyBold }}>Close</Text>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* A jobsite photo is opened to read something small in it — a label, a
+          serial, which way a fitting runs. A contain-fitted Image cannot be
+          zoomed, so it showed the photo and answered nothing. Same viewer the
+          project gallery uses: pinch and double-tap. */}
+      <ImageView
+        images={lightboxUrl ? [{ uri: lightboxUrl }] : []}
+        imageIndex={0}
+        visible={!!lightboxUrl}
+        onRequestClose={() => setLightboxUrl(null)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+      />
     </SafeAreaView>
   )
 }
