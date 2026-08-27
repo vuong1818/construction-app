@@ -55,6 +55,7 @@ type ManualAck = {
   signed_name: string | null
   signed_at: string | null
   pdf_url: string | null
+  view_token: string | null
   signature_text: string | null
   week_start: string | null
 }
@@ -81,6 +82,7 @@ type MeetingAck = {
   signed_name: string | null
   signed_at: string | null
   pdf_url: string | null
+  view_token: string | null
   signature_text: string | null
   week_start: string | null
 }
@@ -293,7 +295,7 @@ export default function ManagerSafetyScreen() {
   async function loadManualAcks() {
     const { data } = await supabase
       .from('safety_manual_acknowledgements')
-      .select('id, worker_id, signed_name, signed_at, pdf_url, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setManualAcks((data as ManualAck[]) || [])
@@ -311,7 +313,7 @@ export default function ManagerSafetyScreen() {
   async function loadMeetingAcks() {
     const { data } = await supabase
       .from('weekly_meeting_acknowledgements')
-      .select('id, worker_id, signed_name, signed_at, pdf_url, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setMeetingAcks((data as MeetingAck[]) || [])
@@ -718,7 +720,21 @@ export default function ManagerSafetyScreen() {
             </Text>
             <Pressable onPress={() => {
               if (!viewingAck) return
-              const url = `${WEB_BASE}/portal/view-ack?id=${viewingAck.id}&type=${viewingAckType}`
+              // /portal/view-ack is an RLS-scoped PAGE: it reads the row as the
+              // signed-in viewer. Opening it from here hands the link to the
+              // phone's browser, which has no session, so the row comes back
+              // empty and the page says the worker has not signed — for a
+              // signature we are looking at.
+              //
+              // pdf_url is the token route (/api/portal/view-ack?token=…),
+              // written at signing precisely so the document can be opened by
+              // somebody with no session. The token is unguessable; the row id
+              // is sequential and would let anyone walk the table.
+              const url = viewingAck.pdf_url
+                || (viewingAck.view_token
+                      ? `${WEB_BASE}/api/portal/view-ack?token=${viewingAck.view_token}&type=${viewingAckType === 'meeting' ? 'weekly' : 'manual'}`
+                      : null)
+              if (!url) { Alert.alert(t('error'), t('pdfNotAvailable')); return }
               openPdf(url, openLabels)
             }}>
               <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 {t('printAction')}</Text>
