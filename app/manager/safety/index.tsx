@@ -737,7 +737,7 @@ export default function ManagerSafetyScreen() {
               if (!url) { Alert.alert(t('error'), t('pdfNotAvailable')); return }
               openPdf(url, openLabels)
             }}>
-              <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>🖨 {t('printAction')}</Text>
+              <Text style={{ color: C.teal, fontWeight: '700', fontSize: 16 }}>⬇ {t('printAction')}</Text>
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>

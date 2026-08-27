@@ -932,7 +932,7 @@ const es: Record<TranslationKey, string> = {
   trainingVideosHeading: 'Videos de Capacitación',
   meetingSignIn: 'Asistencia a Reunión',
   manualAcknowledgement: 'Reconocimiento del Manual',
-  printAction: 'Imprimir',
+  printAction: 'Guardar como PDF',
   weeklySafetyMeetingSignIn: 'Asistencia a Reunión Semanal de Seguridad',
   safetyManualAckTitle: 'Reconocimiento del Manual de Seguridad',
   workerNameLabel: 'Nombre del Trabajador',

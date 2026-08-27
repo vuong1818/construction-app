@@ -946,7 +946,7 @@ const en = {
   trainingVideosHeading: 'Training Videos',
   meetingSignIn: 'Meeting Sign-In',
   manualAcknowledgement: 'Manual Acknowledgement',
-  printAction: 'Print',
+  printAction: 'Save as PDF',
   weeklySafetyMeetingSignIn: 'Weekly Safety Meeting Sign-In',
   safetyManualAckTitle: 'Safety Manual Acknowledgement',
   workerNameLabel: 'Worker Name',
