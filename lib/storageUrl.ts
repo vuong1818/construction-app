@@ -65,31 +65,45 @@ export async function signedUrl(
   value?: string | null,
   opts?: { expiresIn?: number; ownerOrg?: string | null },
 ): Promise<string | null> {
-  const path = withOwnerOrg(objectPath(value), opts?.ownerOrg)
-  if (!path) return null
+  const bare = objectPath(value)
+  if (!bare) return null
   // A stored url naming its own bucket wins over the caller's guess: the row
   // knows where its file lives.
   const b = bucketOf(value) || bucket
   if (!b) return null
 
   const expiresIn = opts?.expiresIn ?? DEFAULT_TTL
-  // Already whole when ownerOrg was supplied; otherwise storageOrgScope adds
-  // our own org on the way through.
-  const full = path
-  const key = `${b}|${full}`
+
+  // On a SHARED project a file may sit under either company's prefix, because
+  // storageOrgScope stamps the org of whoever uploaded it: the owner's plans
+  // under theirs, the sub's report photos under the sub's, on the same job. So
+  // there is no single right answer to guess — try the owning company first,
+  // then let the wrapper prefix our own.
+  //
+  // The fallback is what makes a sub's own uploads visible to them again: with
+  // only the first candidate they asked for a copy under the GC's folder that
+  // was never written there, and every image hung.
+  const candidates = Array.from(new Set(
+    [withOwnerOrg(bare, opts?.ownerOrg), bare].filter(Boolean) as string[],
+  ))
+
+  const key = `${b}|${bare}|${opts?.ownerOrg || ''}`
   const hit = cache.get(key)
   if (hit && hit.expiresAt - Date.now() > 60_000) return hit.url
 
-  const { data, error } = await supabase.storage.from(b).createSignedUrl(full, expiresIn)
-  if (error || !data?.signedUrl) {
-    // Deliberately no fall back to getPublicUrl: that is the thing being
-    // removed, and quietly serving a public url would undo the fix while
-    // looking like it worked.
-    cache.delete(key)
-    return null
+  for (const full of candidates) {
+    const { data, error } = await supabase.storage.from(b).createSignedUrl(full, expiresIn)
+    if (!error && data?.signedUrl) {
+      cache.set(key, { url: data.signedUrl, expiresAt: Date.now() + expiresIn * 1000 })
+      return data.signedUrl
+    }
   }
-  cache.set(key, { url: data.signedUrl, expiresAt: Date.now() + expiresIn * 1000 })
-  return data.signedUrl
+
+  // Deliberately no fall back to getPublicUrl: that is the thing being removed,
+  // and quietly serving a public url would undo the fix while looking like it
+  // worked.
+  cache.delete(key)
+  return null
 }
 
 /** Sign many at once, preserving order. */
