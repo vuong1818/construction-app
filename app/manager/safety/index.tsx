@@ -51,6 +51,7 @@ type ManualDoc = {
 
 type ManualAck = {
   id: number
+  worker_id: string
   signed_name: string | null
   signed_at: string | null
   pdf_url: string | null
@@ -76,6 +77,7 @@ type WeeklyTopic = {
 
 type MeetingAck = {
   id: number
+  worker_id: string
   signed_name: string | null
   signed_at: string | null
   pdf_url: string | null
@@ -291,7 +293,7 @@ export default function ManagerSafetyScreen() {
   async function loadManualAcks() {
     const { data } = await supabase
       .from('safety_manual_acknowledgements')
-      .select('id, signed_name, signed_at, pdf_url, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, signature_text, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setManualAcks((data as ManualAck[]) || [])
@@ -309,7 +311,7 @@ export default function ManagerSafetyScreen() {
   async function loadMeetingAcks() {
     const { data } = await supabase
       .from('weekly_meeting_acknowledgements')
-      .select('id, signed_name, signed_at, pdf_url, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, signature_text, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setMeetingAcks((data as MeetingAck[]) || [])
@@ -468,41 +470,53 @@ export default function ManagerSafetyScreen() {
     openPdf(url, openLabels)
   }
 
-  async function deleteManualAck(ack: ManualAck) {
+  // One worker, one signature for the week. The manual and the weekly topic are
+  // a single combined document, and signing it writes BOTH tables — so listing
+  // the tables separately showed every worker twice and offered two Remove
+  // buttons for a thing that cannot half-exist. Matches the web, which was
+  // fixed for the same reason.
+  const signedThisWeek = (() => {
+    const byWorker = new Map<string, { name: string | null; signedAt: string | null; meeting?: MeetingAck; manual?: ManualAck }>()
+    for (const a of meetingAcks) {
+      byWorker.set(a.worker_id, { name: a.signed_name, signedAt: a.signed_at, meeting: a })
+    }
+    for (const a of manualAcks) {
+      const cur = byWorker.get(a.worker_id)
+      if (cur) cur.manual = a
+      else byWorker.set(a.worker_id, { name: a.signed_name, signedAt: a.signed_at, manual: a })
+    }
+    return [...byWorker.entries()].map(([worker_id, v]) => ({ worker_id, ...v }))
+  })()
+
+  // Removing it removes BOTH rows: they are two records of one act, and taking
+  // away half would leave the worker looking partly signed for a document that
+  // does not come in halves.
+  async function deleteCombinedAck(entry: { name: string | null; meeting?: MeetingAck; manual?: ManualAck }) {
     Alert.alert(
       t('deleteAcknowledgement'),
-      t('deleteAckConfirm', { name: ack.signed_name || t('thisWorker') }),
+      t('deleteAckConfirm', { name: entry.name || t('thisWorker') }),
       [
         { text: t('cancel'), style: 'cancel' },
         {
           text: t('delete'), style: 'destructive',
           onPress: async () => {
-            const { error } = await supabase.from('safety_manual_acknowledgements').delete().eq('id', ack.id)
-            if (error) { Alert.alert(t('error'), error.message); return }
-            setManualAcks(prev => prev.filter(a => a.id !== ack.id))
+            if (entry.meeting) {
+              const { error } = await supabase.from('weekly_meeting_acknowledgements').delete().eq('id', entry.meeting.id)
+              if (error) { Alert.alert(t('error'), error.message); return }
+            }
+            if (entry.manual) {
+              const { error } = await supabase.from('safety_manual_acknowledgements').delete().eq('id', entry.manual.id)
+              if (error) { Alert.alert(t('error'), error.message); return }
+            }
+            if (entry.meeting) setMeetingAcks(prev => prev.filter(a => a.id !== entry.meeting!.id))
+            if (entry.manual) setManualAcks(prev => prev.filter(a => a.id !== entry.manual!.id))
           },
         },
       ]
     )
   }
 
-  async function deleteMeetingAck(ack: MeetingAck) {
-    Alert.alert(
-      t('deleteSignIn'),
-      t('deleteSignInConfirm', { name: ack.signed_name || t('thisWorker') }),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('delete'), style: 'destructive',
-          onPress: async () => {
-            const { error } = await supabase.from('weekly_meeting_acknowledgements').delete().eq('id', ack.id)
-            if (error) { Alert.alert(t('error'), error.message); return }
-            setMeetingAcks(prev => prev.filter(a => a.id !== ack.id))
-          },
-        },
-      ]
-    )
-  }
+
 
   // --- Render ---
   if (loading) {
@@ -531,7 +545,7 @@ export default function ManagerSafetyScreen() {
         <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <SectionHeader title={t('safetyManualSection')} subtitle={t('currentCompanySafetyManual')} />
-            <CountBadge count={manualAcks.length} total={workerCount} />
+            <CountBadge count={signedThisWeek.length} total={workerCount} />
           </View>
 
           {manual ? (
@@ -569,39 +583,15 @@ export default function ManagerSafetyScreen() {
             </Text>
           </Pressable>
 
-          {manualAcks.length > 0 ? (
-            <>
-              <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 10 }}>
-                {t('signedThisWeekCount', { count: manualAcks.length })}
-              </Text>
-              {manualAcks.map(ack => (
-                <AckCard
-                  key={ack.id}
-                  name={ack.signed_name}
-                  signedAt={ack.signed_at}
-                  pdfUrl="yes"
-                  onView={() => { setViewingAck(ack); setViewingAckType('manual') }}
-                  onDelete={() => deleteManualAck(ack)}
-                  unknownWorkerLabel={t('unknownWorker')}
-                  signedPrefix={t('signed')}
-                  signedBadge={t('signed')}
-                  viewSignedPdfLabel={t('viewSignedPdf')}
-                  pdfNotAvailableLabel={t('pdfNotAvailable')}
-                />
-              ))}
-            </>
-          ) : (
-            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-              <Text style={{ color: C.sub, fontSize: 14 }}>{t('noSignaturesThisWeek')}</Text>
-            </View>
-          )}
+          {/* The signatures are listed once, under the weekly meeting below,
+              because one signature covers this manual AND that week's topic. */}
         </View>
 
         {/* SECTION 2 - WEEKLY MEETING */}
         <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <SectionHeader title={t('weeklyMeetingSection')} subtitle={t('safetyTopicWeekOf', { weekStart })} />
-            <CountBadge count={meetingAcks.length} total={workerCount} />
+            <CountBadge count={signedThisWeek.length} total={workerCount} />
           </View>
 
           {topic ? (
@@ -644,19 +634,25 @@ export default function ManagerSafetyScreen() {
             </Text>
           </Pressable>
 
-          {meetingAcks.length > 0 ? (
+          {signedThisWeek.length > 0 ? (
             <>
               <Text style={{ color: C.navy, fontWeight: '800', fontSize: 15, marginBottom: 10 }}>
-                {t('signedInThisWeekCount', { count: meetingAcks.length })}
+                {t('signedInThisWeekCount', { count: signedThisWeek.length })}
               </Text>
-              {meetingAcks.map(ack => (
+              {signedThisWeek.map(entry => (
                 <AckCard
-                  key={ack.id}
-                  name={ack.signed_name}
-                  signedAt={ack.signed_at}
+                  key={entry.worker_id}
+                  name={entry.name}
+                  signedAt={entry.signedAt}
                   pdfUrl="yes"
-                  onView={() => { setViewingAck(ack); setViewingAckType('meeting') }}
-                  onDelete={() => deleteMeetingAck(ack)}
+                  // The meeting row carries the COMBINED document — manual as
+                  // part one, the topic as part two. The manual row is the
+                  // fallback for anything signed before the two were joined.
+                  onView={() => {
+                    if (entry.meeting) { setViewingAck(entry.meeting); setViewingAckType('meeting') }
+                    else if (entry.manual) { setViewingAck(entry.manual); setViewingAckType('manual') }
+                  }}
+                  onDelete={() => deleteCombinedAck(entry)}
                   unknownWorkerLabel={t('unknownWorker')}
                   signedPrefix={t('signed')}
                   signedBadge={t('signed')}

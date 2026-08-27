@@ -38,7 +38,12 @@ export default function SafetyScreen() {
   const [manualUrl, setManualUrl] = useState<string | null>(null);
 
   const isWorker = profile?.role === 'worker';
-  const fullyCompliant = manualSigned && meetingSigned;
+  // ONE signature covers both. The manual and the weekly topic are a single
+  // combined document — signing the meeting already writes the manual
+  // acknowledgement too — so requiring both here meant a worker who signed was
+  // still shown a red light and asked to sign again. Same rule the web uses:
+  // it cannot half-exist.
+  const fullyCompliant = manualSigned || meetingSigned;
 
   // Reload every time the screen regains focus (e.g. returning from the weekly
   // meeting screen after signing) so the status pills reflect the new ack.

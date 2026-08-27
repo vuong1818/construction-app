@@ -464,6 +464,41 @@ export default function SafetyManualScreen() {
         .update({ pdf_url: pdfUrl })
         .eq('id', ackData.id);
 
+      // The meeting screen has always recorded BOTH — one signature covering the
+      // combined document. This one recorded only the manual, so signing here
+      // left the week looking half-done and asked for a second signature for
+      // something already signed. Mirrored, so it does not matter which way in
+      // somebody takes.
+      try {
+        const weekStartForMeeting = upsertPayload.week_start;
+        const { data: topicRow } = await supabase
+          .from('weekly_safety_topics')
+          .select('id')
+          .eq('week_start', weekStartForMeeting)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (topicRow?.id) {
+          await supabase
+            .from('weekly_meeting_acknowledgements')
+            .upsert(
+              {
+                worker_id:      user.id,
+                topic_id:       topicRow.id,
+                week_start:     weekStartForMeeting,
+                signed_name:    upsertPayload.signed_name,
+                signature_text: upsertPayload.signature_text,
+                signed_at:      upsertPayload.signed_at,
+                pdf_url:        pdfUrl,
+              },
+              { onConflict: 'worker_id,topic_id,week_start' }
+            );
+        }
+      } catch (e) {
+        // The manual acknowledgement is saved either way; this only mirrors it.
+        console.warn('Could not mirror the meeting acknowledgement:', e);
+      }
+
       setAlreadySigned(true);
       closeSignModal();
 

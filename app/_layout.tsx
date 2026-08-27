@@ -63,12 +63,28 @@ export default function RootLayout() {
       <Stack.Screen name="project/[id]"                   options={{ title: 'Project' }} />
       <Stack.Screen name="project/[id]/new-report"        options={{ title: 'New Daily Report' }} />
       <Stack.Screen name="project/[id]/report/[reportId]" options={{ title: 'Daily Report' }} />
+      {/* Without an entry here expo-router falls back to the ROUTE as the title,
+          so these screens were headed "project/[id]/job-kit". Every one of them
+          is reached from inside a project, so each says which project thing it
+          is rather than repeating the job's name. */}
+      <Stack.Screen name="project/[id]/job-kit"           options={{ title: 'Project Tasks' }} />
+      <Stack.Screen name="project/[id]/rfis"              options={{ title: 'Project RFIs' }} />
+      <Stack.Screen name="project/[id]/expenses"          options={{ title: 'Project Expenses' }} />
+      <Stack.Screen name="project/[id]/material-requests" options={{ title: 'Project Material Requests' }} />
+      <Stack.Screen name="project/[id]/inspections"       options={{ title: 'Project Inspections' }} />
+      <Stack.Screen name="project/[id]/tasks"             options={{ title: 'Project Schedule' }} />
+      <Stack.Screen name="project/[id]/edit"              options={{ title: 'Edit Project' }} />
+      <Stack.Screen name="equipment"                      options={{ title: 'Tools & Equipment' }} />
 
       <Stack.Screen name="manager/workers"    options={{ title: 'Workers' }} />
       {/* The screen is the weekly payroll run — hours, receipts, mileage and what
           each worker is owed. "Time Clock" described only the first column. */}
       <Stack.Screen name="manager/time-clock" options={{ title: 'Payroll' }} />
       <Stack.Screen name="manager/reports"    options={{ title: 'Reports' }} />
+      <Stack.Screen name="manager/finance"          options={{ title: 'Company Finance' }} />
+      <Stack.Screen name="manager/company"          options={{ title: 'Company Information' }} />
+      <Stack.Screen name="manager/settings/index"   options={{ title: 'Company Settings' }} />
+      <Stack.Screen name="manager/safety/index"     options={{ title: 'Safety Compliance' }} />
 
       <Stack.Screen name="smart-tools/index"      options={{ title: 'Smart Tools' }} />
       <Stack.Screen name="smart-tools/electrical"  options={{ title: 'Electrical Tools' }} />
