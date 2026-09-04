@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
-import { effectiveWage } from '../../lib/payrollWage'
+import { entryWage } from '../../lib/payrollWage'
 import { isManagerRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
@@ -432,7 +432,7 @@ export default function ManagerTimeClockScreen() {
       const [entriesResult, profilesResult, adjustmentsResult, travelResult, settingsResult, reimbResult, projectsResult] = await Promise.all([
         supabase
           .from('time_entries')
-          .select('id, project_id, user_id, user_name, clock_in_time, clock_out_time, receipts_amount, created_at')
+          .select('id, project_id, user_id, user_name, clock_in_time, clock_out_time, receipts_amount, wage_override, created_at')
           .gte('clock_in_time', weekStart.toISOString())
           .lte('clock_in_time', weekEnd.toISOString())
           .order('clock_in_time', { ascending: false }),
@@ -543,7 +543,9 @@ export default function ManagerTimeClockScreen() {
       // worker's oos_wage. Summing hours first and multiplying once would
       // pay every hour at whichever rate happened to win.
       const projectState = entry.project_id != null ? stateByProject.get(entry.project_id) : null
-      groupedHours[entry.user_id].entryLabor += hours * effectiveWage(profileById.get(entry.user_id) || null, { projectState, companyState })
+      // A shift priced by hand on the web pays that rate here too, or the phone
+      // and the portal hand the same worker two different checks.
+      groupedHours[entry.user_id].entryLabor += hours * entryWage(entry as any, profileById.get(entry.user_id) || null, { projectState, companyState })
     }
 
     // Out-of-pocket expenses, summed per worker who submitted them.

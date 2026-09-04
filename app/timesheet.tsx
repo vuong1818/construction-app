@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
 import { SkeletonList } from '../components/SkeletonCard'
 import { thresholdApplies } from '../components/TravelCard'
-import { effectiveWage } from '../lib/payrollWage'
+import { entryWage } from '../lib/payrollWage'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -189,7 +189,7 @@ export default function TimesheetScreen() {
       const end = e.clock_out_time ? new Date(e.clock_out_time).getTime() : Date.now()
       const hours = Math.max(0, end - start) / 3_600_000
       const projectState = e.project_id != null ? projects[e.project_id]?.state : null
-      return sum + hours * effectiveWage({ wage, oos_wage: oosWage }, { projectState, companyState })
+      return sum + hours * entryWage(e as any, { wage, oos_wage: oosWage }, { projectState, companyState })
     }, 0)
     // Gas is not a pay category — mileage covers your own fuel, and gas for
     // equipment books as a company expense.
