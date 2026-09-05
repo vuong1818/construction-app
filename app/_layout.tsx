@@ -1,5 +1,7 @@
+import Constants from 'expo-constants'
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
+import { Platform } from 'react-native'
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context'
 import { LanguageProvider } from '../lib/i18n'
 import { initCrashReporting, setCrashUser } from '../lib/crashReporting'
@@ -15,6 +17,32 @@ installGlobalErrorLogger()
 // inert on any binary built before the native module existed.
 initCrashReporting()
 
+// Tell the office this phone is alive and what it is running. Crew → Workers
+// on the web reads it: auth records a sign-in, but a mobile session lasts
+// months, so "last signed in" reports a daily user as absent since March. This
+// is also the only moment the running build is known — which is how you tell
+// whether an OTA has actually reached somebody's phone.
+//
+// Fire and forget. A phone that cannot report itself must still work.
+function stampAppSession() {
+  const version = Constants.expoConfig?.version ?? null
+  const build = Platform.select({
+    ios: Constants.expoConfig?.ios?.buildNumber,
+    android:
+      Constants.expoConfig?.android?.versionCode != null
+        ? String(Constants.expoConfig.android.versionCode)
+        : undefined,
+    default: undefined,
+  })
+  supabase
+    .rpc('record_app_session', {
+      p_platform: Platform.OS,
+      p_app_version: version,
+      p_build: build ?? null,
+    })
+    .then(() => {}, () => {})
+}
+
 export default function RootLayout() {
   // Global auth listener — redirect to sign-in if session expires or token refresh fails
   useEffect(() => {
@@ -27,6 +55,16 @@ export default function RootLayout() {
         // copy the customer's directory.
         setCrashUser(session.user.id)
       }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Once per app start, and again on a fresh sign-in. Not on every token
+  // refresh: the row is "what are they on", not a log of every wake-up.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => { if (data.session) stampAppSession() })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') stampAppSession()
     })
     return () => subscription.unsubscribe()
   }, [])
