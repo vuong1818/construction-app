@@ -374,9 +374,24 @@ export default function HomeScreen() {
     }
 
     if (!manualAcknowledged || !meetingAcknowledged) {
+      // Refusing is only half the job. Say which one is missing and offer the
+      // screen that fixes it — a worker standing at a gate at 6am should be two
+      // taps from clocking in, not hunting through a menu for the right page.
+      const missingManual = !manualAcknowledged
+      const buttons: any[] = [{ text: t(language, 'cancel'), style: 'cancel' }]
+      if (missingManual) {
+        buttons.push({ text: t(language, 'signSafetyManualBtn'), onPress: () => router.push('/safety-manual') })
+      } else {
+        buttons.push({ text: t(language, 'weeklySafetySignIn'), onPress: () => router.push('/weekly-safety-meeting' as any) })
+      }
       Alert.alert(
         t(language, 'safetyAcknowledgmentRequired'),
-        t(language, 'safetyAcknowledgmentRequiredMessage')
+        missingManual && !meetingAcknowledged
+          ? t(language, 'safetyAcknowledgmentRequiredMessage')
+          : missingManual
+            ? t(language, 'safetyManualUnsigned')
+            : t(language, 'safetyMeetingUnsigned'),
+        buttons,
       )
       return
     }

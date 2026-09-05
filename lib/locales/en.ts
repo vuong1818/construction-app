@@ -2010,6 +2010,10 @@ const en = {
   notContractorManager: 'This screen is for contractor managers — the person who keeps their own company’s hours.',
   crewHoursCard: 'My Crew’s Hours',
   crewHoursCardSubtitle: 'Add, correct and delete your crew’s time',
+
+  // Which acknowledgement is missing, said one at a time.
+  safetyManualUnsigned: 'The safety manual is unsigned. Sign it and you can clock in.',
+  safetyMeetingUnsigned: 'This week’s safety meeting is unsigned. Sign in to it and you can clock in.',
 } as const
 
 export default en

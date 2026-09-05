@@ -1993,6 +1993,10 @@ const es: Record<TranslationKey, string> = {
   notContractorManager: 'Esta pantalla es para gerentes de contratista — quien lleva las horas de su propia compañía.',
   crewHoursCard: 'Horas de mi cuadrilla',
   crewHoursCardSubtitle: 'Agregue, corrija y elimine el tiempo de su cuadrilla',
+
+  // Which acknowledgement is missing, said one at a time.
+  safetyManualUnsigned: 'El manual de seguridad no está firmado. Fírmelo y podrá fichar.',
+  safetyMeetingUnsigned: 'La reunión de seguridad de esta semana no está firmada. Regístrese y podrá fichar.',
 }
 
 export default es
