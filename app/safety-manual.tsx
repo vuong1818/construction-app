@@ -7,13 +7,28 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+
+// How to point a WebView at a PDF.
+//
+// iOS renders one natively, so it gets the file. Android does not, and needs
+// Google's viewer — which has to fetch the url itself, so it only works for a
+// link Google can reach. A private signed link (ours, expiring, single-use in
+// practice) is not one of those, and pointing gview at it is what left the
+// safety manual as a blank white page on Android phones.
+function pdfViewerUri(url: string): string {
+  const isPrivate = /\/storage\/v1\/object\/(sign|authenticated)\//.test(url) || /[?&]token=/.test(url);
+  if (Platform.OS === 'ios' || isPrivate) return url;
+  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`;
+}
 import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
@@ -290,6 +305,7 @@ export default function SafetyManualScreen() {
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
   const [manual, setManual]             = useState<ManualDoc | null>(null);
+  const [viewerFailed, setViewerFailed]  = useState(false);
   // Google's viewer fetches the pdf from its own servers, which is exactly
   // what a signed url is for. Two hours, so a manual left open mid-read does
   // not expire under the worker.
@@ -547,18 +563,36 @@ export default function SafetyManualScreen() {
       </View>
 
       {/* Document viewer:
-          1. If the manager uploaded a PDF, show that (Google Docs viewer for inline PDF rendering).
-          2. Otherwise fall back to the embedded English+Spanish acknowledgment HTML so workers can still sign. */}
+          1. If there is a PDF, show it.
+          2. Otherwise the embedded English+Spanish acknowledgment, so a worker
+             with no uploaded manual can still read and sign something.
+
+          iOS renders a PDF in a WebView natively, so it gets the url itself.
+          Android does not, and needs Google's viewer to rasterise it — but
+          Google has to FETCH the url to do that, which it cannot do for a
+          private signed link that expires. So: gview only for links Google can
+          actually reach, the file itself otherwise, and an "open outside the
+          app" button underneath either way, because a PDF that will not render
+          inline must still be readable. */}
       <View style={s.docViewerWrap}>
         {manualPdfUrl ? (
+          <>
           <WebView
-            source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(manualPdfUrl)}` }}
+            source={{ uri: pdfViewerUri(manualPdfUrl) }}
             style={s.docViewer}
             scrollEnabled
             originWhitelist={['*']}
             showsVerticalScrollIndicator
             startInLoadingState
+            onError={() => setViewerFailed(true)}
+            onHttpError={() => setViewerFailed(true)}
           />
+          <TouchableOpacity onPress={() => Linking.openURL(manualPdfUrl)} style={s.openOutside}>
+            <Text style={s.openOutsideText}>
+              {viewerFailed ? '⚠ Could not display it here — open the manual ↗' : 'Open the manual outside the app ↗'}
+            </Text>
+          </TouchableOpacity>
+          </>
         ) : (
           <WebView
             source={{ html: buildDocumentHtml(companyName) }}
@@ -681,6 +715,8 @@ const s = StyleSheet.create({
   // Inline document viewer
   docViewerWrap: { flex: 1, margin: 12, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#fff' },
   docViewer:     { flex: 1, backgroundColor: '#fff' },
+  openOutside: { paddingVertical: 10, alignItems: 'center' },
+  openOutsideText: { color: '#00B4D8', fontWeight: '700', fontSize: 13 },
 
   bottomBar:   { padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: '#e6e8ec', backgroundColor: '#fff', gap: 10 },
   signButton:  { backgroundColor: '#16356B', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },

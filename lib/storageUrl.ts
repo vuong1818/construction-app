@@ -15,6 +15,21 @@ import { supabase } from './supabase'
 
 const OBJECT_RE = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/?]+)\/(.+?)(?:\?|$)/
 
+/**
+ * A link to somebody else's server is already the answer.
+ *
+ * Several columns hold whichever url the office pasted in, and for safety
+ * documents that is routinely an OSHA booklet on osha.gov. Signing one asks
+ * storage for an object literally named "https://www.osha.gov/…", which does
+ * not exist — so the caller got null and the screen rendered nothing at all.
+ * That is why the safety manual opened blank on the phone while the web, which
+ * links straight out, was fine.
+ */
+export function isExternalUrl(value?: string | null): boolean {
+  const s = String(value ?? '').trim()
+  return /^https?:\/\//i.test(s) && !OBJECT_RE.test(s)
+}
+
 /** Normalise a stored value to the object's path within its bucket. */
 export function objectPath(value?: string | null): string | null {
   if (!value) return null
@@ -65,6 +80,9 @@ export async function signedUrl(
   value?: string | null,
   opts?: { expiresIn?: number; ownerOrg?: string | null },
 ): Promise<string | null> {
+  // Not ours to sign: hand it back exactly as stored.
+  if (isExternalUrl(value)) return String(value).trim()
+
   const bare = objectPath(value)
   if (!bare) return null
   // A stored url naming its own bucket wins over the caller's guess: the row
@@ -138,6 +156,7 @@ export function useSignedUrl(
   // stopped there, which covered the code that calls it directly and missed
   // every component that renders through this hook.
   const ownerOrg = opts?.ownerOrg ?? null
+  const external = isExternalUrl(value)
   const path = withOwnerOrg(objectPath(value), ownerOrg)
   const key = path ? `${bucketOf(value) || bucket}|${path}` : null
 
@@ -150,5 +169,6 @@ export function useSignedUrl(
     return () => { alive = false }
   }, [bucket, value, expiresIn, ownerOrg, key])
 
+  if (external) return String(value).trim()
   return key && state.key === key ? state.url : null
 }
