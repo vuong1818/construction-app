@@ -256,7 +256,7 @@ export default function HomeScreen() {
 
       const profileResult = await supabase
         .from('profiles')
-        .select('full_name, role, wage')
+        .select('full_name, role, wage, org_id')
         .eq('id', currentUserId)
         .maybeSingle()
 
@@ -266,10 +266,23 @@ export default function HomeScreen() {
         setProfile({ full_name: null, role: null, wage: null })
       }
 
-      const projectsResult = await supabase
+      // Our own company's jobs only.
+      //
+      // A jobsite shared with us by another company is visible here — that is
+      // the point of sharing — but you cannot clock into it: hours belong to
+      // the company that pays them, and the database refuses a time entry whose
+      // project belongs to somebody else ("That project belongs to another
+      // company"). We hold our own linked copy of every shared job, which is
+      // the row that must be picked, so offering the other company's row was
+      // offering a duplicate that fails every time it is chosen. 43 of those in
+      // the error log before anybody said anything.
+      const myOrg = (profileResult.data as any)?.org_id ?? null
+      let projectsQuery = supabase
         .from('projects')
         .select('*')
         .eq('status', 'active') // field app shows only active projects
+      if (myOrg) projectsQuery = projectsQuery.eq('org_id', myOrg)
+      const projectsResult = await projectsQuery
         .order('created_at', { ascending: false })
 
       if (projectsResult.error) throw projectsResult.error

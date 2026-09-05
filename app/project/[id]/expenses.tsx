@@ -295,15 +295,18 @@ export default function ProjectExpensesScreen() {
         receiptPath = uploaded.path
       }
 
-      // If the typed vendor isn't in the active list, add it so it
-      // shows up in the dropdown for next time. Best-effort — failure
-      // here doesn't block saving the expense itself.
+      // If the typed vendor isn't in the active list, add it so it shows up in
+      // the dropdown for next time. Managers only: the vendor directory is
+      // manager-curated and RLS says so, and a worker's attempt was refused
+      // every single time — silently for them, but as a 403 in the error log
+      // each receipt, which is how it was found. The expense keeps the vendor
+      // name it was typed with either way; only the directory misses out.
       const typedVendor = form.vendor.trim()
-      if (typedVendor && !activeVendors.find(v => v.name.toLowerCase() === typedVendor.toLowerCase())) {
+      if (isManager && typedVendor && !activeVendors.find(v => v.name.toLowerCase() === typedVendor.toLowerCase())) {
         try {
           await supabase.from('vendors').insert({ name: typedVendor })
         } catch {
-          /* ignore — RLS or duplicate is fine */
+          /* ignore — a duplicate is fine */
         }
       }
 
