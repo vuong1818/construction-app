@@ -118,6 +118,7 @@ export default function RootLayout() {
       {/* The screen is the weekly payroll run — hours, receipts, mileage and what
           each worker is owed. "Time Clock" described only the first column. */}
       <Stack.Screen name="manager/time-clock" options={{ title: 'Payroll' }} />
+      <Stack.Screen name="contractor/crew-hours" options={{ title: 'Crew Hours' }} />
       <Stack.Screen name="manager/reports"    options={{ title: 'Reports' }} />
       <Stack.Screen name="manager/finance"          options={{ title: 'Company Finance' }} />
       <Stack.Screen name="manager/company"          options={{ title: 'Company Information' }} />

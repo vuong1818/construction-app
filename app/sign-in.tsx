@@ -91,7 +91,24 @@ export default function SignInScreen() {
       })
 
       if (error) {
-        Alert.alert(t('loginError'), error.message)
+        // Anybody can install this app now — the iOS link is a public TestFlight
+        // invite and the Android APK is a public download — so "sign in failed"
+        // is just as likely to mean "this email was never added to a company" as
+        // "wrong password". Supabase deliberately will not say which, so the
+        // message has to cover both without implying the account exists.
+        const credentials = /invalid login credentials/i.test(error.message || '')
+        if (credentials) {
+          Alert.alert(
+            'Cannot sign in',
+            'Check your password.\n\n' +
+            'If you have never been invited: this app signs you in against your ' +
+            "company's crew list. Ask whoever runs SiteOfficeIQ at your company to " +
+            'add you under Crew → Workers, and you will get an email invitation.\n\n' +
+            'Bringing your own company? Start an account at siteofficeiq.com.',
+          )
+        } else {
+          Alert.alert(t('loginError'), error.message)
+        }
         return
       }
 

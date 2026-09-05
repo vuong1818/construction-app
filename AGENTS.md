@@ -24,6 +24,28 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
    four days stale — so Android was uploading to unprefixed paths the database
    now refused. iOS was fine throughout, which is exactly what makes this kind
    of drift hard to spot.
+4. **Then record the release, or the download page lies** — standing
+   authorization (2026-09-05):
+
+   ```
+   cd E:/Websites/GitHub/nguyenmep-website
+   node scripts/record-release.mjs --platform all --kind ota --version <app.json version> --notes "<recap>"
+   ```
+
+   siteofficeiq.com/download reads `app_releases`, not an environment variable,
+   and that table is only as truthful as the last thing that wrote to it. It
+   went three weeks stale because nothing did.
+
+   After an EAS **build** (not an OTA), record the binary instead — Android with
+   the APK link uploaded to the public siteofficeiq-releases repo, iOS with the
+   PUBLIC TestFlight invite link for that build, so somebody can install without
+   being added as a tester by hand:
+
+   ```
+   node scripts/record-release.mjs --platform android --kind build --version 1.1.0 --build 3 --url <apk url>
+   node scripts/record-release.mjs --platform ios --kind build --version 1.1.0 --build 3 --url https://testflight.apple.com/join/XXXXXXXX
+   ```
+
    - **Skip OTA and note a rebuild is needed** when the change is NOT JS-only: a new/updated native dependency, an `app.json` plugin/native-config change, or a `runtimeVersion` bump. OTA can't deliver native changes.
 
 ### Sentry / EXPO_PUBLIC_SENTRY_DSN — the one that can brick the fleet

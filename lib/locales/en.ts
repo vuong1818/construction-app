@@ -1991,6 +1991,25 @@ const en = {
   matReqCancel: 'Cancel request',
   inventory: 'Inventory',
   inventorySub: 'What we have on the shelf',
+
+  // ── Contractor manager: their own company's crew hours ──
+  crewHours: 'Crew Hours',
+  addShift: 'Add shift',
+  editShift: 'Edit shift',
+  job: 'Job',
+  startTime: 'Start',
+  endTime: 'End',
+  hoursLabel: 'Hours',
+  noCrewYet: 'Nobody works for your company yet. The office adds your crew under Crew → Workers.',
+  noHourlyJobs: 'Your company is not on any job by the hour yet. Lump-sum jobs are a price — nobody clocks into them.',
+  noShiftsThisWeek: 'No shifts this week.',
+  deleteShift: 'Delete shift',
+  deleteShiftConfirm: 'Delete this shift? The hours come off this week.',
+  pickWorker: 'Pick the worker.',
+  pickJob: 'Pick the job.',
+  notContractorManager: 'This screen is for contractor managers — the person who keeps their own company’s hours.',
+  crewHoursCard: 'My Crew’s Hours',
+  crewHoursCardSubtitle: 'Add, correct and delete your crew’s time',
 } as const
 
 export default en

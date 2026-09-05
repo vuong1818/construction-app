@@ -1974,6 +1974,25 @@ const es: Record<TranslationKey, string> = {
   matReqCancel: 'Cancelar solicitud',
   inventory: 'Inventario',
   inventorySub: 'Lo que hay en el almacén',
+
+  // ── Contractor manager: their own company's crew hours ──
+  crewHours: 'Horas de la cuadrilla',
+  addShift: 'Agregar turno',
+  editShift: 'Editar turno',
+  job: 'Obra',
+  startTime: 'Entrada',
+  endTime: 'Salida',
+  hoursLabel: 'Horas',
+  noCrewYet: 'Todavía nadie trabaja para su compañía. La oficina agrega su cuadrilla en Crew → Workers.',
+  noHourlyJobs: 'Su compañía todavía no está por hora en ninguna obra. Las obras a precio alzado son un precio — nadie marca entrada en ellas.',
+  noShiftsThisWeek: 'Sin turnos esta semana.',
+  deleteShift: 'Eliminar turno',
+  deleteShiftConfirm: '¿Eliminar este turno? Las horas se descuentan de esta semana.',
+  pickWorker: 'Elija al trabajador.',
+  pickJob: 'Elija la obra.',
+  notContractorManager: 'Esta pantalla es para gerentes de contratista — quien lleva las horas de su propia compañía.',
+  crewHoursCard: 'Horas de mi cuadrilla',
+  crewHoursCardSubtitle: 'Agregue, corrija y elimine el tiempo de su cuadrilla',
 }
 
 export default es

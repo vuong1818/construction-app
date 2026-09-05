@@ -1016,6 +1016,47 @@ export default function HomeScreen() {
             photo. It never clocks anyone in or out. */}
         <TravelCard userName={profile?.full_name ?? null} language={language} />
 
+        {/* The person who runs a contractor company keeps their own crew's
+            hours. Only they see this card, and the database agrees: they can
+            reach nobody else's time. */}
+        {profile?.role === 'contractor_manager' && (
+          <Pressable
+            onPress={() => router.push('/contractor/crew-hours' as any)}
+            style={{
+              backgroundColor: COLORS.card,
+              borderRadius: 24,
+              paddingVertical: 18,
+              paddingHorizontal: 18,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 16,
+              marginBottom: 14,
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 18,
+                backgroundColor: COLORS.navySoft,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="account-clock-outline" size={30} color={COLORS.navy} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.text, fontSize: 17, fontWeight: '800' }}>
+                {t(language, 'crewHoursCard')}
+              </Text>
+              <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }}>
+                {t(language, 'crewHoursCardSubtitle')}
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={26} color={COLORS.subtext} />
+          </Pressable>
+        )}
+
         <Pressable
           onPress={() => router.push('/my-schedule' as any)}
           style={{
