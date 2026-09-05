@@ -46,6 +46,29 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
    node scripts/record-release.mjs --platform ios --kind build --version 1.1.0 --build 3 --url https://testflight.apple.com/join/XXXXXXXX
    ```
 
+## Builds go out in pairs — standing rule (2026-09-05)
+
+**Any EAS build builds BOTH platforms, at the same version and the same build
+number.** Never iOS alone, never Android alone.
+
+```
+# bump "version" (and ios.buildNumber / android.versionCode) in app.json first
+npx eas build --platform all --profile production --non-interactive
+```
+
+Two platforms drifting apart is how the field ends up with one crew on 1.1.0
+and another on 1.0.0 running different rules against the same database, and how
+a bug report becomes unanswerable because nobody knows which build the phone is
+on. Matching numbers make "what are you running" a question with one answer.
+
+The same rule applies to recording them: record both, with the same version and
+build, or the download page starts describing two different apps.
+
+```
+node scripts/record-release.mjs --platform android --kind build --version 1.2.0 --build 3 --url <apk url>
+node scripts/record-release.mjs --platform ios     --kind build --version 1.2.0 --build 3 --url <testflight join link>
+```
+
    - **Skip OTA and note a rebuild is needed** when the change is NOT JS-only: a new/updated native dependency, an `app.json` plugin/native-config change, or a `runtimeVersion` bump. OTA can't deliver native changes.
 
 ### Sentry / EXPO_PUBLIC_SENTRY_DSN — the one that can brick the fleet

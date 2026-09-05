@@ -64,11 +64,13 @@ export default function Profile() {
   async function saveInfo() {
     if (!uid) return
     setSaving(true)
-    const full = `${firstName.trim()} ${lastName.trim()}`.trim()
+    // full_name is a GENERATED column — the database builds it from first and
+    // last. Sending it made every profile save fail with "column full_name can
+    // only be updated to DEFAULT", so nobody could correct their own phone
+    // number from the app.
     const { error } = await supabase.from('profiles').update({
       first_name: firstName.trim() || null,
       last_name: lastName.trim() || null,
-      full_name: full || null,
       phone: phone.trim() || null,
       address: address.trim() || null,
       home_state: homeState.trim().toUpperCase() || null,

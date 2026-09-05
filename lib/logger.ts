@@ -7,6 +7,20 @@ import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import { supabase } from './supabase'
 
+// Mirrors the web portal's lib/errorNoise.js.
+const NOISE = [
+  /lock:sb-.*-auth-token/i,
+  /Lock was stolen by another request/i,
+  /JWT expired/i,
+  /JWT issued at future/i,
+  /Network request failed/i,
+  /Failed to fetch/i,
+  /AbortError/i,
+]
+function isNoise(message: string): boolean {
+  return !!message && NOISE.some(rx => rx.test(message))
+}
+
 export type ErrorMeta = Record<string, unknown>
 
 function appVersion(): string {
@@ -66,6 +80,13 @@ export async function logError(
   // Always visible in Metro / device logs.
   // eslint-disable-next-line no-console
   console.error(`[${context}]`, message, meta ?? '', stack ?? '')
+
+  // Not everything that goes wrong is a defect. A session ageing out, a phone
+  // whose clock is ahead of the server's, and a jobsite with no signal are all
+  // conditions the app already recovers from — and between them they were most
+  // of the error log, which is how a log stops being read. Mirrors the web's
+  // lib/errorNoise.js; keep the two in step.
+  if (isNoise(message)) return
 
   try {
     let userId: string | null = null
