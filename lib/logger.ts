@@ -16,6 +16,8 @@ const NOISE = [
   /Network request failed/i,
   /Failed to fetch/i,
   /AbortError/i,
+  // Our own guard, refusing a clock-in on purpose and saying so on screen.
+  /Sign the safety manual/i,
 ]
 function isNoise(message: string): boolean {
   return !!message && NOISE.some(rx => rx.test(message))
