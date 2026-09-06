@@ -1997,6 +1997,16 @@ const es: Record<TranslationKey, string> = {
   // Which acknowledgement is missing, said one at a time.
   safetyManualUnsigned: 'El manual de seguridad no está firmado. Fírmelo y podrá fichar.',
   safetyMeetingUnsigned: 'La reunión de seguridad de esta semana no está firmada. Regístrese y podrá fichar.',
+
+  // Deleting your own account — App Store guideline 5.1.1(v).
+  deleteAccount: 'Eliminar mi cuenta',
+  deleteAccountWhat: 'Esto elimina su acceso de forma permanente. Su nombre, correo, teléfono y dirección se borran de esta aplicación y no podrá volver a iniciar sesión. No se puede deshacer.',
+  deleteAccountKept: 'Su empleador conserva los registros que la ley le exige guardar: horas trabajadas, acuses de seguridad firmados, fotos de obra y recibos. Su nombre se elimina de ellos.',
+  deleteAccountTypeToConfirm: 'Escriba DELETE para confirmar',
+  deleteAccountForever: 'Eliminar mi cuenta permanentemente',
+  deletingAccount: 'Eliminando…',
+  accountDeleted: 'Cuenta eliminada',
+  accountDeletedMessage: 'Su cuenta ha sido eliminada y se ha cerrado la sesión.',
 }
 
 export default es

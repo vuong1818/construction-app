@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import MileageHistory from '../../components/MileageHistory'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
+import { WEB_BASE } from '../../lib/config'
 import { COLORS } from '../../lib/theme'
 import { BuildInfo } from '../../components/BuildInfo'
 
@@ -36,6 +38,10 @@ export default function Profile() {
   const [showInfo, setShowInfo] = useState(false)
   const [showMileage, setShowMileage] = useState(false)
   const [fullName, setFullName] = useState<string | null>(null)
+  // Deleting this account: the sheet, the typed word, and the request.
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     (async () => {
@@ -60,6 +66,38 @@ export default function Profile() {
       setLoading(false)
     })()
   }, [])
+
+  async function deleteAccount() {
+    if (deleteConfirm.trim().toUpperCase() !== 'DELETE') return
+    setDeleting(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${WEB_BASE}/api/account/delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleting(false)
+        Alert.alert(t('error'), json?.error || t('somethingWrong'))
+        return
+      }
+      // The account is gone; the session in memory is the last trace of it.
+      await supabase.auth.signOut()
+      setDeleting(false)
+      setShowDelete(false)
+      Alert.alert(t('accountDeleted'), t('accountDeletedMessage'), [
+        { text: 'OK', onPress: () => router.replace('/sign-in') },
+      ])
+    } catch (e: any) {
+      setDeleting(false)
+      Alert.alert(t('error'), e?.message || t('somethingWrong'))
+    }
+  }
 
   async function saveInfo() {
     if (!uid) return
@@ -184,9 +222,73 @@ export default function Profile() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
           </Pressable>
 
+          {/* Delete this account. Required by App Store guideline 5.1.1(v):
+              an app that creates accounts has to let somebody delete theirs
+              from inside the app, without ringing anybody. */}
+          <Pressable onPress={() => { setDeleteConfirm(''); setShowDelete(true) }}
+            style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10, borderColor: '#f3c2c2' }}>
+            <Ionicons name="trash-outline" size={22} color={COLORS.red} />
+            <Text style={{ color: COLORS.red, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('deleteAccount')}</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
+          </Pressable>
+
           <BuildInfo />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Two steps on purpose: read what happens, then type the word. Apple
+          allows confirmation steps; what it does not allow is sending somebody
+          away to finish it. This finishes here. */}
+      <Modal visible={showDelete} animationType="slide" transparent onRequestClose={() => setShowDelete(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.background, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, maxHeight: '92%' }}>
+            <ScrollView>
+              <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.navy, marginBottom: 10 }}>
+                {t('deleteAccount')}
+              </Text>
+
+              <Text style={{ color: COLORS.text, fontSize: 15, lineHeight: 22, marginBottom: 12 }}>
+                {t('deleteAccountWhat')}
+              </Text>
+
+              <View style={{ backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 }}>
+                <Text style={{ color: COLORS.text, fontSize: 14, lineHeight: 21 }}>
+                  {t('deleteAccountKept')}
+                </Text>
+              </View>
+
+              <Text style={{ color: COLORS.subtext, fontSize: 13, marginBottom: 8 }}>
+                {t('deleteAccountTypeToConfirm')}
+              </Text>
+              <TextInput
+                value={deleteConfirm}
+                onChangeText={setDeleteConfirm}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                placeholder="DELETE"
+                placeholderTextColor={COLORS.subtext}
+                style={{ backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, padding: 14, fontSize: 16, fontWeight: '800', color: COLORS.text, marginBottom: 16 }}
+              />
+
+              <Pressable
+                onPress={deleteAccount}
+                disabled={deleting || deleteConfirm.trim().toUpperCase() !== 'DELETE'}
+                style={{
+                  backgroundColor: COLORS.red, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+                  opacity: deleting || deleteConfirm.trim().toUpperCase() !== 'DELETE' ? 0.45 : 1,
+                }}>
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+                  {deleting ? t('deletingAccount') : t('deleteAccountForever')}
+                </Text>
+              </Pressable>
+
+              <Pressable onPress={() => setShowDelete(false)} style={{ paddingVertical: 16, alignItems: 'center' }}>
+                <Text style={{ color: COLORS.subtext, fontWeight: '700' }}>{t('cancel')}</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }

@@ -2014,6 +2014,16 @@ const en = {
   // Which acknowledgement is missing, said one at a time.
   safetyManualUnsigned: 'The safety manual is unsigned. Sign it and you can clock in.',
   safetyMeetingUnsigned: 'This week’s safety meeting is unsigned. Sign in to it and you can clock in.',
+
+  // Deleting your own account — App Store guideline 5.1.1(v).
+  deleteAccount: 'Delete my account',
+  deleteAccountWhat: 'This deletes your sign-in permanently. Your name, email, phone and address are removed from this app, and you will not be able to log in again. It cannot be undone.',
+  deleteAccountKept: 'Your employer keeps the records the law requires them to keep — hours worked, signed safety acknowledgements, job photos and receipts. Your name is removed from them.',
+  deleteAccountTypeToConfirm: 'Type DELETE to confirm',
+  deleteAccountForever: 'Delete my account permanently',
+  deletingAccount: 'Deleting…',
+  accountDeleted: 'Account deleted',
+  accountDeletedMessage: 'Your account has been deleted and you have been signed out.',
 } as const
 
 export default en
