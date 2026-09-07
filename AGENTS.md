@@ -52,9 +52,17 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 number.** Never iOS alone, never Android alone.
 
 ```
-# bump "version" (and ios.buildNumber / android.versionCode) in app.json first
-npx eas build --platform all --profile production --non-interactive
+# bump "version" in app.json first — appVersionSource is remote, so EAS
+# assigns the build number itself
+npx eas build --platform ios     --profile production --non-interactive   # App Store / TestFlight
+npx eas build --platform android --profile preview    --non-interactive   # the .apk people download
 ```
+
+Two profiles, one version — not `--platform all`. The production Android
+artifact is an .aab for a Play Store listing that does not exist; the Android
+build that ships is the **preview** profile's APK, which is what the download
+page serves and what the `preview` channel updates. iOS ships from
+**production**. Same `version` in app.json for both, always.
 
 Two platforms drifting apart is how the field ends up with one crew on 1.1.0
 and another on 1.0.0 running different rules against the same database, and how
