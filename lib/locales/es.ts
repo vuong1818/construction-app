@@ -2007,6 +2007,8 @@ const es: Record<TranslationKey, string> = {
   deletingAccount: 'Eliminando…',
   accountDeleted: 'Cuenta eliminada',
   accountDeletedMessage: 'Su cuenta ha sido eliminada y se ha cerrado la sesión.',
+
+  documentCouldNotOpen: 'No se pudo abrir este documento. Pida a la oficina que lo vuelva a subir.',
 }
 
 export default es

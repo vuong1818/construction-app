@@ -19,6 +19,7 @@ import { WebView } from 'react-native-webview';
 import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { logError } from '../lib/logger';
+import { signedUrl } from '../lib/storageUrl';
 import { supabase } from '../lib/supabase';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
@@ -297,7 +298,12 @@ export default function WeeklySafetyMeetingScreen() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      setManualUrl(manualDoc?.pdf_url || null);
+      // pdf_url is a path inside our storage for an uploaded manual, and a full
+      // link for a preset. Only one of those can be opened; signedUrl turns
+      // either into something that can. Without this the button did nothing —
+      // Linking.openURL on a path fails silently, which is the worst way for a
+      // button to fail.
+      setManualUrl(manualDoc?.pdf_url ? await signedUrl('safety-pdfs', manualDoc.pdf_url).catch(() => null) : null);
 
       const weekStart = fmtLocalDate(await currentWorkWeekStart());
 

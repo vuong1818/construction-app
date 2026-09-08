@@ -2024,6 +2024,8 @@ const en = {
   deletingAccount: 'Deleting…',
   accountDeleted: 'Account deleted',
   accountDeletedMessage: 'Your account has been deleted and you have been signed out.',
+
+  documentCouldNotOpen: 'This document could not be opened. Ask your office to re-upload it.',
 } as const
 
 export default en

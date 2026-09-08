@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import React from 'react';
-import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLanguage } from '../lib/i18n';
+import { signedUrl } from '../lib/storageUrl';
 
 // Same rule as the safety manual: iOS renders a PDF itself, Android needs
 // Google's viewer, and Google can only rasterise a url it can reach — never a
@@ -21,9 +22,27 @@ export default function SafetyDocumentViewer() {
   }>();
 
   const title = params.title || t('documentLabel');
-  const pdfUrl = params.pdfUrl || '';
+  // What arrives here is whatever the row holds: an osha.gov link for a preset,
+  // or a path inside our storage for anything uploaded. A path is not a URL —
+  // handing one to a viewer produced "No preview available", and handing one to
+  // Linking.openURL did nothing at all. Resolving it here means every screen
+  // that opens a document can keep passing the raw column.
+  const raw = params.pdfUrl || '';
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(true);
 
-  const viewerUrl = pdfViewerUri(pdfUrl);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const url = await signedUrl('safety-pdfs', raw).catch(() => null);
+      if (!alive) return;
+      setPdfUrl(url);
+      setResolving(false);
+    })();
+    return () => { alive = false; };
+  }, [raw]);
+
+  const viewerUrl = pdfUrl ? pdfViewerUri(pdfUrl) : '';
 
   return (
     <View style={styles.container}>
@@ -32,7 +51,21 @@ export default function SafetyDocumentViewer() {
       </View>
 
       <View style={styles.viewerWrap}>
-        <WebView source={{ uri: viewerUrl }} style={styles.webview} />
+        {resolving ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#00B4D8" />
+          </View>
+        ) : pdfUrl ? (
+          <WebView source={{ uri: viewerUrl }} style={styles.webview} />
+        ) : (
+          // Say what went wrong. A blank viewer reads as a broken app; this
+          // reads as a document that needs re-uploading, which is the truth.
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+            <Text style={{ color: '#516079', fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
+              {t('documentCouldNotOpen')}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.bottomBar}>
