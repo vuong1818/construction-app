@@ -52,11 +52,17 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 number.** Never iOS alone, never Android alone.
 
 ```
-# bump "version" in app.json first — appVersionSource is remote, so EAS
-# assigns the build number itself
+# app.json first — all three, by hand, and the two build numbers MATCH:
+#   "version": "1.2.0"          ios.buildNumber "5"          android.versionCode 5
 npx eas build --platform ios     --profile production --non-interactive   # App Store / TestFlight
 npx eas build --platform android --profile preview    --non-interactive   # the .apk people download
 ```
+
+`appVersionSource` is **local** and auto-increment is off, on purpose. With
+remote auto-increment each platform counted on its own and they drifted — iOS
+reached build 5 while Android was on 3 for the same 1.2.0 — which is precisely
+what this rule exists to prevent. The number is now one decision, written in
+one file, and a build cannot quietly disagree with it.
 
 Two profiles, one version — not `--platform all`. The production Android
 artifact is an .aab for a Play Store listing that does not exist; the Android

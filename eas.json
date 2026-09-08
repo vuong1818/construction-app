@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 13.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "development": {
@@ -11,8 +11,7 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
-      "autoIncrement": true,
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_SENTRY_DSN": "https://767c6476c32455d47c405731e60161f2@o4511927595302912.ingest.us.sentry.io/4511927621779456",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
@@ -25,8 +24,7 @@
       }
     },
     "production": {
-      "channel": "production",
-      "autoIncrement": true,
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_SENTRY_DSN": "https://767c6476c32455d47c405731e60161f2@o4511927595302912.ingest.us.sentry.io/4511927621779456",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
