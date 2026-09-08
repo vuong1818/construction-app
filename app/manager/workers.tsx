@@ -120,11 +120,19 @@ const ROLE_OPTIONS: { value: WorkerRole; labelKey: string }[] = [
 function RoleSelector({
   value,
   onChange,
+  canGrantOwner,
 }: {
   value: WorkerRole
   onChange: (value: WorkerRole) => void
+  // Only an owner can hand out the owner role — the database refuses anybody
+  // else (only_an_owner_makes_an_owner), so offering the button to a manager
+  // was offering a choice that fails on save. It stays visible on somebody who
+  // already IS an owner, because a list that cannot show what they are is
+  // worse than one that shows an option you cannot pick.
+  canGrantOwner: boolean
 }) {
   const { t } = useLanguage()
+  const options = ROLE_OPTIONS.filter(o => o.value !== 'owner' || canGrantOwner || value === 'owner')
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>
@@ -132,12 +140,16 @@ function RoleSelector({
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {ROLE_OPTIONS.map(opt => {
+        {options.map(opt => {
           const on = value === opt.value
+          // An owner shown to a manager is shown as what this person is, not
+          // as something to pick.
+          const locked = opt.value === 'owner' && !canGrantOwner
           return (
             <Pressable
               key={opt.value}
-              onPress={() => onChange(opt.value)}
+              disabled={locked}
+              onPress={() => { if (!locked) onChange(opt.value) }}
               style={{
                 borderRadius: 14,
                 paddingVertical: 12,
@@ -146,6 +158,7 @@ function RoleSelector({
                 backgroundColor: on ? COLORS.navy : COLORS.white,
                 borderWidth: 1,
                 borderColor: on ? COLORS.navy : COLORS.border,
+                opacity: locked ? 0.55 : 1,
               }}
             >
               <Text style={{ color: on ? COLORS.white : COLORS.text, fontWeight: '700' }}>
@@ -722,6 +735,7 @@ export default function WorkersManagerScreen() {
               <RoleSelector
                 value={form.role}
                 onChange={(value) => setField('role', value)}
+                canGrantOwner={userRole === 'owner'}
               />
 
               <View style={{ gap: 12, marginTop: 10 }}>
