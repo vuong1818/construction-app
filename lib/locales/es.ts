@@ -2008,8 +2008,8 @@ const es: Record<TranslationKey, string> = {
   needAnAccountBody:
     'Las cuentas las crea la empresa para la que trabaja, no aquí.\n\n' +
     '¿Ya trabaja para una empresa que usa SiteOfficeIQ? Pida a quien lo administra que lo agregue en Cuadrilla > Trabajadores. Recibirá una invitación por correo con su acceso.\n\n' +
-    '¿Trae su propia empresa? Cree una cuenta en siteofficeiq.com.',
-  visitWebsite: 'Ir a siteofficeiq.com',
+    '¿Trae su propia empresa? En siteofficeiq.com/help se explica cómo empezar.',
+  visitWebsite: 'Ayuda para obtener acceso',
   ok: 'OK',
 
 }

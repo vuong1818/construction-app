@@ -2031,8 +2031,8 @@ const en = {
   needAnAccountBody:
     'Accounts are created by the company you work for, not here.\n\n' +
     'Already working for a company that uses SiteOfficeIQ? Ask whoever runs it there to add you under Crew > Workers. You will get an email invitation with your sign-in.\n\n' +
-    'Bringing your own company? Start an account at siteofficeiq.com.',
-  visitWebsite: 'Go to siteofficeiq.com',
+    'Bringing your own company? siteofficeiq.com/help explains how to get set up.',
+  visitWebsite: 'Help getting access',
   ok: 'OK',
 
 } as const

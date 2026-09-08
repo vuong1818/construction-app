@@ -63,12 +63,17 @@ export default function SignInScreen() {
   // no company, so it could not clock in, see a job, or file a report — it
   // could only fail. Accounts are created by the company that will employ the
   // person, and the invitation email is what brings them here.
+  //
+  // This opens the help page, deliberately, and not the site's front page.
+  // Subscriptions are sold there, and App Review treats a button pointing at a
+  // purchase page as steering away from in-app purchase. Somebody who needs an
+  // account needs to know how to get one, which is what /help tells them.
   function explainInviteOnly() {
     Alert.alert(
       t('needAnAccountTitle'),
       t('needAnAccountBody'),
       [
-        { text: t('visitWebsite'), onPress: () => Linking.openURL('https://siteofficeiq.com') },
+        { text: t('visitWebsite'), onPress: () => Linking.openURL('https://siteofficeiq.com/help') },
         { text: t('ok'), style: 'cancel' },
       ],
     )
