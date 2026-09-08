@@ -2022,6 +2022,11 @@ const en = {
   newProject: 'New Project',
   createProject: 'Create Project',
   projectNameTaken: 'A project with that name already exists. Pick a different name.',
+  // The shared OSHA library and the sample manual: a starting point, not a
+  // safety program, and not a substitute for what a company must hold itself.
+  sharedLibraryNoticeTitle: 'A starting point, not your safety program.',
+  sharedLibraryNoticeBody:
+    'These are OSHA publications and a sample manual, provided for convenience. Add your own documents for the work your crews actually do, and for anything your state, your insurer, or your customers require. SiteOfficeIQ does not warrant that they are current, complete, or sufficient for your company, and accepts no liability for their use.',
   needAnAccountTitle: 'Need an account?',
   needAnAccountBody:
     'Accounts are created by the company you work for, not here.\n\n' +

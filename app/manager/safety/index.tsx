@@ -19,6 +19,7 @@ import { WEB_BASE } from '../../../lib/config'
 import { useLanguage } from '../../../lib/i18n'
 import { logError } from '../../../lib/logger'
 import { supabase } from '../../../lib/supabase'
+import { ownCopyWins } from '../../../lib/safetyLibrary'
 import { currentWorkWeekStart, fmtLocalDate } from '../../../lib/workWeek'
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
@@ -62,6 +63,10 @@ type ManualAck = {
 
 type SafetyDoc = {
   id: number
+  // A shared document carries the code it is filed under, so a company's own
+  // copy of the same document can take its place in the list.
+  code?: string | null
+  is_preset?: boolean | null
   title: string | null
   category: string | null
   pdf_url: string | null
@@ -322,14 +327,14 @@ export default function ManagerSafetyScreen() {
   async function loadSafetyResources() {
     const { data } = await supabase
       .from('safety_documents')
-      .select('id, title, category, pdf_url, language')
+      .select('id, code, is_preset, title, category, pdf_url, language')
       .eq('is_active', true)
       .neq('document_type', 'company_safety_manual')
       .not('pdf_url', 'is', null)
       .order('sort_order', { ascending: true })
       .order('title', { ascending: true })
 
-    const all = (data as SafetyDoc[]) || []
+    const all = ownCopyWins((data as SafetyDoc[]) || [])
     const catLower = (d: SafetyDoc) => (d.category || '').toLowerCase()
     setSafetyVideos(all.filter(d => catLower(d).includes('video') || catLower(d).includes('osha video')))
     setSafetyDocs(all.filter(d => !catLower(d).includes('video')))
@@ -674,6 +679,15 @@ export default function ManagerSafetyScreen() {
         {(safetyDocs.length > 0 || safetyVideos.length > 0) && (
           <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 18, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
             <SectionHeader title={t('safetyResourcesTitle')} subtitle={t('documentsAndTrainingVideos')} />
+            {/* Whose documents these are, and whose responsibility they are not.
+                Said here because this is the screen a manager acts from. */}
+            <View style={{ backgroundColor: '#FFF7ED', borderColor: '#FED7AA', borderWidth: 1,
+                           borderRadius: 12, padding: 10, marginBottom: 14 }}>
+              <Text style={{ color: '#8A5300', fontSize: 12, lineHeight: 17 }}>
+                <Text style={{ fontWeight: '800' }}>{t('sharedLibraryNoticeTitle')}</Text>
+                {' '}{t('sharedLibraryNoticeBody')}
+              </Text>
+            </View>
             {safetyDocs.length > 0 && (
               <>
                 <Text style={{ color: C.navy, fontWeight: '800', fontSize: 14, marginBottom: 10 }}>{t('documentsHeading')}</Text>

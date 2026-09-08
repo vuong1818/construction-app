@@ -295,6 +295,8 @@ export default function WeeklySafetyMeetingScreen() {
         .select('pdf_url')
         .eq('document_type', 'company_safety_manual')
         .eq('is_active', true)
+        // Own manual first, our sample only as a fallback.
+        .order('is_preset', { ascending: true })
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();

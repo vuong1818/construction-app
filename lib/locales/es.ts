@@ -2001,6 +2001,9 @@ const es: Record<TranslationKey, string> = {
   newProject: 'Nuevo proyecto',
   createProject: 'Crear proyecto',
   projectNameTaken: 'Ya existe un proyecto con ese nombre. Elija otro nombre.',
+  sharedLibraryNoticeTitle: 'Un punto de partida, no su programa de seguridad.',
+  sharedLibraryNoticeBody:
+    'Son publicaciones de OSHA y un manual de muestra, ofrecidos por conveniencia. Agregue sus propios documentos para el trabajo que realmente hacen sus cuadrillas y para lo que exijan su estado, su aseguradora o sus clientes. SiteOfficeIQ no garantiza que estén vigentes, completos ni sean suficientes para su empresa, y no acepta responsabilidad por su uso.',
   needAnAccountTitle: '¿Necesita una cuenta?',
   needAnAccountBody:
     'Las cuentas las crea la empresa para la que trabaja, no aquí.\n\n' +

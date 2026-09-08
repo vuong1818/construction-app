@@ -227,6 +227,12 @@ export default function ManagerSafetyManualScreen() {
           .select('id, document_type, title, file_url, storage_path, is_active')
           .eq('document_type', 'company_safety_manual')
           .eq('is_active', true)
+          // Own manual first; and limit(1), because maybeSingle() throws the
+          // moment two rows match — which is what a company with its own
+          // manual plus our sample produces.
+          .order('is_preset', { ascending: true })
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle(),
 
         supabase

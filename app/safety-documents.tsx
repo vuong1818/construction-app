@@ -12,9 +12,14 @@ import {
 } from 'react-native';
 import { useLanguage } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
+import { ownCopyWins } from '../lib/safetyLibrary';
 
 type SafetyDocument = {
   id: number;
+  // A shared document carries the code it is filed under, so a company's own
+  // copy of the same document can take its place in the list.
+  code?: string | null;
+  is_preset?: boolean | null;
   title: string | null;
   description: string | null;
   category: string | null;
@@ -56,7 +61,7 @@ export default function SafetyDocumentsScreen() {
 
       const { data, error } = await supabase
         .from('safety_documents')
-        .select('id, title, description, category, pdf_url, is_active, sort_order, language')
+        .select('id, code, is_preset, title, description, category, pdf_url, is_active, sort_order, language')
         .eq('is_active', true)
         .neq('document_type', 'company_safety_manual')
         .not('pdf_url', 'is', null)
@@ -65,7 +70,7 @@ export default function SafetyDocumentsScreen() {
 
       if (error) throw error;
 
-      setDocuments((data as SafetyDocument[]) || []);
+      setDocuments(ownCopyWins((data as SafetyDocument[]) || []));
     } catch (error) {
       console.error('Error loading safety documents:', error);
     } finally {

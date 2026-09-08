@@ -371,6 +371,10 @@ export default function SafetyManualScreen() {
           .select('id, title, pdf_url, document_type, is_active')
           .eq('document_type', 'company_safety_manual')
           .eq('is_active', true)
+          // The company's own manual outranks our sample. RLS returns both, so
+          // without this the sample wins on any company that already has one,
+          // purely by being newer.
+          .order('is_preset', { ascending: true })
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
