@@ -2,10 +2,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -13,6 +19,7 @@ import { SkeletonList } from '../components/SkeletonCard'
 import { useCompanyLogo } from '../hooks/useCompanyLogo'
 import { useSharedProjectPresentation } from '../hooks/useProjectGrant'
 import { useLanguage } from '../lib/i18n'
+import { generateProjectRef, uniqueProjectRef } from '../lib/projectRef'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 
@@ -22,8 +29,11 @@ type Project = {
   address: string | null
   status: string | null
   description: string | null
+  reference_no?: string | null
   created_at?: string | null
 }
+
+const EMPTY_DRAFT = { name: '', address: '', city: '', state: '', zip: '', description: '' }
 
 export default function ProjectsScreen() {
   const router = useRouter()
@@ -39,9 +49,77 @@ export default function ProjectsScreen() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
 
+  // Only an owner or manager may open a job. That is the database's rule, not
+  // this screen's — projects_insert checks is_manager(). Reading the role here
+  // is only so a worker isn't shown a button that would fail on them.
+  const [canCreate, setCanCreate] = useState(false)
+  const [showAdd, setShowAdd] = useState(false)
+  const [draft, setDraft] = useState(EMPTY_DRAFT)
+  const [saving, setSaving] = useState(false)
+
   useEffect(() => {
     loadProjects()
+    loadRole()
   }, [])
+
+  async function loadRole() {
+    const { data: auth } = await supabase.auth.getUser()
+    if (!auth?.user) return
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', auth.user.id)
+      .maybeSingle()
+    setCanCreate(data?.role === 'manager' || data?.role === 'owner')
+  }
+
+  async function createProject() {
+    const name = draft.name.trim()
+    if (!name) {
+      Alert.alert(t('missingInformation'), t('projectNameRequired'))
+      return
+    }
+    setSaving(true)
+    try {
+      // Same reference-number convention as the web portal, made unique against
+      // the refs already on screen. The DB's unique index is the real backstop.
+      const ref = uniqueProjectRef(
+        generateProjectRef({ name, city: draft.city }),
+        projects.map(pr => pr.reference_no),
+      )
+      const { data: created, error } = await supabase
+        .from('projects')
+        .insert({
+          name,
+          address: draft.address.trim() || null,
+          city: draft.city.trim() || null,
+          state: draft.state.trim() || null,
+          zip: draft.zip.trim() || null,
+          description: draft.description.trim() || null,
+          // Jobs opened from a phone are jobs being worked, so they start
+          // active — that is also the only status this screen can show back.
+          status: 'active',
+          reference_no: ref,
+        })
+        .select('*')
+        .single()
+      if (error) {
+        // 23505 = unique violation, which here always means the name is taken.
+        Alert.alert(
+          t('error'),
+          error.code === '23505' ? t('projectNameTaken') : error.message,
+        )
+        return
+      }
+      if (created) setProjects(prev => [created as Project, ...prev])
+      setShowAdd(false)
+      setDraft(EMPTY_DRAFT)
+    } catch (err: any) {
+      Alert.alert(t('error'), err?.message || t('somethingWrong'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function loadProjects() {
     setLoading(true)
@@ -166,6 +244,26 @@ export default function ProjectsScreen() {
           >
             {t('projectsListIntro')}
           </Text>
+
+          {canCreate ? (
+            <Pressable
+              onPress={() => setShowAdd(true)}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: COLORS.teal,
+                borderRadius: 16,
+                paddingVertical: 14,
+                marginTop: 16,
+              }}
+            >
+              <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 16, marginLeft: 6 }}>
+                {t('newProject')}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {projects.filter(p => !hiddenProjects.has(p.id)).map((project) => (
@@ -239,6 +337,91 @@ export default function ProjectsScreen() {
           </Pressable>
         ))}
       </ScrollView>
+
+      <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1, backgroundColor: COLORS.overlay, justifyContent: 'flex-end' }}
+        >
+          <View
+            style={{
+              backgroundColor: COLORS.card,
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingHorizontal: 20,
+              paddingTop: 20,
+              paddingBottom: 28,
+              maxHeight: '90%',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ flex: 1, color: COLORS.navy, fontSize: 22, fontWeight: '800' }}>
+                {t('newProject')}
+              </Text>
+              <Pressable onPress={() => setShowAdd(false)} hitSlop={12}>
+                <MaterialCommunityIcons name="close" size={26} color={COLORS.subtext} />
+              </Pressable>
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {([
+                ['name', t('projectNameLabel'), false],
+                ['address', t('addressLabel'), false],
+                ['city', t('cityLabel'), false],
+                ['state', t('stateLabel'), false],
+                ['zip', t('zip'), false],
+                ['description', t('descriptionLabel'), true],
+              ] as [keyof typeof EMPTY_DRAFT, string, boolean][]).map(([key, label, multi]) => (
+                <View key={key} style={{ marginBottom: 14 }}>
+                  <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 14, marginBottom: 6 }}>
+                    {key === 'name' ? `${label} *` : label}
+                  </Text>
+                  <TextInput
+                    value={draft[key]}
+                    onChangeText={v => setDraft(prev => ({ ...prev, [key]: v }))}
+                    multiline={multi}
+                    autoCapitalize={key === 'state' ? 'characters' : 'words'}
+                    keyboardType={key === 'zip' ? 'number-pad' : 'default'}
+                    placeholderTextColor={COLORS.muted}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      borderRadius: 14,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                      color: COLORS.text,
+                      backgroundColor: COLORS.background,
+                      minHeight: multi ? 90 : undefined,
+                      textAlignVertical: multi ? 'top' : 'center',
+                    }}
+                  />
+                </View>
+              ))}
+
+              <Pressable
+                onPress={createProject}
+                disabled={saving}
+                style={{
+                  backgroundColor: saving ? COLORS.muted : COLORS.navy,
+                  borderRadius: 18,
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                  marginTop: 4,
+                }}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800' }}>
+                    {t('createProject')}
+                  </Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   )
 }

@@ -57,10 +57,6 @@ const en = {
   logoutConfirm: 'Are you sure you want to log out?',
   logoutClockedIn: 'You are currently clocked in. Logging out will also clock you out. Do you want to continue?',
   signInToContinue: 'Sign in to continue',
-  createNewUser: 'Create New User',
-  creatingUser: 'Creating User...',
-  backToLogIn: 'Back to Log In',
-  newUserDefaultRole: 'New users are created with worker access by default',
   firstName: 'First Name',
   firstNamePlaceholder: 'Enter first name',
   lastName: 'Last Name',
@@ -68,20 +64,9 @@ const en = {
   emailAsUserId: 'Email as User ID',
   emailPlaceholder: 'Enter your email',
   passwordPlaceholder: 'Enter your password',
-  confirmPassword: 'Confirm Password',
-  confirmPasswordPlaceholder: 'Confirm your password',
   enterEmailPassword: 'Please enter your email and password.',
-  enterFirstName: 'Please enter first name.',
-  enterLastName: 'Please enter last name.',
   enterEmail: 'Please enter email.',
   enterPassword: 'Please enter password.',
-  weakPassword: 'Weak Password',
-  passwordMinLength: 'Password must be at least 6 characters.',
-  passwordMismatch: 'Password Mismatch',
-  passwordsDontMatch: 'Password and confirm password do not match.',
-  createUserError: 'Create User Error',
-  userCreated: 'User Created',
-  accountCreatedMessage: 'Your account was created successfully. Please go back and log in with your email and password.',
   enterEmailFirst: 'Enter Your Email First',
   enterEmailForReset: 'Type your email address in the field above, then tap "Forgot password?" to receive a reset link.',
   checkYourEmail: 'Check Your Email',
@@ -2026,6 +2011,25 @@ const en = {
   accountDeletedMessage: 'Your account has been deleted and you have been signed out.',
 
   documentCouldNotOpen: 'This document could not be opened. Ask your office to re-upload it.',
+  // Accounts are invite-only. This is what the login screen says when somebody
+  // who was never invited taps the link where "Create New User" used to be.
+  // Still used by the change-password screen.
+  weakPassword: 'Weak Password',
+  passwordMinLength: 'Password must be at least 6 characters.',
+  passwordMismatch: 'Password Mismatch',
+  passwordsDontMatch: 'Password and confirm password do not match.',
+  // Opening a job from the field (managers and owners only).
+  newProject: 'New Project',
+  createProject: 'Create Project',
+  projectNameTaken: 'A project with that name already exists. Pick a different name.',
+  needAnAccountTitle: 'Need an account?',
+  needAnAccountBody:
+    'Accounts are created by the company you work for, not here.\n\n' +
+    'Already working for a company that uses SiteOfficeIQ? Ask whoever runs it there to add you under Crew > Workers. You will get an email invitation with your sign-in.\n\n' +
+    'Bringing your own company? Start an account at siteofficeiq.com.',
+  visitWebsite: 'Go to siteofficeiq.com',
+  ok: 'OK',
+
 } as const
 
 export default en

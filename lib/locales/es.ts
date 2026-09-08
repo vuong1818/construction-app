@@ -49,10 +49,6 @@ const es: Record<TranslationKey, string> = {
   logoutConfirm: '¿Seguro que quieres cerrar sesión?',
   logoutClockedIn: 'Actualmente estás fichado. Cerrar sesión también marcará tu salida. ¿Deseas continuar?',
   signInToContinue: 'Inicia sesión para continuar',
-  createNewUser: 'Crear nuevo usuario',
-  creatingUser: 'Creando usuario...',
-  backToLogIn: 'Volver a iniciar sesión',
-  newUserDefaultRole: 'Los nuevos usuarios se crean con acceso de trabajador por defecto',
   firstName: 'Nombre',
   firstNamePlaceholder: 'Ingresa tu nombre',
   lastName: 'Apellido',
@@ -60,20 +56,9 @@ const es: Record<TranslationKey, string> = {
   emailAsUserId: 'Correo como usuario',
   emailPlaceholder: 'Ingresa tu correo',
   passwordPlaceholder: 'Ingresa tu contraseña',
-  confirmPassword: 'Confirmar contraseña',
-  confirmPasswordPlaceholder: 'Confirma tu contraseña',
   enterEmailPassword: 'Ingresa tu correo y contraseña.',
-  enterFirstName: 'Ingresa tu nombre.',
-  enterLastName: 'Ingresa tu apellido.',
   enterEmail: 'Ingresa tu correo.',
   enterPassword: 'Ingresa tu contraseña.',
-  weakPassword: 'Contraseña débil',
-  passwordMinLength: 'La contraseña debe tener al menos 6 caracteres.',
-  passwordMismatch: 'Las contraseñas no coinciden',
-  passwordsDontMatch: 'La contraseña y la confirmación no coinciden.',
-  createUserError: 'Error al crear usuario',
-  userCreated: 'Usuario creado',
-  accountCreatedMessage: 'Tu cuenta se creó correctamente. Vuelve e inicia sesión con tu correo y contraseña.',
   enterEmailFirst: 'Ingresa tu correo primero',
   enterEmailForReset: 'Escribe tu correo arriba y luego toca "¿Olvidaste tu contraseña?" para recibir un enlace.',
   checkYourEmail: 'Revisa tu correo',
@@ -2009,6 +1994,21 @@ const es: Record<TranslationKey, string> = {
   accountDeletedMessage: 'Su cuenta ha sido eliminada y se ha cerrado la sesión.',
 
   documentCouldNotOpen: 'No se pudo abrir este documento. Pida a la oficina que lo vuelva a subir.',
+  weakPassword: 'Contraseña débil',
+  passwordMinLength: 'La contraseña debe tener al menos 6 caracteres.',
+  passwordMismatch: 'Las contraseñas no coinciden',
+  passwordsDontMatch: 'La contraseña y la confirmación no coinciden.',
+  newProject: 'Nuevo proyecto',
+  createProject: 'Crear proyecto',
+  projectNameTaken: 'Ya existe un proyecto con ese nombre. Elija otro nombre.',
+  needAnAccountTitle: '¿Necesita una cuenta?',
+  needAnAccountBody:
+    'Las cuentas las crea la empresa para la que trabaja, no aquí.\n\n' +
+    '¿Ya trabaja para una empresa que usa SiteOfficeIQ? Pida a quien lo administra que lo agregue en Cuadrilla > Trabajadores. Recibirá una invitación por correo con su acceso.\n\n' +
+    '¿Trae su propia empresa? Cree una cuenta en siteofficeiq.com.',
+  visitWebsite: 'Ir a siteofficeiq.com',
+  ok: 'OK',
+
 }
 
 export default es
