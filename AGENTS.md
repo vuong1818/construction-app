@@ -48,14 +48,36 @@ Standing authorization from the user (2026-07-14). This is the Expo / React Nati
 
 ## Builds go out in pairs — standing rule (2026-09-05)
 
+**`runtimeVersion` is a pinned literal. Do not turn it back into a policy.**
+
+```
+"version": "1.2.0"            ← bump freely, it is the marketing number
+"runtimeVersion": "1.2.0"     ← the NATIVE CONTRACT. bump only when native changes.
+```
+
+It was `{ "policy": "appVersion" }`, which ties the two together, and that is
+how six people ended up on 1.1.0 unable to receive a week of OTAs: bumping
+`version` to 1.2.0 moved the runtime with it, and an update published at
+runtime 1.2.0 is invisible to a 1.1.0 binary. Stranding a fleet should be a
+decision, not a side effect of renaming a release.
+
+Bump `runtimeVersion` **only** when the native side actually changes — a new
+config plugin, a new native module, an Expo SDK upgrade, a permission, an
+entitlement. Shipping JS that calls native code an older binary does not have
+is the failure this protects against, and it is the reason the number cannot
+simply be frozen forever.
+
+When you do bump it, every install still on the old runtime stops receiving
+updates until a new binary reaches it. Plan that: ship the binary first, let it
+land, and only then rely on OTAs again.
+
 **Any EAS build builds BOTH platforms, at the same version and the same build
 number.** Never iOS alone, never Android alone.
 
 ```
 # app.json first — all three, by hand, and the two build numbers MATCH:
-#   "version": "1.2.0"          ios.buildNumber "5"          android.versionCode 5
-npx eas build --platform ios     --profile production --non-interactive   # App Store / TestFlight
-npx eas build --platform android --profile preview    --non-interactive   # the .apk people download
+#   "version": "1.2.0"          ios.buildNumber "6"          android.versionCode 6
+npx eas build --platform all --profile production --non-interactive
 ```
 
 `appVersionSource` is **local** and auto-increment is off, on purpose. With
@@ -64,11 +86,14 @@ reached build 5 while Android was on 3 for the same 1.2.0 — which is precisely
 what this rule exists to prevent. The number is now one decision, written in
 one file, and a build cannot quietly disagree with it.
 
-Two profiles, one version — not `--platform all`. The production Android
-artifact is an .aab for a Play Store listing that does not exist; the Android
-build that ships is the **preview** profile's APK, which is what the download
-page serves and what the `preview` channel updates. iOS ships from
-**production**. Same `version` in app.json for both, always.
+One profile, both platforms (changed 2026-09-08). The production profile now
+carries `android.buildType: "apk"`, so `--platform all --profile production`
+gives an iOS build for App Store Connect and an installable Android APK, both
+on the **production** channel. Before that, production Android produced an .aab
+for a Play Store listing that does not exist, so the shipping APK had to be
+taken from the **preview** profile — which quietly put those installs on the
+preview OTA channel while iOS was on production. Two platforms, one profile,
+one channel, one build number.
 
 Two platforms drifting apart is how the field ends up with one crew on 1.1.0
 and another on 1.0.0 running different rules against the same database, and how
