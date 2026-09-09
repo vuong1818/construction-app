@@ -924,6 +924,13 @@ export default function ProjectDetailScreen() {
                   <Text style={{ color: COLORS.subtext, marginTop: 4 }}>
                     {t('preparedBy')}: {report.created_by_name || t('unknown')}
                   </Text>
+                  {linkedShare && (
+                    <Text style={{ color: report.forwarded_to_id ? '#4A148C' : '#B45309', fontWeight: '700', fontSize: 12, marginTop: 4 }}>
+                      {report.forwarded_to_id
+                        ? `✓ ${t('sentTo', { org: linkedShare.owner_org_name || '' })}`
+                        : t('sendNowTo', { org: linkedShare.owner_org_name || '' }) + ' →'}
+                    </Text>
+                  )}
                 </Pressable>
               ))}
             </ScrollView>

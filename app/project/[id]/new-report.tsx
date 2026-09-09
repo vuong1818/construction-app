@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   View,
@@ -18,6 +19,7 @@ import { useNewReport } from '../../../hooks/useNewReport'
 import { useLanguage } from '../../../lib/i18n'
 import { COLORS } from '../../../lib/theme'
 import { supabase } from '../../../lib/supabase'
+import { forwardToSharedJobsite, useForwardTarget } from '../../../lib/sharedJobsite'
 import { pickAndUploadPhotos, reportUpload } from '../../../services/photoUpload'
 
 function Field({
@@ -90,6 +92,28 @@ export default function NewReportScreen() {
   // hook hands back. Editing an existing report uploads straight away.
   const [staged, setStaged] = useState<ImagePicker.ImagePickerAsset[]>([])
   const [uploading, setUploading] = useState(false)
+
+  // This job stands in for one another company shared with us. The crew works
+  // HERE (their hours are here), so the report is sent across on save rather
+  // than asking them to go file it again on the other jobsite. Pre-set from
+  // the project; one flick turns it off for this report.
+  const { target } = useForwardTarget(Number.isFinite(projectId) ? projectId : undefined)
+  const [sendAlso, setSendAlso] = useState<boolean | null>(null)
+  const willSend = !!target && (sendAlso ?? target.defaults.daily_reports)
+
+  async function sendAcross(savedId: number, quiet: boolean) {
+    try {
+      const res = await forwardToSharedJobsite('daily_reports', savedId)
+      if (!quiet) {
+        Alert.alert(
+          t('sentTo', { org: res.ownerOrgName }),
+          res.warning ? res.warning : (res.photosCopied ? `${res.photosCopied} photo${res.photosCopied === 1 ? '' : 's'} went with it.` : undefined),
+        )
+      }
+    } catch (e: any) {
+      Alert.alert(t('sendFailedTitle'), t('sendFailed', { org: target?.ownerOrgName || '', reason: e?.message || 'Unknown error' }))
+    }
+  }
 
   async function addPhotos(from: 'camera' | 'library') {
     if (reportId) {
@@ -183,6 +207,16 @@ ${failures[0]}`)
           return
         }
       }
+      // Across to the shared jobsite — after the photos, so they travel too.
+      if (savedId && target) {
+        if (!reportId && willSend) {
+          await sendAcross(savedId, false)
+        } else if (reportId) {
+          // An edit to a report already over there follows it quietly.
+          const { data: row } = await supabase.from('daily_reports').select('forwarded_to_id').eq('id', savedId).maybeSingle()
+          if (row?.forwarded_to_id) await sendAcross(savedId, true)
+        }
+      }
       router.back()
     },
   })
@@ -268,6 +302,27 @@ ${failures[0]}`)
               </Text>
             )}
           </View>
+
+          {target && !reportId && (
+            <Pressable
+              onPress={() => setSendAlso(!willSend)}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                backgroundColor: '#F8F2FA', borderWidth: 1, borderColor: '#E1BEE7',
+                borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 15 }}>
+                  {t('sendToJobsite', { org: target.ownerOrgName })}
+                </Text>
+                <Text style={{ color: '#6A1B9A', fontSize: 12, marginTop: 3, lineHeight: 17 }}>
+                  {t('sendToJobsiteHint')}
+                </Text>
+              </View>
+              <Switch value={willSend} onValueChange={v => setSendAlso(v)} trackColor={{ true: '#7B1FA2', false: '#CBD5E1' }} thumbColor="white" />
+            </Pressable>
+          )}
 
           <Pressable
             onPress={handleSave}

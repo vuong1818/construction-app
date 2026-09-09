@@ -2012,6 +2012,20 @@ const es: Record<TranslationKey, string> = {
   visitWebsite: 'Ayuda para obtener acceso',
   ok: 'OK',
 
+  // ── Enviar un registro de campo a la obra compartida ────────────────────
+  sendToJobsite: 'También enviar a {org}',
+  sendToJobsiteHint: 'Una copia llega a su obra donde su oficina la ve. La suya se queda aquí.',
+  sendRfiHint: 'Se registra en su obra con su numeración. Su respuesta aparece aquí.',
+  askToSupply: 'Pedir a {org} que lo suministre',
+  askToSupplyHint: 'Envía la lista a su obra. Déjelo apagado cuando compra nuestra propia oficina.',
+  sendNowTo: 'Enviar a {org}',
+  sentTo: 'Enviado a {org}',
+  resend: 'Reenviar',
+  sending: 'Enviando…',
+  sendFailedTitle: 'Guardado aquí, no enviado',
+  sendFailed: 'Se guardó en este trabajo, pero no se pudo enviar a {org}: {reason}',
+  answerFrom: 'Respuesta de {org}',
+
 }
 
 export default es

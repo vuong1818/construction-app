@@ -2035,6 +2035,22 @@ const en = {
   visitWebsite: 'Help getting access',
   ok: 'OK',
 
+  // ── Sending a field record to the shared jobsite ────────────────────────
+  // This job stands in for one another company shared with us. The crew works
+  // here, so what they file is SENT across rather than typed twice.
+  sendToJobsite: 'Also send to {org}',
+  sendToJobsiteHint: 'A copy lands on their jobsite where their office sees it. Yours stays here.',
+  sendRfiHint: 'Filed on their jobsite under their numbering. Their answer shows up here.',
+  askToSupply: 'Ask {org} to supply this',
+  askToSupplyHint: 'Sends the list to their jobsite. Leave this off when our own office is buying.',
+  sendNowTo: 'Send to {org}',
+  sentTo: 'Sent to {org}',
+  resend: 'Resend',
+  sending: 'Sending…',
+  sendFailedTitle: 'Saved here, not sent',
+  sendFailed: 'Saved on this job, but could not send to {org}: {reason}',
+  answerFrom: 'Answer from {org}',
+
 } as const
 
 export default en

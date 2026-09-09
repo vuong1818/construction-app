@@ -111,7 +111,9 @@ export async function updateDailyReport(reportId: number, input: CreateDailyRepo
       issues: input.issues.trim() || null,
       materials_used: input.materialsUsed.trim() || null,
       weather: input.weather.trim() || null,
-      updated_at: new Date().toISOString(),
+      // No updated_at here: daily_reports has never had that column, and
+      // PostgREST refuses the whole update over an unknown one — which is why
+      // editing a report from the phone failed while creating one worked.
     })
     .eq('id', reportId)
     .select('id')

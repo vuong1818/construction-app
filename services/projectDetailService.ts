@@ -43,6 +43,8 @@ export type DailyReport = {
   materials_used: string | null
   weather: string | null
   created_at: string
+  // The copy on the shared jobsite this report was sent to, if any.
+  forwarded_to_id?: number | null
 }
 
 export type ProjectDetailData = {

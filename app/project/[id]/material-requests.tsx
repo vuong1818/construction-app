@@ -3,13 +3,14 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { isManagerRole } from '../../../lib/roles'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
+import { forwardToSharedJobsite, loadForwardedMaterialRequests, useForwardTarget, type ForwardedRequest } from '../../../lib/sharedJobsite'
 
 // Material Requests: the crew builds a LIST of material they need and sends it to the
 // office. Each item is typed, barcode-scanned, and/or photographed (when they don't know
@@ -19,6 +20,7 @@ type Req = {
   status: 'requested' | 'ordered' | 'fulfilled' | 'cancelled'
   requested_by: string | null; created_at: string
   photo_url: string | null; barcode: string | null; batch_id: string | null
+  forwarded_to_id: number | null; author_name: string | null; author_org: string | null
 }
 
 type Draft = { key: string; name: string; qty: string; unit: string; barcode: string | null; photoUri: string | null; materialId: number | null }
@@ -84,6 +86,31 @@ export default function MaterialRequestsScreen() {
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2400) }
 
+  // This job stands in for one another company shared with us. A request
+  // normally goes to OUR office; when the GC furnishes material on that job it
+  // can be sent onto their jobsite instead, and their status shows here.
+  const { target } = useForwardTarget(projectId)
+  const [sendAlso, setSendAlso] = useState<boolean | null>(null)
+  const willSend = !!target && (sendAlso ?? target.defaults.material_requests)
+  const [sendingId, setSendingId] = useState<number | null>(null)
+  const [copies, setCopies] = useState<Record<number, ForwardedRequest>>({})
+
+  async function sendAcross(ids: number[], quiet: boolean) {
+    let ok = 0; let firstErr: string | null = null; let warning: string | null = null; let org = target?.ownerOrgName || ''
+    for (const id of ids) {
+      setSendingId(id)
+      try {
+        const res = await forwardToSharedJobsite('material_requests', id)
+        ok++; org = res.ownerOrgName; warning ||= res.warning
+      } catch (e: any) {
+        firstErr ||= e?.message || 'Unknown error'
+      }
+    }
+    setSendingId(null)
+    if (firstErr) Alert.alert(t('sendFailedTitle'), t('sendFailed', { org, reason: firstErr }))
+    else if (!quiet) flash(warning ? `${t('sentTo', { org })}. ${warning}` : t('sentTo', { org }))
+  }
+
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     const myId = session?.user?.id || null
@@ -97,6 +124,7 @@ export default function MaterialRequestsScreen() {
     const { data } = await supabase.from('material_requests').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
     const list = (data as Req[]) || []
     setRows(list)
+    setCopies(await loadForwardedMaterialRequests(list))
     const ids = [...new Set(list.map(r => r.requested_by).filter(Boolean) as string[])]
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
@@ -224,11 +252,17 @@ export default function MaterialRequestsScreen() {
         material_id: it.materialId ?? null,
       })
     }
-    const { error } = await supabase.from('material_requests').insert(rowsToInsert)
+    const { data: inserted, error } = await supabase.from('material_requests').insert(rowsToInsert).select('id')
     setSubmitting(false)
     if (error) { flash(error.message); return }
     setDraft([]); setNote(''); setBuilding(false)
-    flash(t('matReqSubmitted')); load()
+    const ids = ((inserted as any[]) || []).map(r => r.id as number)
+    if (target && willSend && ids.length) {
+      await sendAcross(ids, false)
+    } else {
+      flash(t('matReqSubmitted'))
+    }
+    load()
   }
 
   async function setStatus(req: Req, status: Req['status']) {
@@ -263,7 +297,11 @@ export default function MaterialRequestsScreen() {
       .eq('id', editing.id)
     setSavingEdit(false)
     if (error) { flash(error.message); return }
-    setEditing(null); flash(t('matReqSaved')); load()
+    const wasForwarded = !!editing.forwarded_to_id
+    setEditing(null); flash(t('matReqSaved'))
+    // An edit to a request already over there follows it quietly.
+    if (wasForwarded && target) await sendAcross([editing.id], true)
+    load()
   }
   function deleteReq(req: Req) {
     Alert.alert(t('matReqDeleteTitle'), t('matReqDeleteMsg'), [
@@ -327,6 +365,18 @@ export default function MaterialRequestsScreen() {
             <Text style={{ fontWeight: '700', color: COLORS.navy, fontSize: 13, marginTop: 16, marginBottom: 5 }}>{t('matReqNote')}</Text>
             <TextInput style={[inputStyle, { minHeight: 60, textAlignVertical: 'top' }]} value={note} onChangeText={setNote} placeholder={t('matReqNotePlaceholder')} placeholderTextColor={COLORS.subtext} multiline />
 
+            {target && (
+              <Pressable
+                onPress={() => setSendAlso(!willSend)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F8F2FA', borderWidth: 1, borderColor: '#E1BEE7', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 14 }}>{t('askToSupply', { org: target.ownerOrgName })}</Text>
+                  <Text style={{ color: '#6A1B9A', fontSize: 12, marginTop: 2, lineHeight: 16 }}>{t('askToSupplyHint')}</Text>
+                </View>
+                <Switch value={willSend} onValueChange={v => setSendAlso(v)} trackColor={{ true: '#7B1FA2', false: '#CBD5E1' }} thumbColor="white" />
+              </Pressable>
+            )}
             <Pressable onPress={submitRequest} disabled={submitting || draft.length === 0}
               style={{ marginTop: 14, backgroundColor: COLORS.teal, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: (submitting || draft.length === 0) ? 0.5 : 1 }}>
               <Text style={{ color: 'white', fontWeight: '800' }}>{submitting ? '…' : `${t('matReqSubmitList')} (${draft.length})`}</Text>
@@ -354,8 +404,28 @@ export default function MaterialRequestsScreen() {
               {req.barcode ? <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>🔖 {req.barcode}</Text> : null}
               {req.note ? <Text style={{ color: COLORS.subtext, marginTop: 4, lineHeight: 20 }}>{req.note}</Text> : null}
               <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>
-                {t('matReqRequestedBy')} {names[req.requested_by || ''] || '—'} · {new Date(req.created_at).toLocaleDateString()}
+                {t('matReqRequestedBy')} {names[req.requested_by || ''] || req.author_name || '—'}{req.author_org && !names[req.requested_by || ''] ? ` (${req.author_org})` : ''} · {new Date(req.created_at).toLocaleDateString()}
               </Text>
+
+              {target && req.status !== 'cancelled' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  {req.forwarded_to_id ? (
+                    <View style={{ backgroundColor: '#F3E5F5', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 11 }}>
+                        ✓ {t('sentTo', { org: target.ownerOrgName })}
+                        {copies[req.id] ? ` · ${t((STATUS[copies[req.id].status] || STATUS.requested).key)}` : ''}
+                      </Text>
+                    </View>
+                  ) : (canEdit(req) ? (
+                    <Pressable onPress={() => sendAcross([req.id], false).then(load)} disabled={sendingId === req.id}
+                      style={{ backgroundColor: '#7B1FA2', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, opacity: sendingId === req.id ? 0.6 : 1 }}>
+                      <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>
+                        {sendingId === req.id ? t('sending') : t('sendNowTo', { org: target.ownerOrgName })}
+                      </Text>
+                    </Pressable>
+                  ) : null)}
+                </View>
+              )}
 
               {isManager && req.status !== 'fulfilled' && req.status !== 'cancelled' && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>

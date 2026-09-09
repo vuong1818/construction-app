@@ -3,12 +3,13 @@ import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
+import { forwardToSharedJobsite, loadForwardedRfis, useForwardTarget, type ForwardedRfi } from '../../../lib/sharedJobsite'
 
 // RFI (Request For Information): a field question the office/manager must answer.
 // Any worker assigned to the project can raise one; managers answer. Tracked
@@ -18,6 +19,7 @@ type Rfi = {
   status: 'open' | 'answered' | 'closed'; answer: string | null
   rfi_no: string | null; photo_url: string | null
   asked_by: string | null; answered_by: string | null; answered_at: string | null; created_at: string
+  forwarded_to_id: number | null; author_name: string | null; author_org: string | null
 }
 
 const PHOTO_BUCKET = 'rfi-photos'
@@ -53,7 +55,28 @@ export default function RfisScreen() {
   // in isExpanded, so an RFI arriving from realtime needs no state seeded.
   const [toggled, setToggled] = useState<Record<number, boolean>>({})
 
+  // This job stands in for one another company shared with us. An RFI is a
+  // question for THEM, so it is sent onto their jobsite — and once it is,
+  // their number, status and answer show here against ours.
+  const { target } = useForwardTarget(projectId)
+  const [sendAlso, setSendAlso] = useState<boolean | null>(null)
+  const willSend = !!target && (sendAlso ?? target.defaults.rfis)
+  const [sendingId, setSendingId] = useState<number | null>(null)
+  const [copies, setCopies] = useState<Record<number, ForwardedRfi>>({})
+
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200) }
+
+  async function sendAcross(rfiId: number, quiet: boolean) {
+    setSendingId(rfiId)
+    try {
+      const res = await forwardToSharedJobsite('rfis', rfiId)
+      if (!quiet) flash(res.warning ? `${t('sentTo', { org: res.ownerOrgName })}. ${res.warning}` : `${t('sentTo', { org: res.ownerOrgName })}${res.rfiNo ? ` · ${res.rfiNo}` : ''}`)
+    } catch (e: any) {
+      Alert.alert(t('sendFailedTitle'), t('sendFailed', { org: target?.ownerOrgName || '', reason: e?.message || 'Unknown error' }))
+    } finally {
+      setSendingId(null)
+    }
+  }
 
   // An open RFI is a question somebody is waiting on, so it reads expanded.
   // Answered and closed ones are history and fold away until asked for.
@@ -141,6 +164,7 @@ export default function RfisScreen() {
     const { data } = await supabase.from('rfis').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
     const list = (data as Rfi[]) || []
     setRows(list)
+    setCopies(await loadForwardedRfis(list))
     const ids = [...new Set(list.flatMap(r => [r.asked_by, r.answered_by]).filter(Boolean) as string[])]
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
@@ -179,13 +203,27 @@ export default function RfisScreen() {
       question: question.trim() || null, plan_ref: planRef.trim() || null,
       photo_url: newPhotoUrl || null,
     }
-    const { error } = editingId
-      ? await supabase.from('rfis').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', editingId)
-      : await supabase.from('rfis').insert({ project_id: projectId, asked_by: uid, ...fields })
+    let error: { message: string } | null = null
+    let createdId: number | null = null
+    if (editingId) {
+      ;({ error } = await supabase.from('rfis').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', editingId))
+    } else {
+      const res = await supabase.from('rfis').insert({ project_id: projectId, asked_by: uid, ...fields }).select('id').single()
+      error = res.error
+      createdId = (res.data as any)?.id ?? null
+    }
     setSaving(false)
     if (error) { flash(error.message); return }
+    const wasForwarded = editingId ? !!rows.find(r => r.id === editingId)?.forwarded_to_id : false
     resetForm(); setShowForm(false)
-    flash(editingId ? t('rfiUpdated') : t('rfiSubmitted')); load()
+    if (!editingId && target && willSend && createdId) {
+      await sendAcross(createdId, false)
+    } else {
+      flash(editingId ? t('rfiUpdated') : t('rfiSubmitted'))
+      // An edit to an RFI already over there follows it quietly.
+      if (editingId && wasForwarded && target) await sendAcross(editingId, true)
+    }
+    load()
   }
 
   async function sendAnswer(rfi: Rfi) {
@@ -259,6 +297,18 @@ export default function RfisScreen() {
                 </Pressable>
               )}
             </View>
+            {target && !editingId && (
+              <Pressable
+                onPress={() => setSendAlso(!willSend)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F8F2FA', borderWidth: 1, borderColor: '#E1BEE7', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 14 }}>{t('sendToJobsite', { org: target.ownerOrgName })}</Text>
+                  <Text style={{ color: '#6A1B9A', fontSize: 12, marginTop: 2, lineHeight: 16 }}>{t('sendRfiHint')}</Text>
+                </View>
+                <Switch value={willSend} onValueChange={v => setSendAlso(v)} trackColor={{ true: '#7B1FA2', false: '#CBD5E1' }} thumbColor="white" />
+              </Pressable>
+            )}
             <Pressable onPress={submit} disabled={saving} style={{ backgroundColor: COLORS.teal, borderRadius: 12, paddingVertical: 13, alignItems: 'center', opacity: saving ? 0.6 : 1 }}>
               <Text style={{ color: 'white', fontWeight: '800' }}>{saving ? '…' : t('rfiSubmit')}</Text>
             </Pressable>
@@ -303,8 +353,41 @@ export default function RfisScreen() {
                 </View>
               )}
               <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>
-                {t('rfiAskedBy')} {names[rfi.asked_by || ''] || '—'} · {new Date(rfi.created_at).toLocaleDateString()}
+                {t('rfiAskedBy')} {names[rfi.asked_by || ''] || rfi.author_name || '—'}{rfi.author_org && !names[rfi.asked_by || ''] ? ` (${rfi.author_org})` : ''} · {new Date(rfi.created_at).toLocaleDateString()}
               </Text>
+
+              {target && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  {rfi.forwarded_to_id ? (
+                    <View style={{ backgroundColor: '#F3E5F5', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                      <Text style={{ color: '#4A148C', fontWeight: '800', fontSize: 11 }}>
+                        ✓ {t('sentTo', { org: target.ownerOrgName })}
+                        {copies[rfi.id]?.rfi_no ? ` · ${copies[rfi.id].rfi_no}` : ''}
+                        {copies[rfi.id] ? ` · ${t((STATUS[copies[rfi.id].status] || STATUS.open).key)}` : ''}
+                      </Text>
+                    </View>
+                  ) : (canEdit(rfi) ? (
+                    <Pressable onPress={() => sendAcross(rfi.id, false).then(load)} disabled={sendingId === rfi.id}
+                      style={{ backgroundColor: '#7B1FA2', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, opacity: sendingId === rfi.id ? 0.6 : 1 }}>
+                      <Text style={{ color: 'white', fontWeight: '800', fontSize: 13 }}>
+                        {sendingId === rfi.id ? t('sending') : t('sendNowTo', { org: target.ownerOrgName })}
+                      </Text>
+                    </Pressable>
+                  ) : null)}
+                </View>
+              )}
+
+              {/* Their answer to the copy we sent — the question went to them,
+                  and this is what came back. */}
+              {isExpanded(rfi) && copies[rfi.id]?.answer ? (
+                <View style={{ marginTop: 10, backgroundColor: '#F8F2FA', borderLeftWidth: 3, borderLeftColor: '#7B1FA2', borderRadius: 8, padding: 12 }}>
+                  <Text style={{ fontWeight: '800', color: '#4A148C', fontSize: 12, marginBottom: 3 }}>{t('answerFrom', { org: target?.ownerOrgName || '' })}</Text>
+                  <Text style={{ color: '#3B0A5C', lineHeight: 20 }}>{copies[rfi.id].answer}</Text>
+                  <Text style={{ color: '#8E6BA8', fontSize: 11, marginTop: 5 }}>
+                    {copies[rfi.id].answered_at ? new Date(copies[rfi.id].answered_at as string).toLocaleDateString() : ''}
+                  </Text>
+                </View>
+              ) : null}
 
               {isExpanded(rfi) && rfi.answer ? (
                 <View style={{ marginTop: 10, backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: '#22C55E', borderRadius: 8, padding: 12 }}>

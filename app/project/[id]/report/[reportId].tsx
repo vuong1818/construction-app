@@ -10,10 +10,12 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Alert } from 'react-native'
 import { useLanguage } from '../../../../lib/i18n'
 import { supabase } from '../../../../lib/supabase'
 import { COLORS } from '../../../../lib/theme'
 import { SignedImage } from '../../../../components/SignedImage'
+import { forwardToSharedJobsite, useForwardTarget } from '../../../../lib/sharedJobsite'
 
 type DailyReport = {
   id: number
@@ -25,6 +27,7 @@ type DailyReport = {
   materials_used: string | null
   weather: string | null
   created_at: string
+  forwarded_to_id: number | null
 }
 
 function DetailCard({
@@ -90,6 +93,27 @@ export default function DailyReportDetailScreen() {
   // Photos attach to a report through project_photos' generic source_table /
   // source_id, so no new table was needed to give reports pictures.
   const [photos, setPhotos] = useState<{ id: number; file_url: string | null; file_path: string | null }[]>([])
+  // This job stands in for one another company shared with us: a report filed
+  // here can be sent onto their jobsite, and resent after an edit.
+  const { target } = useForwardTarget(Number(id))
+  const [sending, setSending] = useState(false)
+
+  async function sendNow() {
+    if (!report) return
+    setSending(true)
+    try {
+      const res = await forwardToSharedJobsite('daily_reports', report.id)
+      Alert.alert(
+        t('sentTo', { org: res.ownerOrgName }),
+        res.warning ? res.warning : (res.photosCopied ? `${res.photosCopied} photo${res.photosCopied === 1 ? '' : 's'} went with it.` : undefined),
+      )
+      loadReport()
+    } catch (e: any) {
+      Alert.alert(t('sendFailedTitle'), t('sendFailed', { org: target?.ownerOrgName || '', reason: e?.message || 'Unknown error' }))
+    } finally {
+      setSending(false)
+    }
+  }
 
   useEffect(() => {
     if (!reportId) return
@@ -236,6 +260,25 @@ export default function DailyReportDetailScreen() {
               style={{ marginTop: 14, backgroundColor: COLORS.navy, borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
             >
               <Text style={{ color: COLORS.white, fontWeight: '800' }}>{t('rfiEdit')}</Text>
+            </Pressable>
+          )}
+          {target && (isManager || (uid && report.created_by === uid)) && (
+            <Pressable
+              onPress={sendNow}
+              disabled={sending}
+              style={{
+                marginTop: 10, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
+                backgroundColor: report.forwarded_to_id ? '#F3E5F5' : '#7B1FA2',
+                borderWidth: 1, borderColor: '#CE93D8', opacity: sending ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: report.forwarded_to_id ? '#4A148C' : 'white', fontWeight: '800' }}>
+                {sending
+                  ? t('sending')
+                  : report.forwarded_to_id
+                    ? `✓ ${t('sentTo', { org: target.ownerOrgName })} · ${t('resend')}`
+                    : t('sendNowTo', { org: target.ownerOrgName })}
+              </Text>
             </Pressable>
           )}
           {photos.length > 0 && (
