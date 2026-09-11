@@ -44,3 +44,33 @@ export function entryWage(
   if (o !== null && o !== undefined && o !== '' && Number.isFinite(Number(o))) return Number(o)
   return effectiveWage(profile, states)
 }
+
+export type OvertimeRule = { enabled?: boolean | null; threshold?: number | null; multiplier?: number | null }
+
+/**
+ * Split a worker's week into regular and overtime and price it.
+ *
+ * `shifts` is the week's finished shifts in the order they were worked, each
+ * { hours, rate }. Hours beyond the threshold pay rate × multiplier; a shift
+ * that straddles the line is split. With overtime off every hour is regular.
+ * Mirrors lib/payrollWage.js on the web — keep in sync.
+ */
+export function applyOvertime(shifts: { hours: number; rate: number }[], ot: OvertimeRule | null | undefined) {
+  const on = !!ot?.enabled && Number(ot?.threshold) >= 0
+  const threshold = on ? Number(ot!.threshold) : Infinity
+  const mult = on ? (Number(ot!.multiplier) || 1.5) : 1
+  let worked = 0, regularHours = 0, overtimeHours = 0, labor = 0, premium = 0
+  for (const s of shifts || []) {
+    const h = Number(s.hours) || 0
+    if (!(h > 0)) continue
+    const rate = Number(s.rate) || 0
+    const reg = Math.max(0, Math.min(h, threshold - worked))
+    const over = h - reg
+    worked += h
+    regularHours += reg
+    overtimeHours += over
+    labor += reg * rate + over * rate * mult
+    premium += over * rate * (mult - 1)
+  }
+  return { regularHours, overtimeHours, labor, overtimePremium: premium }
+}

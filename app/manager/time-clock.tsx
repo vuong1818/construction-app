@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
-import { entryWage } from '../../lib/payrollWage'
+import { applyOvertime, entryWage, type OvertimeRule } from '../../lib/payrollWage'
 import { isManagerRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
@@ -75,6 +75,7 @@ type WorkerSummary = {
   wage: number
   rawHours: number
   totalHours: number
+  overtimeHours: number
   labor: number
   // receiptsAmount is the whole bucket the worker gets paid; the three parts are
   // kept apart because only adjReceipts is manager-typed and editable here.
@@ -266,6 +267,11 @@ function WorkerCard({
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
             {t('totalHoursColon', { hours: formatHours(item.totalHours) })}
           </Text>
+          {item.overtimeHours > 0 && (
+            <Text style={{ color: '#B45309', fontWeight: '700', marginBottom: 4 }}>
+              {t('overtimeHoursColon', { hours: formatHours(item.overtimeHours) })}
+            </Text>
+          )}
 
           <Text style={{ color: COLORS.text, marginBottom: 4 }}>
             {t('laborColon', { amount: formatMoney(item.labor) })}
@@ -354,6 +360,8 @@ export default function ManagerTimeClockScreen() {
   const [reimbursements, setReimbursements] = useState<ReimbursementExpense[]>([])
   const [projectStates, setProjectStates] = useState<ProjectState[]>([])
   const [companyState, setCompanyState] = useState<string | null>(null)
+  // The company's overtime rule (Settings → Company on the web). Off means every hour is regular.
+  const [overtime, setOvertime] = useState<OvertimeRule>({ enabled: false, threshold: 40, multiplier: 1.5 })
   const [mileageRate, setMileageRate] = useState(0)
   const [mileageThreshold, setMileageThreshold] = useState(0)
   // Travel is a switchable feature. Off means mileage never appears here and
@@ -464,7 +472,7 @@ export default function ManagerTimeClockScreen() {
 
         supabase
           .from('company_settings')
-          .select('state, mileage_rate, mileage_threshold_miles, feature_travel')
+          .select('state, mileage_rate, mileage_threshold_miles, feature_travel, overtime_enabled, overtime_weekly_threshold, overtime_multiplier')
           .limit(1)
           .maybeSingle(),
 
@@ -513,6 +521,7 @@ export default function ManagerTimeClockScreen() {
       setProjectStates(projectsResult.error ? [] : ((projectsResult.data || []) as ProjectState[]))
       const cs: any = settingsResult.data || {}
       setCompanyState(cs.state || null)
+      setOvertime({ enabled: cs.overtime_enabled === true, threshold: Number(cs.overtime_weekly_threshold ?? 40), multiplier: Number(cs.overtime_multiplier ?? 1.5) })
       setMileageRate(Number(cs.mileage_rate || 0))
       setMileageThreshold(Number(cs.mileage_threshold_miles || 0))
       setTravelEnabled(cs.feature_travel !== false)
@@ -524,7 +533,9 @@ export default function ManagerTimeClockScreen() {
   }
 
   const workerSummaries = useMemo(() => {
-    const groupedHours: Record<string, { workerName: string; rawHours: number; entryReceipts: number; entryLabor: number }> = {}
+    // shifts keeps each finished shift with its own rate and its start, so
+    // overtime can be taken off the END of the week in the order worked.
+    const groupedHours: Record<string, { workerName: string; rawHours: number; entryReceipts: number; shifts: { at: number; hours: number; rate: number }[] }> = {}
 
     const stateByProject = new Map(projectStates.map((p) => [p.id, p.state]))
     const profileById = new Map(profiles.map((p) => [p.id, p]))
@@ -537,7 +548,7 @@ export default function ManagerTimeClockScreen() {
           workerName: entry.user_name || t('unknownWorkerName'),
           rawHours: 0,
           entryReceipts: 0,
-          entryLabor: 0,
+          shifts: [],
         }
       }
 
@@ -550,7 +561,13 @@ export default function ManagerTimeClockScreen() {
       const projectState = entry.project_id != null ? stateByProject.get(entry.project_id) : null
       // A shift priced by hand on the web pays that rate here too, or the phone
       // and the portal hand the same worker two different checks.
-      groupedHours[entry.user_id].entryLabor += hours * entryWage(entry as any, profileById.get(entry.user_id) || null, { projectState, companyState })
+      if (hours > 0) {
+        groupedHours[entry.user_id].shifts.push({
+          at: entry.clock_in_time ? new Date(entry.clock_in_time).getTime() : 0,
+          hours,
+          rate: entryWage(entry as any, profileById.get(entry.user_id) || null, { projectState, companyState }),
+        })
+      }
     }
 
     // Out-of-pocket expenses, summed per worker who submitted them.
@@ -598,9 +615,15 @@ export default function ManagerTimeClockScreen() {
       // With an hours override the manager has replaced the shifts, so we no
       // longer know which of them were out of state — fall back to the flat
       // rate, exactly as the web does.
-      const labor = adjustment?.hours_override != null
-        ? totalHours * wage
-        : (grouped?.entryLabor || 0)
+      // Overtime, exactly as the web: hours past the company's weekly
+      // threshold in the order they were worked, at the shift's own rate
+      // times the multiplier. An override is one number at the flat rate and
+      // the rule still applies to it.
+      const otSplit = adjustment?.hours_override != null
+        ? applyOvertime([{ hours: totalHours, rate: wage }], overtime)
+        : applyOvertime([...(grouped?.shifts || [])].sort((a, b) => a.at - b.at), overtime)
+      const labor = otSplit.labor
+      const overtimeHours = otSplit.overtimeHours
 
       // Mileage, per trip and driven by the trip type the worker picked:
       //   home↔jobsite legs      → (trip miles − threshold) × rate
@@ -624,6 +647,7 @@ export default function ManagerTimeClockScreen() {
         wage,
         rawHours,
         totalHours,
+        overtimeHours,
         labor,
         receiptsAmount,
         entryReceipts,
@@ -638,7 +662,7 @@ export default function ManagerTimeClockScreen() {
     })
 
     return summaryList.sort((a, b) => a.workerName.localeCompare(b.workerName))
-  }, [entries, profiles, adjustments, reimbursements, projectStates, companyState, travel, mileageRate, mileageThreshold, travelEnabled, t])
+  }, [entries, profiles, adjustments, reimbursements, projectStates, companyState, overtime, travel, mileageRate, mileageThreshold, travelEnabled, t])
 
   function openEditModal(item: WorkerSummary) {
     setEditingWorkerId(item.workerId)

@@ -2059,6 +2059,7 @@ const en = {
   // ── A shift that has run too long ───────────────────────────────────────
   longShiftTitle: 'Still clocked in after {hours} hours',
   longShiftBody: 'If you are done for the day, clock out now. A shift left open is closed automatically and flagged for the office.',
+  overtimeHoursColon: 'Overtime: {hours} h',
 
 } as const
 

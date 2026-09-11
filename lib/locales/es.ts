@@ -2034,6 +2034,7 @@ const es: Record<TranslationKey, string> = {
   // ── Un turno que lleva demasiado tiempo ─────────────────────────────────
   longShiftTitle: 'Sigue registrado después de {hours} horas',
   longShiftBody: 'Si ya terminó por hoy, registre su salida ahora. Un turno abierto se cierra automáticamente y se marca para la oficina.',
+  overtimeHoursColon: 'Horas extra: {hours} h',
 
 }
 
