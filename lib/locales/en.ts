@@ -2051,6 +2051,11 @@ const en = {
   sendFailed: 'Saved on this job, but could not send to {org}: {reason}',
   answerFrom: 'Answer from {org}',
 
+  // ── The installed app is behind the current build ───────────────────────
+  updateRequiredTitle: 'Update available: version {version}',
+  updateRequiredBody: 'This phone has {installed} installed and no longer receives fixes.',
+  updateRequiredTap: 'Tap here to install the new version.',
+
 } as const
 
 export default en

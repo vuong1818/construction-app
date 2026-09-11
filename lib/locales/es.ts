@@ -2026,6 +2026,11 @@ const es: Record<TranslationKey, string> = {
   sendFailed: 'Se guardó en este trabajo, pero no se pudo enviar a {org}: {reason}',
   answerFrom: 'Respuesta de {org}',
 
+  // ── La app instalada está atrasada ──────────────────────────────────────
+  updateRequiredTitle: 'Actualización disponible: versión {version}',
+  updateRequiredBody: 'Este teléfono tiene instalada la {installed} y ya no recibe correcciones.',
+  updateRequiredTap: 'Toque aquí para instalar la nueva versión.',
+
 }
 
 export default es

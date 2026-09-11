@@ -17,6 +17,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { BuildInfoLine } from '../../components/BuildInfo'
+import { UpdateRequiredBanner } from '../../components/UpdateRequiredBanner'
 import { logError } from '../../lib/logger'
 import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
@@ -808,6 +809,9 @@ export default function HomeScreen() {
             Small and grey on purpose — it is a label, not information the crew
             needs to do their job. The fuller version lives on Profile. */}
         <BuildInfoLine />
+        {/* Shown only when the installed binary is behind the current build:
+            a phone on an old runtime receives no OTA and must reinstall. */}
+        <UpdateRequiredBanner />
 
         <View
           style={{
