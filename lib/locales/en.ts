@@ -2056,6 +2056,10 @@ const en = {
   updateRequiredBody: 'This phone has {installed} installed and no longer receives fixes.',
   updateRequiredTap: 'Tap here to install the new version.',
 
+  // ── A shift that has run too long ───────────────────────────────────────
+  longShiftTitle: 'Still clocked in after {hours} hours',
+  longShiftBody: 'If you are done for the day, clock out now. A shift left open is closed automatically and flagged for the office.',
+
 } as const
 
 export default en

@@ -812,6 +812,21 @@ export default function HomeScreen() {
         {/* Shown only when the installed binary is behind the current build:
             a phone on an old runtime receives no OTA and must reinstall. */}
         <UpdateRequiredBanner />
+        {/* A shift that has run past ten hours is usually one nobody clocked
+            out of. Say so while the worker can still fix it themselves — after
+            the company's cap the office closes and flags it. */}
+        {activeEntry && activeEntry.clock_in_time && !activeEntry.clock_out_time
+          && (Date.now() - new Date(activeEntry.clock_in_time).getTime()) / 3600000 >= 10 && (
+          <Pressable
+            onPress={() => setClockModalVisible(true)}
+            style={{ backgroundColor: '#FDECEA', borderColor: '#EF9A9A', borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 14 }}
+          >
+            <Text style={{ color: '#B71C1C', fontWeight: '800', fontSize: 15 }}>
+              {t(language, 'longShiftTitle', { hours: Math.floor((Date.now() - new Date(activeEntry.clock_in_time as string).getTime()) / 3600000) })}
+            </Text>
+            <Text style={{ color: '#B71C1C', marginTop: 3, lineHeight: 18, fontSize: 13 }}>{t(language, 'longShiftBody')}</Text>
+          </Pressable>
+        )}
 
         <View
           style={{
