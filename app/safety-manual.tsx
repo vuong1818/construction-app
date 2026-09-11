@@ -31,7 +31,8 @@ function pdfViewerUri(url: string): string {
 }
 import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'
+import { uploadSignature } from '../lib/signatureUpload';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 import { useSignedUrl } from '../lib/storageUrl';
 
@@ -457,11 +458,15 @@ export default function SafetyManualScreen() {
       });
 
       // Build upsert payload — manual_document_id is optional (null if no DB record found)
+      // The drawn PNG goes to storage; the row keeps its path. If the upload
+      // fails the data URL stays inline as before, so nothing is lost.
+      const sigPath = await uploadSignature(signatureDataUrl, 'manual', user.id);
       const upsertPayload: any = {
         worker_id:      user.id,
         week_start:     weekStart,
         signed_name:    workerName.trim(),
-        signature_text: signatureDataUrl,
+        signature_text: sigPath ? null : signatureDataUrl,
+        signature_path: sigPath,
         signed_at:      now.toISOString(),
       };
       if (manual?.id) upsertPayload.manual_document_id = manual.id;
@@ -508,6 +513,7 @@ export default function SafetyManualScreen() {
                 week_start:     weekStartForMeeting,
                 signed_name:    upsertPayload.signed_name,
                 signature_text: upsertPayload.signature_text,
+                signature_path: upsertPayload.signature_path,
                 signed_at:      upsertPayload.signed_at,
                 pdf_url:        pdfUrl,
               },

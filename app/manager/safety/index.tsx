@@ -19,6 +19,7 @@ import { WEB_BASE } from '../../../lib/config'
 import { useLanguage } from '../../../lib/i18n'
 import { logError } from '../../../lib/logger'
 import { supabase } from '../../../lib/supabase'
+import { SignedImage } from '../../../components/SignedImage'
 import { ownCopyWins } from '../../../lib/safetyLibrary'
 import { currentWorkWeekStart, fmtLocalDate } from '../../../lib/workWeek'
 
@@ -58,6 +59,7 @@ type ManualAck = {
   pdf_url: string | null
   view_token: string | null
   signature_text: string | null
+  signature_path?: string | null
   week_start: string | null
 }
 
@@ -89,6 +91,7 @@ type MeetingAck = {
   pdf_url: string | null
   view_token: string | null
   signature_text: string | null
+  signature_path?: string | null
   week_start: string | null
 }
 
@@ -300,7 +303,7 @@ export default function ManagerSafetyScreen() {
   async function loadManualAcks() {
     const { data } = await supabase
       .from('safety_manual_acknowledgements')
-      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, signature_path, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setManualAcks((data as ManualAck[]) || [])
@@ -318,7 +321,7 @@ export default function ManagerSafetyScreen() {
   async function loadMeetingAcks() {
     const { data } = await supabase
       .from('weekly_meeting_acknowledgements')
-      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, week_start')
+      .select('id, worker_id, signed_name, signed_at, pdf_url, view_token, signature_text, signature_path, week_start')
       .eq('week_start', weekStart)
       .order('signed_at', { ascending: false })
     setMeetingAcks((data as MeetingAck[]) || [])
@@ -776,13 +779,23 @@ export default function ManagerSafetyScreen() {
                 </View>
 
                 <Text style={{ color: C.sub, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>{t('signatureLabel')}</Text>
-                {viewingAck.signature_text ? (
+                {(viewingAck.signature_path || viewingAck.signature_text) ? (
                   <View style={{ borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', backgroundColor: '#FAFAFA', padding: 8 }}>
-                    <Image
-                      source={{ uri: viewingAck.signature_text }}
-                      style={{ width: '100%', height: 120 }}
-                      resizeMode="contain"
-                    />
+                    {/* Newer rows keep the PNG in storage; older ones inline. */}
+                    {viewingAck.signature_path ? (
+                      <SignedImage
+                        bucket="safety-signatures"
+                        value={viewingAck.signature_path}
+                        style={{ width: '100%', height: 120 }}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <Image
+                        source={{ uri: viewingAck.signature_text as string }}
+                        style={{ width: '100%', height: 120 }}
+                        resizeMode="contain"
+                      />
+                    )}
                   </View>
                 ) : (
                   <Text style={{ color: C.sub, fontStyle: 'italic', fontSize: 14 }}>{t('noSignatureImage')}</Text>

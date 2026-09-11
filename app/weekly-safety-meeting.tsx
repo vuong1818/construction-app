@@ -20,7 +20,8 @@ import { WEB_BASE } from '../lib/config';
 import { useLanguage } from '../lib/i18n';
 import { logError } from '../lib/logger';
 import { signedUrl } from '../lib/storageUrl';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'
+import { uploadSignature } from '../lib/signatureUpload';
 import { currentWorkWeekStart, fmtLocalDate } from '../lib/workWeek';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -407,6 +408,10 @@ export default function WeeklySafetyMeetingScreen() {
         hour: '2-digit', minute: '2-digit',
       });
 
+      // The drawn PNG goes to storage; both rows keep its path. If the upload
+      // fails the data URL stays inline as before, so nothing is lost.
+      const sigPath = await uploadSignature(signatureDataUrl, 'meeting', user.id);
+
       // Save the acknowledgement and get the row ID to build the view URL
       const { data: ackData, error: upsertError } = await supabase
         .from('weekly_meeting_acknowledgements')
@@ -416,7 +421,8 @@ export default function WeeklySafetyMeetingScreen() {
             topic_id:       topicRow.id,
             week_start:     weekStart,
             signed_name:    workerName.trim(),
-            signature_text: signatureDataUrl,
+            signature_text: sigPath ? null : signatureDataUrl,
+            signature_path: sigPath,
             signed_at:      now.toISOString(),
           },
           { onConflict: 'worker_id,topic_id,week_start' }
@@ -444,7 +450,8 @@ export default function WeeklySafetyMeetingScreen() {
             worker_id:      user.id,
             week_start:     weekStart,
             signed_name:    workerName.trim(),
-            signature_text: signatureDataUrl,
+            signature_text: sigPath ? null : signatureDataUrl,
+            signature_path: sigPath,
             signed_at:      now.toISOString(),
             pdf_url:        pdfUrl,
           },
