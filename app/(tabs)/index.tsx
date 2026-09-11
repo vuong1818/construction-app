@@ -600,13 +600,20 @@ export default function HomeScreen() {
         }
       } else {
         if (!activeEntry?.id) return
-        await svcClockOut(activeEntry.id, {
+        const out = await svcClockOut(activeEntry.id, {
           lat: offsitePrompt.payload.lat,
           lng: offsitePrompt.payload.lng,
           snapshotUrl: offsitePrompt.payload.snapshotUrl,
           offsite: true, offsiteReason: reason, offsiteNote: note,
         })
-        Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
+        if (out.queued) {
+          // The server still shows the shift open until the queue drains;
+          // the phone shows what the worker just did.
+          setActiveEntry(null)
+          Alert.alert(t(language, 'clockedOutOfflineTitle'), t(language, 'clockedOutOfflineBody'))
+        } else {
+          Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
+        }
       }
 
       setOffsitePrompt(null)
@@ -677,10 +684,15 @@ export default function HomeScreen() {
       })
 
       if (fence.inside && !outOfState) {
-        await svcClockOut(entryId, {
+        const out = await svcClockOut(entryId, {
           lat: loc.lat, lng: loc.lng, snapshotUrl,
           offsite: false, offsiteReason: null, offsiteNote: null,
         })
+        if (out.queued) {
+          setActiveEntry(null)
+          Alert.alert(t(language, 'clockedOutOfflineTitle'), t(language, 'clockedOutOfflineBody'))
+          return
+        }
         Alert.alert(t(language, 'success'), t(language, 'clockedOutSuccessfully'))
         await loadDashboard()
         return

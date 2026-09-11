@@ -59,7 +59,28 @@ export type TaskStatusUpdateOp = {
   attempts: number
 }
 
-export type QueueOp = ClockInQueueOp | TaskStatusUpdateOp
+// Clock-out, when the entry's id is already known — the ordinary end of a
+// day that started with signal. A clock-out for a clock-in that is itself
+// still queued has no id to target and is not offered; the worker sees the
+// pending chip and the entry stays open until the queue drains.
+export type ClockOutQueueOp = {
+  id: string
+  kind: 'clock_out'
+  payload: {
+    time_entry_id: number
+    clock_out_time: string
+    clock_out_lat: number | null
+    clock_out_lng: number | null
+    clock_out_snapshot_url: string | null
+    clock_out_offsite: boolean
+    clock_out_offsite_reason: string | null
+    clock_out_offsite_note: string | null
+  }
+  queued_at: string
+  attempts: number
+}
+
+export type QueueOp = ClockInQueueOp | TaskStatusUpdateOp | ClockOutQueueOp
 
 // ── Storage primitives ──────────────────────────────────────────────────────
 async function readQueue(): Promise<QueueOp[]> {
@@ -119,6 +140,25 @@ export async function queueClockIn(
   await notify()
 }
 
+export async function queueClockOut(
+  payload: ClockOutQueueOp['payload'],
+): Promise<void> {
+  const ops = await readQueue()
+  // One clock-out per entry: a second tap replaces the first.
+  const filtered = ops.filter(
+    (op) => !(op.kind === 'clock_out' && op.payload.time_entry_id === payload.time_entry_id),
+  )
+  filtered.push({
+    id: makeId(),
+    kind: 'clock_out',
+    payload,
+    queued_at: payload.clock_out_time, // the moment the worker actually tapped
+    attempts: 0,
+  })
+  await writeQueue(filtered)
+  await notify()
+}
+
 export async function queueTaskStatusUpdate(
   payload: TaskStatusUpdateOp['payload'],
 ): Promise<void> {
@@ -155,6 +195,15 @@ export async function drainQueue(): Promise<{ synced: number; remaining: number 
       try {
         if (op.kind === 'clock_in') {
           const { error } = await supabase.from('time_entries').insert(op.payload)
+          if (error) throw new Error(error.message)
+          synced++
+        } else if (op.kind === 'clock_out') {
+          const { time_entry_id, ...fields } = op.payload
+          const { error } = await supabase
+            .from('time_entries')
+            .update(fields)
+            .eq('id', time_entry_id)
+            .is('clock_out_time', null)   // never overwrite a clock-out the office already set
           if (error) throw new Error(error.message)
           synced++
         } else if (op.kind === 'task_status_update') {

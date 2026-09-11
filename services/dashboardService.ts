@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { OffsiteReason } from '../lib/clockLocation'
 import { getTodayRange, getWorkWeekRange } from '../lib/time'
-import { isOnline, queueClockIn } from '../lib/syncQueue'
+import { isOnline, queueClockIn, queueClockOut } from '../lib/syncQueue'
 import {
   getUserFullName,
   getUserProfile,
@@ -147,23 +147,40 @@ export async function clockIn(
   return { queued: false }
 }
 
-export async function clockOut(timeEntryId: number, location: ClockLocationPayload) {
-  const { error } = await supabase
-    .from('time_entries')
-    .update({
-      clock_out_time: new Date().toISOString(),
-      clock_out_lat: location.lat,
-      clock_out_lng: location.lng,
-      clock_out_snapshot_url: location.snapshotUrl,
-      clock_out_offsite: location.offsite,
-      clock_out_offsite_reason: location.offsiteReason,
-      clock_out_offsite_note: location.offsiteNote,
-    })
-    .eq('id', timeEntryId)
+/**
+ * Clock out. Offline-safe the same way clockIn is: with no signal, or when
+ * the update fails in a network-shaped way, the clock-out is queued with the
+ * moment the worker tapped and replayed when the phone reconnects. The entry
+ * id is known here (the shift was opened with signal), which is what the
+ * queue could not do for a switch.
+ */
+export async function clockOut(timeEntryId: number, location: ClockLocationPayload): Promise<{ queued: boolean }> {
+  const fields = {
+    clock_out_time: new Date().toISOString(),
+    clock_out_lat: location.lat,
+    clock_out_lng: location.lng,
+    clock_out_snapshot_url: location.snapshotUrl,
+    clock_out_offsite: location.offsite,
+    clock_out_offsite_reason: location.offsiteReason,
+    clock_out_offsite_note: location.offsiteNote,
+  }
 
+  const online = await isOnline()
+  if (!online) {
+    await queueClockOut({ time_entry_id: timeEntryId, ...fields })
+    return { queued: true }
+  }
+
+  const { error } = await supabase.from('time_entries').update(fields).eq('id', timeEntryId)
   if (error) {
+    const msg = (error.message || '').toLowerCase()
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
+      await queueClockOut({ time_entry_id: timeEntryId, ...fields })
+      return { queued: true }
+    }
     throw new Error(error.message)
   }
+  return { queued: false }
 }
 
 /**

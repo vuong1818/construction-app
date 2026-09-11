@@ -2061,6 +2061,10 @@ const en = {
   longShiftBody: 'If you are done for the day, clock out now. A shift left open is closed automatically and flagged for the office.',
   overtimeHoursColon: 'Overtime: {hours} h',
 
+  // ── Clock-out with no signal ────────────────────────────────────────────
+  clockedOutOfflineTitle: 'Clocked out (offline)',
+  clockedOutOfflineBody: 'No signal right now. Your clock-out time is saved on this phone and will reach the office as soon as you reconnect.',
+
 } as const
 
 export default en

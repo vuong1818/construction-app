@@ -2036,6 +2036,10 @@ const es: Record<TranslationKey, string> = {
   longShiftBody: 'Si ya terminó por hoy, registre su salida ahora. Un turno abierto se cierra automáticamente y se marca para la oficina.',
   overtimeHoursColon: 'Horas extra: {hours} h',
 
+  // ── Salida sin señal ────────────────────────────────────────────────────
+  clockedOutOfflineTitle: 'Salida registrada (sin conexión)',
+  clockedOutOfflineBody: 'No hay señal ahora. Su hora de salida quedó guardada en este teléfono y llegará a la oficina en cuanto se reconecte.',
+
 }
 
 export default es
