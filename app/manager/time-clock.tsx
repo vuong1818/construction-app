@@ -20,6 +20,7 @@ import { entryWage } from '../../lib/payrollWage'
 import { isManagerRole } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
+import { getWorkWeekStartDay, workWeekStartDate } from '../../lib/workWeek'
 
 type TimeEntry = {
   id: number
@@ -109,14 +110,10 @@ const EMPTY_FORM: EditForm = {
   receiptsAmount: '',
 }
 
-function getCurrentWorkWeekRange(baseDate = new Date()) {
-  const now = new Date(baseDate)
-  const currentDay = now.getDay()
-  const daysSinceFriday = (currentDay - 5 + 7) % 7
-
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() - daysSinceFriday)
-  weekStart.setHours(0, 0, 0, 0)
+// startDay is the company's configured week start (0=Sun … 5=Fri), the same
+// value the web payroll page reads. This used to hard-code Friday.
+function getCurrentWorkWeekRange(baseDate = new Date(), startDay = 5) {
+  const weekStart = workWeekStartDate(baseDate, startDay)
 
   const weekEnd = new Date(weekStart)
   weekEnd.setDate(weekStart.getDate() + 6)
@@ -125,8 +122,8 @@ function getCurrentWorkWeekRange(baseDate = new Date()) {
   return { weekStart, weekEnd }
 }
 
-function buildWeekOptions(count = 16): WeekOption[] {
-  const { weekStart: currentStart } = getCurrentWorkWeekRange()
+function buildWeekOptions(count = 16, startDay = 5): WeekOption[] {
+  const { weekStart: currentStart } = getCurrentWorkWeekRange(new Date(), startDay)
   const options: WeekOption[] = []
 
   for (let i = 0; i < count; i++) {
@@ -336,7 +333,15 @@ function WorkerCard({
 
 export default function ManagerTimeClockScreen() {
   const { t } = useLanguage()
-  const weekOptions = useMemo(() => buildWeekOptions(16), [])
+  // Week list follows the company's configured week start once it loads;
+  // until then the Friday default keeps the picker populated.
+  const [weekStartDay, setWeekStartDay] = useState(5)
+  useEffect(() => {
+    let alive = true
+    getWorkWeekStartDay().then(d => { if (alive) setWeekStartDay(d) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+  const weekOptions = useMemo(() => buildWeekOptions(16, weekStartDay), [weekStartDay])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)

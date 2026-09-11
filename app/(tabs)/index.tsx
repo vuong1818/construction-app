@@ -34,6 +34,7 @@ import { useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { canStock } from '../../lib/roles'
+import { getWorkWeekStartDay, workWeekStartDate } from '../../lib/workWeek'
 import { clockIn as svcClockIn, clockOut as svcClockOut, switchProject as svcSwitchProject } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
 import { COLORS } from '../../lib/theme'
@@ -112,9 +113,24 @@ export default function HomeScreen() {
   const [clockOutReviewVisible, setClockOutReviewVisible] = useState(false)
   const offsiteReasons = useClockInReasons()
 
+  // The company's configured week start (0=Sun … 5=Fri), the same value the
+  // web payroll page reads. This screen used to hard-code Friday, so "this
+  // week's hours" could disagree with the office for any company not on a
+  // Friday week. Defaults to Friday until the setting loads. Declared BEFORE
+  // the effect below that depends on it — a const used above its declaration
+  // is the "Cannot access before initialization" crash from August.
+  const [weekStartDay, setWeekStartDay] = useState(5)
+  useEffect(() => {
+    let alive = true
+    getWorkWeekStartDay().then(d => { if (alive) setWeekStartDay(d) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  // Re-runs once the company's week start arrives, so the weekly total is
+  // computed against the right week rather than the Friday default.
   useEffect(() => {
     loadDashboard()
-  }, [])
+  }, [weekStartDay])
 
   // Start the offline-queue auto-drain (replays queued clock-ins on
   // reconnect) and subscribe to the pending count so the chip updates
@@ -156,13 +172,7 @@ export default function HomeScreen() {
   // (e.g. Vietnamese) here doesn't need any code change in this screen.
 
   function getWorkWeekRange() {
-    const now = new Date()
-    const currentDay = now.getDay()
-    const daysSinceFriday = (currentDay - 5 + 7) % 7
-
-    const weekStart = new Date(now)
-    weekStart.setDate(now.getDate() - daysSinceFriday)
-    weekStart.setHours(0, 0, 0, 0)
+    const weekStart = workWeekStartDate(new Date(), weekStartDay)
 
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
