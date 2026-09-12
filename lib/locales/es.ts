@@ -466,6 +466,11 @@ const es: Record<TranslationKey, string> = {
   optionalNote: 'Nota opcional',
   offsiteNotePlaceholder: 'p.ej. Recogí materiales en Lowe\'s',
   hrs: 'h',
+  notices: 'Avisos',
+  inboxEmpty: 'Nada nuevo esta semana.',
+  markAllRead: 'Marcar todo como leído',
+  unreadFromLastWeek: '{n} sin leer de la semana pasada',
+  showAllN: 'Ver los {n}',
   earned: 'ganado',
 
   // ── Time clock ────────────────────────────────────────────────────────

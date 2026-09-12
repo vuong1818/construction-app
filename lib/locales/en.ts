@@ -477,6 +477,11 @@ const en = {
   optionalNote: 'Optional note',
   offsiteNotePlaceholder: "e.g. Picked up materials at Lowe's",
   hrs: 'hrs',
+  notices: 'Notices',
+  inboxEmpty: 'Nothing new this week.',
+  markAllRead: 'Mark all read',
+  unreadFromLastWeek: '{n} unread from last week',
+  showAllN: 'Show all {n}',
   earned: 'earned',
 
   // ── Time clock ────────────────────────────────────────────────────────

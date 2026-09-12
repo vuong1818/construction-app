@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { BuildInfoLine } from '../../components/BuildInfo'
 import { UpdateRequiredBanner } from '../../components/UpdateRequiredBanner'
+import { InboxCard } from '../../components/InboxCard'
 import { logError } from '../../lib/logger'
 import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
@@ -1071,6 +1072,10 @@ export default function HomeScreen() {
         {/* Travel — a standalone mileage log. Start Trip / End Trip, each with a geo
             photo. It never clocks anyone in or out. */}
         <TravelCard userName={profile?.full_name ?? null} language={language} />
+
+        {/* Notices — the inbox. Reports, RFIs, requests and answers stay here
+            until this person marks them read. */}
+        <InboxCard language={language} weekStart={weekStart} />
 
         {/* The person who runs a contractor company keeps their own crew's
             hours. Only they see this card, and the database agrees: they can
