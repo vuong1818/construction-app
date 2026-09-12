@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLanguage } from '../lib/i18n'
 import {
     ActivityIndicator,
     FlatList,
@@ -23,6 +24,7 @@ type AckRow = {
 };
 
 export default function SafetyDocumentAcknowledgementsScreen() {
+  const { t } = useLanguage()
   const [rows, setRows] = useState<AckRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,7 +100,7 @@ export default function SafetyDocumentAcknowledgementsScreen() {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading acknowledgements...</Text>
+        <Text style={styles.loadingText}>{t('loadingAcks')}</Text>
       </View>
     );
   }
@@ -119,7 +121,7 @@ export default function SafetyDocumentAcknowledgementsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No acknowledgements found yet.</Text>
+          <Text style={styles.emptyText}>{t('noAcksYet')}</Text>
         }
       />
     </View>

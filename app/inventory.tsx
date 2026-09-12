@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
+import { useLanguage } from '../lib/i18n'
 import { canStock } from '../lib/roles'
 import { COLORS } from '../lib/theme'
 
@@ -47,6 +48,7 @@ const EMPTY = {
 type CatalogHit = { id: number; description: string; unit: string | null; trade: string | null; group_name: string | null; size_rating: string | null; item_code: string | null; barcode: string | null; base_unit_cost: number | null }
 
 export default function InventoryScreen() {
+  const { t } = useLanguage()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [allowed, setAllowed] = useState(false)
@@ -231,7 +233,7 @@ export default function InventoryScreen() {
   if (!allowed) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, padding: 24, justifyContent: 'center' }}>
-        <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, textAlign: 'center' }}>Inventory is restricted</Text>
+        <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 18, textAlign: 'center' }}>{t('inventoryRestricted')}</Text>
         <Text style={{ color: COLORS.subtext, textAlign: 'center', marginTop: 8, lineHeight: 20 }}>
           Owners, managers and warehouse staff can manage stock. Ask your manager if you need access.
         </Text>
@@ -246,7 +248,7 @@ export default function InventoryScreen() {
           <TextInput
             value={q}
             onChangeText={setQ}
-            placeholder="Search name, SKU or location"
+            placeholder={t('searchNameSkuLocation')}
             placeholderTextColor={COLORS.subtext}
             style={{
               flex: 1, backgroundColor: COLORS.card, borderRadius: 14,
@@ -266,7 +268,7 @@ export default function InventoryScreen() {
           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start' }}
         >
           <MaterialCommunityIcons name="barcode-scan" size={20} color={COLORS.teal} />
-          <Text style={{ color: COLORS.teal, fontWeight: '700' }}>Scan a barcode</Text>
+          <Text style={{ color: COLORS.teal, fontWeight: '700' }}>{t('scanABarcode')}</Text>
         </Pressable>
         {/* Retired stock is out of the way but not out of reach — otherwise
             deactivating is a one-way door and the only way back is a desktop. */}
@@ -357,11 +359,11 @@ export default function InventoryScreen() {
                   hand looks identical on the day and drifts by the month. */}
               {!editing?.id && (
                 <View>
-                  <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6, fontSize: 13 }}>Find it in the material catalog</Text>
+                  <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 6, fontSize: 13 }}>{t('findInCatalog')}</Text>
                   <TextInput
                     value={catalogQ}
                     onChangeText={(v) => { setCatalogQ(v); searchCatalog(v) }}
-                    placeholder="Type 2 letters — name or item code"
+                    placeholder={t('typeTwoLetters')}
                     placeholderTextColor={COLORS.subtext}
                     autoCorrect={false}
                     style={{ backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, paddingVertical: 12, color: COLORS.text }}
@@ -382,7 +384,7 @@ export default function InventoryScreen() {
                   {editing?.material_id ? (
                     <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.tealSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
                       <MaterialCommunityIcons name="link-variant" size={16} color={COLORS.teal} />
-                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>Linked to the catalog</Text>
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>{t('linkedToCatalog')}</Text>
                       <Pressable onPress={() => setEditing(p => (p ? { ...p, material_id: null } : p))}>
                         <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Unlink</Text>
                       </Pressable>
@@ -396,14 +398,14 @@ export default function InventoryScreen() {
                       barcode nobody can explain. */}
                   {editing?.material_id && catalogBarcode && editing.barcode && catalogBarcode !== editing.barcode ? (
                     <View style={{ marginTop: 8, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
-                      <Text style={{ color: '#92400E', fontWeight: '800', fontSize: 12 }}>This barcode differs from the catalog&apos;s</Text>
+                      <Text style={{ color: '#92400E', fontWeight: '800', fontSize: 12 }}>{t('barcodeDiffers')}</Text>
                       <Text style={{ color: '#92400E', fontSize: 12, marginTop: 2 }}>Scanned {editing.barcode} · catalog {catalogBarcode}</Text>
                       <View style={{ flexDirection: 'row', gap: 14, marginTop: 6 }}>
                         <Pressable onPress={() => setEditing(p => (p ? { ...p, barcode: catalogBarcode } : p))}>
-                          <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Use the catalog&apos;s</Text>
+                          <Text style={{ color: COLORS.navy, fontWeight: '800' }}>{t('useCatalogs')}</Text>
                         </Pressable>
                         <Pressable onPress={() => setCatalogBarcode(null)}>
-                          <Text style={{ color: COLORS.subtext, fontWeight: '800' }}>Keep the scan</Text>
+                          <Text style={{ color: COLORS.subtext, fontWeight: '800' }}>{t('keepTheScan')}</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -470,7 +472,7 @@ export default function InventoryScreen() {
                   </Pressable>
 
                   {historyCount === null ? (
-                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 10 }}>Checking its history…</Text>
+                    <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 10 }}>{t('checkingHistory')}</Text>
                   ) : historyCount > 0 ? (
                     <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 10, lineHeight: 18 }}>
                       {historyCount} stock movement{historyCount === 1 ? '' : 's'} recorded, so this cannot be deleted —

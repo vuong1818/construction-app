@@ -207,7 +207,7 @@ export default function InventoryScan() {
                   onPress={() => { const code = result.notFound!; dismiss(); router.replace({ pathname: '/inventory', params: { newBarcode: code } }) }}
                   style={{ backgroundColor: COLORS.teal, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                  <Text style={{ color: '#fff', fontWeight: '800' }}>Create this item</Text>
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>{t('createThisItem')}</Text>
                 </Pressable>
                 <Pressable onPress={dismiss} style={{ backgroundColor: COLORS.navy, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 13, marginTop: 10 }}>
                   <Text style={{ color: '#fff', fontWeight: '800' }}>{t('scanAgain')}</Text>

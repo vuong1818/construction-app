@@ -537,7 +537,7 @@ export default function MaterialRequestsScreen() {
                     style={inputStyle}
                     value={search}
                     onChangeText={(v) => { setSearch(v); searchCatalog(v, trade, group) }}
-                    placeholder="Type 2 letters — name or item code"
+                    placeholder={t('typeTwoLetters')}
                     placeholderTextColor={COLORS.subtext}
                     autoCorrect={false}
                   />
@@ -570,7 +570,7 @@ export default function MaterialRequestsScreen() {
                   {materialId != null && (
                     <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.tealSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 }}>
                       <MaterialCommunityIcons name="check-circle-outline" size={18} color={COLORS.teal} />
-                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>From the catalog — the office gets the price and vendor</Text>
+                      <Text style={{ color: COLORS.teal, fontWeight: '800', flex: 1 }}>{t('fromTheCatalog')} — the office gets the price and vendor</Text>
                       <Pressable onPress={() => setMaterialId(null)}>
                         <Text style={{ color: COLORS.navy, fontWeight: '800' }}>Clear</Text>
                       </Pressable>

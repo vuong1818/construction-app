@@ -11,6 +11,7 @@ const CACHE_KEY = 'clock_in_reasons_v1'
 export type ClockInReason = {
   value: string
   label: string
+  label_es?: string | null
   sort_order: number
 }
 
@@ -18,12 +19,12 @@ export type ClockInReason = {
 // fails — e.g. brand-new install offline. Matches the seed in
 // migration 0027 so a worker can still pick a reason on day one.
 const FALLBACK: ClockInReason[] = [
-  { value: 'jobsite_change',    label: 'Jobsite Change',      sort_order: 10 },
-  { value: 'supply_pickup',     label: 'Supply Pickup',       sort_order: 20 },
-  { value: 'office_yard',       label: 'Office / Yard',       sort_order: 30 },
-  { value: 'inspection_permit', label: 'Inspection / Permit', sort_order: 40 },
-  { value: 'traveling',         label: 'Traveling',           sort_order: 50 },
-  { value: 'other',             label: 'Other',               sort_order: 60 },
+  { value: 'jobsite_change',    label: 'Jobsite Change',      label_es: 'Cambio de obra',       sort_order: 10 },
+  { value: 'supply_pickup',     label: 'Supply Pickup',       label_es: 'Recoger materiales',   sort_order: 20 },
+  { value: 'office_yard',       label: 'Office / Yard',       label_es: 'Oficina / patio',      sort_order: 30 },
+  { value: 'inspection_permit', label: 'Inspection / Permit', label_es: 'Inspección / permiso', sort_order: 40 },
+  { value: 'traveling',         label: 'Traveling',           label_es: 'Viajando',             sort_order: 50 },
+  { value: 'other',             label: 'Other',               label_es: 'Otro',                 sort_order: 60 },
 ]
 
 async function readCache(): Promise<ClockInReason[] | null> {
@@ -48,13 +49,14 @@ async function writeCache(reasons: ClockInReason[]): Promise<void> {
 async function fetchFromServer(): Promise<ClockInReason[] | null> {
   const { data, error } = await supabase
     .from('clock_in_reasons')
-    .select('value, label, sort_order, deleted_at')
+    .select('value, label, label_es, sort_order, deleted_at')
     .is('deleted_at', null)
     .order('sort_order')
   if (error || !data) return null
   return data.map((r) => ({
     value: r.value,
     label: r.label,
+    label_es: r.label_es ?? null,
     sort_order: r.sort_order ?? 0,
   }))
 }
@@ -86,8 +88,13 @@ export function useClockInReasons(): ClockInReason[] {
 
 // Resolve a slug → label using the cached list. Used to render historical
 // time entries whose reason might be a legacy soft-deleted slug.
-export function labelForReason(value: string | null, reasons: ClockInReason[]): string {
+export function labelForReason(value: string | null, reasons: ClockInReason[], language?: string): string {
   if (!value) return ''
   const hit = reasons.find((r) => r.value === value)
-  return hit ? hit.label : value
+  return hit ? reasonLabel(hit, language) : value
+}
+
+// The label in the phone's language, English when there is no Spanish one.
+export function reasonLabel(r: ClockInReason, language?: string): string {
+  return language === 'es' && r.label_es ? r.label_es : r.label
 }

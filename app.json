@@ -2,7 +2,7 @@
   "expo": {
     "name": "SiteOfficeIQ On-Site",
     "slug": "nguyenmep-onsite-tech",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "onsitetech",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.siteofficeiq.onsite",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "NSCameraUsageDescription": "Take photos of job site progress, receipts, and safety conditions.",
         "NSPhotoLibraryUsageDescription": "Attach photos from your library to projects, expenses, and safety records.",
@@ -40,7 +40,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.siteofficeiq.onsite",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -90,7 +90,14 @@
         }
       ],
       "expo-font",
-      "@sentry/react-native"
+      "@sentry/react-native",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0D1B3E"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -102,7 +109,7 @@
         "projectId": "e83f0eec-5ab7-4d51-9cce-27e5c058545c"
       }
     },
-    "runtimeVersion": "1.2.0",
+    "runtimeVersion": "1.3.0",
     "updates": {
       "url": "https://u.expo.dev/e83f0eec-5ab7-4d51-9cce-27e5c058545c"
     }

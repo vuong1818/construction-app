@@ -7,6 +7,7 @@ import { LanguageProvider } from '../lib/i18n'
 import { initCrashReporting, setCrashUser } from '../lib/crashReporting'
 import { installGlobalErrorLogger } from '../lib/logger'
 import { supabase } from '../lib/supabase'
+import { listenForNotificationTaps, registerForPush, unregisterPush } from '../lib/push'
 import { COLORS } from '../lib/theme'
 
 // Capture uncaught JS errors app-wide into the error log.
@@ -49,14 +50,19 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
         setCrashUser(null)
+        unregisterPush()
         router.replace('/sign-in')
       } else if (session?.user?.id) {
         // Id only — a crash report is a debugging artefact, not somewhere to
         // copy the customer's directory.
         setCrashUser(session.user.id)
+        // Push: file this phone's token for the inbox's notifications.
+        registerForPush()
       }
     })
-    return () => subscription.unsubscribe()
+    // Tapping a notification opens what it is about.
+    const stopTaps = listenForNotificationTaps()
+    return () => { subscription.unsubscribe(); stopTaps() }
   }, [])
 
   // Once per app start, and again on a fresh sign-in. Not on every token

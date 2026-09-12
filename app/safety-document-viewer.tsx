@@ -72,7 +72,7 @@ export default function SafetyDocumentViewer() {
         {/* A document that will not render inline must still be readable. */}
         {!!pdfUrl && (
           <TouchableOpacity onPress={() => Linking.openURL(pdfUrl)} style={{ paddingVertical: 10, alignItems: 'center' }}>
-            <Text style={{ color: '#00B4D8', fontWeight: '700', fontSize: 13 }}>Open outside the app ↗</Text>
+            <Text style={{ color: '#00B4D8', fontWeight: '700', fontSize: 13 }}>{t('openOutsideApp')} ↗</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>

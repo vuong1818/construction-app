@@ -72,7 +72,7 @@ export default function CrewStatusScreen() {
   if (notAllowed) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, padding: 20 }}>
-        <Text style={{ color: COLORS.text, fontWeight: '700' }}>Managers only.</Text>
+        <Text style={{ color: COLORS.text, fontWeight: '700' }}>{t('managerOnly')}</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 16 }}><Text style={{ color: COLORS.navy, fontWeight: '700' }}>{t('back')}</Text></Pressable>
       </SafeAreaView>
     )

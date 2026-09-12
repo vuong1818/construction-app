@@ -352,7 +352,7 @@ export default function TimesheetScreen() {
         ) : entries.length === 0 ? (
           <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 32, alignItems: 'center' }}>
             <MaterialCommunityIcons name="calendar-blank-outline" size={48} color={COLORS.muted} />
-            <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '700', marginTop: 12 }}>No entries in this range</Text>
+            <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '700', marginTop: 12 }}>{t('noEntriesInRange')}</Text>
             <Text style={{ color: COLORS.subtext, fontSize: TYPE.body, marginTop: 4, textAlign: 'center' }}>
               Try a different day, pay period, or custom date range.
             </Text>

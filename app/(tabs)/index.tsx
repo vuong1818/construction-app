@@ -34,7 +34,7 @@ import {
   readCurrentLocation,
   stateForLocation,
 } from '../../lib/clockLocation'
-import { useClockInReasons } from '../../lib/clockInReasons'
+import { reasonLabel, useClockInReasons } from '../../lib/clockInReasons'
 import { LANGUAGES, t, useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { canStock } from '../../lib/roles'
@@ -1645,7 +1645,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 16 }}>
-                      {r.label}
+                      {reasonLabel(r, language)}
                     </Text>
                   </Pressable>
                 ))}
