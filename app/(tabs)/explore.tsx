@@ -14,7 +14,7 @@ import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useManagerSummary } from '../../hooks/useManagerSummary'
 import { useLanguage } from '../../lib/i18n'
 import { COLORS } from '../../lib/theme'
-import { isSupervisorPlus } from '../../lib/roles'
+import { isOwner, isSupervisorPlus } from '../../lib/roles'
 
 function ManagerCard({
   title,
@@ -161,6 +161,7 @@ export default function ManagerSummaryScreen() {
   }
 
   const isSupervisor = userRole === 'supervisor'
+  const isOwnerRole = isOwner(String(userRole))
 
   if (!isSupervisorPlus(userRole)) {
     return (
@@ -272,6 +273,18 @@ export default function ManagerSummaryScreen() {
             {isSupervisor ? t('supervisorDashboardIntro') : t('managerDashboardIntro')}
           </Text>
         </View>
+
+        {/* The owner's five numbers. Owners only; managers never see it. */}
+        {isOwnerRole && (
+          <ManagerCard
+            title={t('ownerView')}
+            subtitle={t('ownerViewIntro')}
+            icon="view-dashboard-outline"
+            iconBg={COLORS.tealSoft}
+            iconColor={COLORS.teal}
+            onPress={() => router.push('/owner' as any)}
+          />
+        )}
 
         {/* Time & Payroll shows pay $ (wages, labor) → owner/manager only, never supervisor. */}
         {!isSupervisor && (
