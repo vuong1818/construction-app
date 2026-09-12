@@ -20,6 +20,7 @@ import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useLinkedShare, useProjectGrant } from '../../hooks/useProjectGrant'
+import { SectionTitle, Tile as BigActionCard } from '../../components/ui'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
@@ -55,99 +56,6 @@ const PLAN_TYPE_BADGE: Record<string, { bg: string; color: string; label: string
   landscape:     { bg: '#E8F5E9', color: '#2E7D32', label: 'Landscape' },
   other:         { bg: '#F4F7FA', color: '#555555', label: 'Other' },
   mep:           { bg: '#EDE7F6', color: '#4527A0', label: 'MEP' },
-}
-
-function SectionTitle({
-  icon,
-  iconBg,
-  iconColor,
-  title,
-}: {
-  icon: string
-  iconBg: string
-  iconColor: string
-  title: string
-}) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, marginTop: 20 }}>
-      <View
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 16,
-          backgroundColor: iconBg,
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginRight: 10,
-        }}
-      >
-        <MaterialCommunityIcons name={icon as any} size={24} color={iconColor} />
-      </View>
-
-      <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.text }}>
-        {title}
-      </Text>
-    </View>
-  )
-}
-
-function BigActionCard({
-  icon,
-  iconBg,
-  iconColor,
-  title,
-  onPress,
-  disabled = false,
-}: {
-  icon: string
-  iconBg: string
-  iconColor: string
-  title: string
-  onPress: () => void
-  disabled?: boolean
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={{
-        flex: 1,
-        backgroundColor: disabled ? '#CBD5E1' : COLORS.card,
-        borderRadius: 22,
-        paddingVertical: 22,
-        paddingHorizontal: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-      }}
-    >
-      <View
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 20,
-          backgroundColor: iconBg,
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginBottom: 12,
-        }}
-      >
-        <MaterialCommunityIcons name={icon as any} size={32} color={iconColor} />
-      </View>
-
-      <Text
-        style={{
-          color: COLORS.navy,
-          fontWeight: '700',
-          textAlign: 'center',
-          fontSize: 15,
-        }}
-      >
-        {title}
-      </Text>
-    </Pressable>
-  )
 }
 
 function fmtMoney(n: number): string {
