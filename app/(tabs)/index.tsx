@@ -19,6 +19,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { BuildInfoLine } from '../../components/BuildInfo'
 import { UpdateRequiredBanner } from '../../components/UpdateRequiredBanner'
 import { InboxCard } from '../../components/InboxCard'
+import { MyDayCard } from '../../components/MyDayCard'
+import { MyWeekCard } from '../../components/MyWeekCard'
 import { logError } from '../../lib/logger'
 import { SkeletonBlock, SkeletonList } from '../../components/SkeletonCard'
 import { useCompanyLogo } from '../../hooks/useCompanyLogo'
@@ -1061,13 +1063,14 @@ export default function HomeScreen() {
             </Pressable>
           )}
 
-          <Text style={{ color: '#D9F6FB', marginBottom: 6 }}>
-            {t(language, 'workWeek')}: {weekStart.toLocaleDateString()} - {weekEnd.toLocaleDateString()}
-          </Text>
-          <Text style={{ color: COLORS.white, fontSize: 28, fontWeight: '800' }}>
-            {`${formatHours(weeklyTotalHours)} ${t(language, 'hrs')}`}
-          </Text>
         </View>
+
+        {/* My day: today's job, today's kit tasks, the five verbs. */}
+        <MyDayCard language={language} activeProjectId={activeEntry?.project_id ?? todayEntry?.project_id ?? null} />
+
+        {/* My week: hours, overtime, mileage, receipts and the gross earned,
+            computed by the same code as the office's payroll. */}
+        <MyWeekCard language={language} />
 
         {/* Travel — a standalone mileage log. Start Trip / End Trip, each with a geo
             photo. It never clocks anyone in or out. */}

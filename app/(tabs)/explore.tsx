@@ -14,7 +14,7 @@ import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useManagerSummary } from '../../hooks/useManagerSummary'
 import { useLanguage } from '../../lib/i18n'
 import { COLORS } from '../../lib/theme'
-import { isOwner, isSupervisorPlus } from '../../lib/roles'
+import { canFinance, isOwner, isSupervisorPlus } from '../../lib/roles'
 
 function ManagerCard({
   title,
@@ -162,6 +162,7 @@ export default function ManagerSummaryScreen() {
 
   const isSupervisor = userRole === 'supervisor'
   const isOwnerRole = isOwner(String(userRole))
+  const moneyRole = canFinance(String(userRole))
 
   if (!isSupervisorPlus(userRole)) {
     return (
@@ -273,6 +274,25 @@ export default function ManagerSummaryScreen() {
             {isSupervisor ? t('supervisorDashboardIntro') : t('managerDashboardIntro')}
           </Text>
         </View>
+
+        <ManagerCard
+          title={t('todayCard')}
+          subtitle={t('todayCardSubtitle')}
+          icon="calendar-today"
+          iconBg={COLORS.tealSoft}
+          iconColor={COLORS.teal}
+          onPress={() => router.push('/manager/today' as any)}
+        />
+        {moneyRole && (
+          <ManagerCard
+            title={t('moneyCard')}
+            subtitle={t('moneyCardSubtitle')}
+            icon="cash-multiple"
+            iconBg={COLORS.greenSoft}
+            iconColor={COLORS.green}
+            onPress={() => router.push('/manager/money' as any)}
+          />
+        )}
 
         {/* The owner's five numbers. Owners only; managers never see it. */}
         {isOwnerRole && (
