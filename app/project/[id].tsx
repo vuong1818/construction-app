@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useProjectDetail } from '../../hooks/useProjectDetail'
 import { useLinkedShare, useProjectGrant } from '../../hooks/useProjectGrant'
 import { SectionTitle, Tile as BigActionCard } from '../../components/ui'
+import { ProjectHeaderCard } from '../../components/ProjectHeaderCard'
 import { useProjectFinance } from '../../hooks/useProjectFinance'
 import { formatProjectAddress } from '../../lib/formatAddress'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
@@ -348,6 +349,9 @@ export default function ProjectDetailScreen() {
             <Text style={{ color: COLORS.teal, fontWeight: '800', fontSize: 15 }}>{t('openInMaps')}</Text>
           </Pressable>
         </View>
+
+        {/* The first ten seconds: phase, % complete, who is here, next inspection, waiting. Not on a shared jobsite. */}
+        {!isGranted && <ProjectHeaderCard projectId={Number(id)} onOpenWaiting={() => router.push(`/project/${id}/rfis` as any)} />}
 
         {/* Job Kit leads: it is the scope everything else on this screen is
             derived from, so it gets the accent and the first slot. */}
