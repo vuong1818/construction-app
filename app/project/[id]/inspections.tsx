@@ -141,7 +141,7 @@ export default function ProjectInspectionsScreen() {
           .eq('id', projectId)
           .single(),
         supabase.from('project_inspections')
-          .select('project_id, inspection_key, status, inspection_date, notes, updated_at, status_by, status_at')
+          .select('project_id, inspection_key, status, inspection_date, notes, updated_at, status_by, status_at, earliest_date')
           .eq('project_id', projectId),
         supabase.from('project_inspection_items')
           .select('item_key, label, category, category_icon, phase, sort_order')
