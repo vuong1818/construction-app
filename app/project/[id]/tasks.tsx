@@ -27,6 +27,7 @@ import { supabase } from '../../../lib/supabase'
 import { SignedImage } from '../../../components/SignedImage'
 import { signedUrl } from '../../../lib/storageUrl'
 import { COLORS, TOUCH, TYPE } from '../../../lib/theme'
+import { isManagerRole, isGeneralManager } from '../../../lib/roles'
 
 type Status = 'preparation' | 'in_progress' | 'blocked' | 'completed'
 
@@ -184,7 +185,7 @@ export default function ProjectTasksScreen() {
       ])
 
       const role = meResult.data?.role || 'worker'
-      const manager = ['manager', 'owner'].includes(String(role))
+      const manager = isManagerRole(String(role))
       setIsManager(manager)
       setScope(manager ? 'all' : 'mine')
 
@@ -781,7 +782,7 @@ export default function ProjectTasksScreen() {
                   {profiles.map(p => (
                     <Picker.Item
                       key={p.id}
-                      label={`${p.full_name || t('unnamed')}${p.role === 'manager' ? t('managerSuffix') : ''}`}
+                      label={`${p.full_name || t('unnamed')}${isGeneralManager(p.role) ? t('managerSuffix') : ''}`}
                       value={p.id}
                     />
                   ))}

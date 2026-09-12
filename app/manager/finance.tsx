@@ -14,6 +14,7 @@ import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
+import { isManagerRole } from '../../lib/roles'
 
 type Project = { id: number; name: string; status: string | null }
 // A change order is an SOV line flagged is_change_order, the same source the
@@ -49,7 +50,7 @@ export default function ManagerFinanceScreen() {
     if (!session?.user) { setErrorMessage(t('signInRequired')); setLoading(false); return }
 
     const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-    if (!['manager', 'owner'].includes(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
+    if (!isManagerRole(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
     const [{ data: pr }, { data: est }, { data: co }, { data: ex }, { data: ap }] = await Promise.all([
       supabase.from('projects').select('id, name, status').order('name'),

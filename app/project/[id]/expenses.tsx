@@ -27,6 +27,7 @@ import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
+import { isManagerRole } from '../../../lib/roles'
 
 type ExpenseType = { id: number; value: string; label: string; sort_order: number; deleted_at: string | null }
 type Vendor      = { id: number; name: string; deleted_at: string | null }
@@ -135,7 +136,7 @@ export default function ProjectExpensesScreen() {
       setExpenseTypes((typesResult.data || []) as ExpenseType[])
       setVendors((vendorsResult.data || []) as Vendor[])
 
-      const manager = ['manager', 'owner'].includes(String(meResult.data?.role))
+      const manager = isManagerRole(String(meResult.data?.role))
       setIsManager(manager)
 
       if (projectResult.error) { setErrorMessage(projectResult.error.message); setLoading(false); return }

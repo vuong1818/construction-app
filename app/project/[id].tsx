@@ -28,6 +28,7 @@ import { supabase } from '../../lib/supabase'
 import { getPhotoUrl, type DocType } from '../../services/projectDetailService'
 import { choosePhotoSource, pickAndUploadPhotos, reportUpload } from '../../services/photoUpload'
 import { COLORS } from '../../lib/theme'
+import { isManagerRole } from '../../lib/roles'
 
 const DOC_TYPE_LABEL_KEYS: Record<DocType, TranslationKey> = {
   submittal:    'docTypeSubmittal',
@@ -129,7 +130,7 @@ export default function ProjectDetailScreen() {
       if (!session?.user) return
       const { data } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
-      setIsOwnCompanyManager(['manager', 'owner'].includes(String(data?.role)))
+      setIsOwnCompanyManager(isManagerRole(String(data?.role)))
     })()
   }, [])
   const isManager = isOwnCompanyManager && !isGranted

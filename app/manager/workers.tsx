@@ -33,7 +33,8 @@ type UserProfile = {
 }
 
 type WorkerRole =
-  | 'owner' | 'manager' | 'supervisor' | 'office' | 'warehouse' | 'worker' | 'contractor'
+  | 'owner' | 'general_manager' | 'project_manager' | 'office_manager' | 'supervisor'
+  | 'warehouse' | 'worker' | 'contractor' | 'contractor_manager'
 
 type UserForm = {
   first_name: string
@@ -107,14 +108,16 @@ function Field({
 // to 'worker', because the form had no way to represent what they actually were.
 // That is why "Update Worker" appeared not to work: it worked, and quietly
 // demoted people.
-const ROLE_OPTIONS: { value: WorkerRole; labelKey: string }[] = [
-  { value: 'owner',      labelKey: 'roleOwner' },
-  { value: 'manager',    labelKey: 'roleManager' },
-  { value: 'supervisor', labelKey: 'roleSupervisor' },
-  { value: 'office',     labelKey: 'roleOffice' },
-  { value: 'warehouse',  labelKey: 'roleWarehouse' },
-  { value: 'worker',     labelKey: 'roleWorker' },
-  { value: 'contractor', labelKey: 'roleContractor' },
+const ROLE_OPTIONS: { value: WorkerRole; labelKey: string; ownerOnly?: boolean }[] = [
+  { value: 'owner',              labelKey: 'roleOwner',             ownerOnly: true },
+  { value: 'general_manager',    labelKey: 'roleGeneralManager',    ownerOnly: true },
+  { value: 'office_manager',     labelKey: 'roleOfficeManager',     ownerOnly: true },
+  { value: 'project_manager',    labelKey: 'roleProjectManager' },
+  { value: 'supervisor',         labelKey: 'roleSupervisor' },
+  { value: 'warehouse',          labelKey: 'roleWarehouse' },
+  { value: 'worker',             labelKey: 'roleWorker' },
+  { value: 'contractor',         labelKey: 'roleContractor' },
+  { value: 'contractor_manager', labelKey: 'roleContractorManager' },
 ]
 
 function RoleSelector({
@@ -132,7 +135,9 @@ function RoleSelector({
   canGrantOwner: boolean
 }) {
   const { t } = useLanguage()
-  const options = ROLE_OPTIONS.filter(o => o.value !== 'owner' || canGrantOwner || value === 'owner')
+  // Owner, general manager and office manager see wages, so only an owner
+  // hands them out (only_an_owner_makes_an_owner in the database).
+  const options = ROLE_OPTIONS.filter(o => !o.ownerOnly || canGrantOwner || value === o.value)
   return (
     <View style={{ marginBottom: 14 }}>
       <Text style={{ color: COLORS.navy, fontWeight: '700', marginBottom: 8 }}>
@@ -144,7 +149,7 @@ function RoleSelector({
           const on = value === opt.value
           // An owner shown to a manager is shown as what this person is, not
           // as something to pick.
-          const locked = opt.value === 'owner' && !canGrantOwner
+          const locked = !!opt.ownerOnly && !canGrantOwner
           return (
             <Pressable
               key={opt.value}
@@ -329,7 +334,7 @@ export default function WorkersManagerScreen() {
       const role = me?.role || 'worker'
       setUserRole(role)
 
-      if (!['manager', 'owner'].includes(String(role))) {
+      if (!isManagerRole(String(role))) {
         return
       }
 

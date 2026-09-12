@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
+import { isManagerRole } from '../../../lib/roles'
 
 const C = {
   bg: '#D6E8FF',
@@ -229,7 +230,7 @@ export default function BackflowDetail() {
         supabase.from('profiles').select('role').eq('id', user.id).single(),
         supabase.from('backflow_tests').select('*').eq('id', id).single(),
       ])
-      setIsManager(['manager', 'owner'].includes(String(profRes.data?.role)))
+      setIsManager(isManagerRole(String(profRes.data?.role)))
       if (testRes.error) {
         setErrorMsg(testRes.error.message)
       } else {

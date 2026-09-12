@@ -22,6 +22,7 @@ import { useLanguage } from '../lib/i18n'
 import { generateProjectRef, uniqueProjectRef } from '../lib/projectRef'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
+import { isManagerRole } from '../lib/roles'
 
 type Project = {
   id: number
@@ -70,7 +71,7 @@ export default function ProjectsScreen() {
       .select('role')
       .eq('id', auth.user.id)
       .maybeSingle()
-    setCanCreate(data?.role === 'manager' || data?.role === 'owner')
+    setCanCreate(isManagerRole(data?.role))
   }
 
   async function createProject() {

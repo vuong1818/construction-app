@@ -10,6 +10,7 @@ import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
 import { SignedImage } from '../../../components/SignedImage'
 import { forwardToSharedJobsite, loadForwardedRfis, useForwardTarget, type ForwardedRfi } from '../../../lib/sharedJobsite'
+import { isManagerRole } from '../../../lib/roles'
 
 // RFI (Request For Information): a field question the office/manager must answer.
 // Any worker assigned to the project can raise one; managers answer. Tracked
@@ -159,7 +160,7 @@ export default function RfisScreen() {
     if (myId) {
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
       const role = (prof as any)?.role
-      setIsManager(role === 'manager' || role === 'owner')
+      setIsManager(isManagerRole(role))
     }
     const { data } = await supabase.from('rfis').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
     const list = (data as Rfi[]) || []

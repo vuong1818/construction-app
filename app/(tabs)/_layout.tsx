@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { isSupervisorPlus } from '../../lib/roles'
 
 export default function TabsLayout() {
   const [isManager, setIsManager] = useState(false)
@@ -22,7 +23,7 @@ export default function TabsLayout() {
         .eq('id', user.id)
         .maybeSingle()
       if (!active) return
-      setIsManager(['manager', 'owner', 'supervisor'].includes(String(prof?.role)))
+      setIsManager(isSupervisorPlus(String(prof?.role)))
       setIsSupervisor(String(prof?.role) === 'supervisor')
       setLoaded(true)
     }

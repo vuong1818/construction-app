@@ -14,6 +14,7 @@ import { useCompanyLogo } from '../../hooks/useCompanyLogo'
 import { useManagerSummary } from '../../hooks/useManagerSummary'
 import { useLanguage } from '../../lib/i18n'
 import { COLORS } from '../../lib/theme'
+import { isSupervisorPlus } from '../../lib/roles'
 
 function ManagerCard({
   title,
@@ -161,7 +162,7 @@ export default function ManagerSummaryScreen() {
 
   const isSupervisor = userRole === 'supervisor'
 
-  if (!['manager', 'owner', 'supervisor'].includes(userRole)) {
+  if (!isSupervisorPlus(userRole)) {
     return (
       <SafeAreaView
         style={{

@@ -16,6 +16,7 @@ import { supabase } from '../../../../lib/supabase'
 import { COLORS } from '../../../../lib/theme'
 import { SignedImage } from '../../../../components/SignedImage'
 import { forwardToSharedJobsite, useForwardTarget } from '../../../../lib/sharedJobsite'
+import { isManagerRole } from '../../../../lib/roles'
 
 type DailyReport = {
   id: number
@@ -142,7 +143,7 @@ export default function DailyReportDetailScreen() {
       if (myId) {
         const { data: prof } = await supabase.from('profiles').select('role').eq('id', myId).single()
         const role = (prof as any)?.role
-        setIsManager(role === 'manager' || role === 'owner')
+        setIsManager(isManagerRole(role))
       }
     })()
   }, [])

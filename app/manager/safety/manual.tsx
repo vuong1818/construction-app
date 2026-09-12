@@ -214,7 +214,7 @@ export default function ManagerSafetyManualScreen() {
       const role = me?.role || 'worker'
       setUserRole(role)
 
-      if (!['manager', 'owner'].includes(String(role))) {
+      if (!isManagerRole(String(role))) {
         setRows([])
         return
       }

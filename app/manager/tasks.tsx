@@ -14,6 +14,7 @@ import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage, type TranslationKey } from '../../lib/i18n'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
+import { isManagerRole } from '../../lib/roles'
 
 type Status = 'preparation' | 'in_progress' | 'blocked' | 'completed'
 
@@ -67,7 +68,7 @@ export default function ManagerTasksScreen() {
 
     const { data: me } = await supabase
       .from('profiles').select('role').eq('id', session.user.id).single()
-    if (!['manager', 'owner'].includes(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
+    if (!isManagerRole(String(me?.role))) { setErrorMessage(t('managerAccessRequired')); setLoading(false); return }
 
     const [{ data: projData }, { data: profData }, { data: taskData }] = await Promise.all([
       supabase.from('projects').select('id, name, status'),

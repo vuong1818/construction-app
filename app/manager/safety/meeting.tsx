@@ -168,7 +168,7 @@ export default function ManagerSafetyMeetingScreen() {
       const role = me?.role || 'worker'
       setUserRole(role)
 
-      if (!['manager', 'owner'].includes(String(role))) {
+      if (!isManagerRole(String(role))) {
         setRows([])
         setTopicRow(null)
         return

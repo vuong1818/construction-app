@@ -18,6 +18,7 @@ import { geocodeAddress, metersToMiles, milesToMeters } from '../../../lib/geoco
 import { useLanguage, type TranslationKey } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { isManagerRole } from '../../../lib/roles'
 
 // Match web/lib/inspections.js values exactly
 const WORK_TYPES = [
@@ -152,7 +153,7 @@ export default function ProjectEditScreen() {
 
       const { data: me } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
-      const manager = ['manager', 'owner'].includes(String(me?.role))
+      const manager = isManagerRole(String(me?.role))
       setIsManager(manager)
       if (!manager) return
 
