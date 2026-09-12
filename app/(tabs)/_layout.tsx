@@ -7,6 +7,7 @@ import { isSupervisorPlus } from '../../lib/roles'
 export default function TabsLayout() {
   const [isManager, setIsManager] = useState(false)
   const [isSupervisor, setIsSupervisor] = useState(false)
+  const [isWarehouse, setIsWarehouse] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function TabsLayout() {
       if (!active) return
       setIsManager(isSupervisorPlus(String(prof?.role)))
       setIsSupervisor(String(prof?.role) === 'supervisor')
+      setIsWarehouse(String(prof?.role) === 'warehouse')
       setLoaded(true)
     }
     loadRole()
@@ -68,6 +70,25 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="jobs"
+        options={{
+          title: 'Jobs',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="briefcase-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="warehouse"
+        options={{
+          title: 'Warehouse',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="warehouse" size={size} color={color} />
+          ),
+          href: loaded && isWarehouse ? undefined : null,
+        }}
+      />
+      <Tabs.Screen
         name="explore"
         options={{
           title: isSupervisor ? 'Supervise' : 'Manager',
@@ -84,7 +105,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Me',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-circle-outline" size={size} color={color} />
           ),
