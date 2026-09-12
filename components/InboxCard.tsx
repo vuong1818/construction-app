@@ -17,6 +17,7 @@ const KIND_LABEL: Record<string, string> = {
   request_handled: 'Handled',
   shift_corrected: 'Shift',
   estimate_accepted: 'Estimate',
+  app_update: 'App',
 }
 
 export function InboxCard({ language, weekStart, limit = 8 }: { language: Language; weekStart: Date; limit?: number }) {

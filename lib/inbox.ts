@@ -6,7 +6,7 @@ import { supabase } from './supabase'
 
 export type InboxKind =
   | 'daily_report' | 'rfi' | 'material_request'
-  | 'rfi_answered' | 'request_handled' | 'shift_corrected' | 'estimate_accepted'
+  | 'rfi_answered' | 'request_handled' | 'shift_corrected' | 'estimate_accepted' | 'app_update'
 
 export type InboxItem = {
   kind: InboxKind
@@ -52,6 +52,8 @@ export function inboxRoute(item: InboxItem): string {
       return p
     case 'shift_corrected':
       return '/timesheet'
+    case 'app_update':
+      return '/'
     default:
       return p
   }
