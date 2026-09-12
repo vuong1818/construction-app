@@ -138,8 +138,8 @@ export default function JobKitScreen() {
     // Fall back to the priced estimate kits when a project has no checklist yet, so
     // in-flight projects don't suddenly show nothing.
     const all = (k as (Kit & { kind?: string })[]) || []
-    const checklists = all.filter(x => x.kind === 'checklist')
-    const kitList = (checklists.length ? checklists : all.filter(x => x.kind !== 'checklist')) as Kit[]
+    const checklists = all.filter(x => x.kind === 'checklist' || x.kind === 'general')
+    const kitList = (checklists.length ? checklists : all.filter(x => x.kind !== 'checklist' && x.kind !== 'general')) as Kit[]
     setKits(kitList)
 
     if (!kitList.length) {

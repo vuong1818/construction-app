@@ -406,14 +406,15 @@ export default function ProjectTasksScreen() {
         const { error } = await supabase.from('project_tasks').update(payload).eq('id', editing.id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('project_tasks').insert({
-          project_id: projectId,
-          task_date: form.task_date.trim() || null,
-          title: form.title.trim(),
-          assigned_to: form.assigned_to || null,
-          status: form.status,
-          notes: form.notes.trim() || null,
-          created_by: currentUserId,
+        // A one-off task: into the General kit, with its own bar.
+        const { error } = await supabase.rpc('quick_task', {
+          p_project_id: projectId,
+          p_title: form.title.trim(),
+          p_start: form.task_date.trim() || null,
+          p_end: form.task_date.trim() || null,
+          p_assignees: form.assigned_to ? [form.assigned_to] : null,
+          p_notes: form.notes.trim() || null,
+          p_status: form.status,
         })
         if (error) throw error
       }
