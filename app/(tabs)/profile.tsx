@@ -207,6 +207,13 @@ export default function Profile() {
             </View>
           )}
 
+          {/* My documents: what is on file for me, and what I sign in the app (the NDA). */}
+          <Pressable onPress={() => router.push('/my-documents' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Ionicons name="document-text-outline" size={22} color={COLORS.navy} />
+            <Text style={{ color: COLORS.text, fontSize: 15, fontWeight: '700', flex: 1 }}>{t('myDocuments')}</Text>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.subtext} />
+          </Pressable>
+
           {/* Request time off — a personal action, so it belongs with the worker's
               own details rather than on the jobsite home screen. */}
           <Pressable onPress={() => router.push('/request-time-off' as never)} style={{ ...card, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
