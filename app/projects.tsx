@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,8 @@ import { generateProjectRef, uniqueProjectRef } from '../lib/projectRef'
 import { supabase } from '../lib/supabase'
 import { COLORS } from '../lib/theme'
 import { isManagerRole } from '../lib/roles'
+
+type SectionKey = 'active' | 'joint' | 'bidding' | 'completed'
 
 type Project = {
   id: number
@@ -54,6 +56,11 @@ export default function ProjectsScreen() {
   // this screen's — projects_insert checks is_manager(). Reading the role here
   // is only so a worker isn't shown a button that would fail on them.
   const [canCreate, setCanCreate] = useState(false)
+  // Sections, in the order the web lists them. Active and joint work start
+  // open because that is where the crew is; bidding and completed start
+  // closed and are only shown to managers - a worker has nothing to do on a
+  // job that has not been won or is already finished.
+  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({ active: true, joint: true, bidding: false, completed: false })
   const [showAdd, setShowAdd] = useState(false)
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
@@ -127,10 +134,11 @@ export default function ProjectsScreen() {
     setErrorMessage('')
 
     try {
+      // Every status: the list is grouped on screen (active / joint / bidding /
+      // completed), the same four buckets as the web's Projects page.
       const { data, error } = await supabase
         .from('projects')
         .select('*')
-        .eq('status', 'active') // field app shows only active projects
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -146,6 +154,30 @@ export default function ProjectsScreen() {
       setLoading(false)
     }
   }
+
+  // Same rule as the web: a project shared BY another company, or one of ours
+  // that stands in for work we do FOR another company, is joint work whatever
+  // its status; the rest bucket by status, with anything that is not bidding,
+  // completed or not-awarded counting as active.
+  const sections = useMemo(() => {
+    const visible = projects.filter(p => !hiddenProjects.has(p.id))
+    const joint = visible.filter(p => ownerByProject[p.id] || workingForByProject[p.id])
+    const ours = visible.filter(p => !ownerByProject[p.id] && !workingForByProject[p.id])
+    const st = (p: Project) => (p.status || 'active').toLowerCase()
+    return {
+      active: ours.filter(p => !['bidding', 'completed', 'not_awarded'].includes(st(p))),
+      joint,
+      bidding: ours.filter(p => st(p) === 'bidding'),
+      completed: ours.filter(p => st(p) === 'completed'),
+    }
+  }, [projects, hiddenProjects, ownerByProject, workingForByProject])
+
+  const SECTIONS: { key: SectionKey; labelKey: 'projectsActiveSection' | 'projectsJointSection' | 'projectsBiddingSection' | 'projectsCompletedSection'; icon: string; managerOnly: boolean }[] = [
+    { key: 'active', labelKey: 'projectsActiveSection', icon: 'briefcase-outline', managerOnly: false },
+    { key: 'joint', labelKey: 'projectsJointSection', icon: 'handshake-outline', managerOnly: false },
+    { key: 'bidding', labelKey: 'projectsBiddingSection', icon: 'file-document-edit-outline', managerOnly: true },
+    { key: 'completed', labelKey: 'projectsCompletedSection', icon: 'check-circle-outline', managerOnly: true },
+  ]
 
   if (loading) {
     return (
@@ -267,76 +299,114 @@ export default function ProjectsScreen() {
           ) : null}
         </View>
 
-        {projects.filter(p => !hiddenProjects.has(p.id)).map((project) => (
-          <Pressable
-            key={project.id}
-            onPress={() => router.push(`/project/${project.id}`)}
-            style={{
-              backgroundColor: COLORS.card,
-              borderRadius: 22,
-              padding: 18,
-              marginBottom: 14,
-              borderWidth: 1,
-              borderColor: COLORS.border,
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <View
+        {SECTIONS.filter(sec => !sec.managerOnly || canCreate).map(sec => {
+          const list = sections[sec.key]
+          const open = openSections[sec.key]
+          return (
+            <View key={sec.key} style={{ marginBottom: 14 }}>
+              <Pressable
+                onPress={() => setOpenSections(prev => ({ ...prev, [sec.key]: !prev[sec.key] }))}
                 style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 18,
-                  backgroundColor: COLORS.tealSoft,
-                  justifyContent: 'center',
+                  flexDirection: 'row',
                   alignItems: 'center',
-                  marginRight: 14,
+                  backgroundColor: COLORS.card,
+                  borderRadius: 18,
+                  paddingVertical: 14,
+                  paddingHorizontal: 16,
+                  borderWidth: 1,
+                  borderColor: COLORS.border,
+                  minHeight: 56,
                 }}
               >
-                <MaterialCommunityIcons
-                  name="briefcase-outline"
-                  size={28}
-                  color={COLORS.teal}
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 22 }}>
-                  {project.name}
+                <MaterialCommunityIcons name={sec.icon as any} size={22} color={COLORS.navy} />
+                <Text style={{ flex: 1, color: COLORS.navy, fontWeight: '800', fontSize: 17, marginLeft: 10 }}>
+                  {t(sec.labelKey)}
                 </Text>
-                {(ownerByProject[project.id] || workingForByProject[project.id]) && (
-                  <View
-                    style={{
-                      alignSelf: 'flex-start',
-                      backgroundColor: workingForByProject[project.id] ? '#EDE7F6' : '#F3E5F5',
-                      borderRadius: 100,
-                      paddingHorizontal: 10,
-                      paddingVertical: 3,
-                      marginTop: 6,
-                    }}
-                  >
-                    <Text
+                <View style={{ backgroundColor: list.length ? COLORS.tealSoft : COLORS.background, borderRadius: 100, paddingHorizontal: 10, paddingVertical: 3, marginRight: 8 }}>
+                  <Text style={{ color: list.length ? COLORS.teal : COLORS.subtext, fontWeight: '800', fontSize: 12 }}>{list.length}</Text>
+                </View>
+                <MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={24} color={COLORS.subtext} />
+              </Pressable>
+
+              {open && (
+                <View style={{ marginTop: 10, paddingLeft: 10, borderLeftWidth: 2, borderLeftColor: COLORS.border }}>
+                  {list.length === 0 ? (
+                    <Text style={{ color: COLORS.subtext, paddingVertical: 10, paddingHorizontal: 6 }}>{t('projectsSectionEmpty')}</Text>
+                  ) : list.map((project) => (
+                    <Pressable
+                      key={project.id}
+                      onPress={() => router.push(`/project/${project.id}`)}
                       style={{
-                        color: workingForByProject[project.id] ? '#4527A0' : '#7B1FA2',
-                        fontWeight: '800',
-                        fontSize: 11,
+                        backgroundColor: COLORS.card,
+                        borderRadius: 22,
+                        padding: 18,
+                        marginBottom: 10,
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
                       }}
                     >
-                      {workingForByProject[project.id]
-                        ? `WORKING FOR ${workingForByProject[project.id].toUpperCase()}`
-                        : `SHARED BY ${ownerByProject[project.id].toUpperCase()}`}
-                    </Text>
-                  </View>
-                )}
-                <Text style={{ color: COLORS.text, marginTop: 4 }}>
-                  {`${t('addressLabel')}: ${project.address || t('noAddress')}`}
-                </Text>
-                <Text style={{ color: COLORS.subtext, marginTop: 2 }}>
-                  {`${t('statusFieldLabel')}: ${project.status || t('noStatus')}`}
-                </Text>
-              </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View
+                          style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: 18,
+                            backgroundColor: COLORS.tealSoft,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            marginRight: 14,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name="briefcase-outline"
+                            size={28}
+                            color={COLORS.teal}
+                          />
+                        </View>
+
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: COLORS.navy, fontWeight: '800', fontSize: 22 }}>
+                            {project.name}
+                          </Text>
+                          {(ownerByProject[project.id] || workingForByProject[project.id]) && (
+                            <View
+                              style={{
+                                alignSelf: 'flex-start',
+                                backgroundColor: workingForByProject[project.id] ? '#EDE7F6' : '#F3E5F5',
+                                borderRadius: 100,
+                                paddingHorizontal: 10,
+                                paddingVertical: 3,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: workingForByProject[project.id] ? '#4527A0' : '#7B1FA2',
+                                  fontWeight: '800',
+                                  fontSize: 11,
+                                }}
+                              >
+                                {workingForByProject[project.id]
+                                  ? `WORKING FOR ${workingForByProject[project.id].toUpperCase()}`
+                                  : `SHARED BY ${ownerByProject[project.id].toUpperCase()}`}
+                              </Text>
+                            </View>
+                          )}
+                          <Text style={{ color: COLORS.text, marginTop: 4 }}>
+                            {`${t('addressLabel')}: ${project.address || t('noAddress')}`}
+                          </Text>
+                          <Text style={{ color: COLORS.subtext, marginTop: 2 }}>
+                            {`${t('statusFieldLabel')}: ${project.status || t('noStatus')}`}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
-          </Pressable>
-        ))}
+          )
+        })}
       </ScrollView>
 
       <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
