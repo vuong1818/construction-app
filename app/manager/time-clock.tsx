@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { DatePickerField } from '../../components/DatePickerField'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { applyOvertime, entryWage, type OvertimeRule } from '../../lib/payrollWage'
@@ -61,6 +62,15 @@ type WorkerWeekAdjustment = {
   hours_override: number | null
   receipts_amount: number | null
 }
+
+/** Work week (the pay period, with its adjustments) or any two dates. */
+type RangeMode = 'week' | 'custom'
+
+function isoDate(d: Date) {
+  const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+function fromIsoDate(s: string) { return new Date(s + 'T12:00:00') }
 
 type WeekOption = {
   key: string
@@ -225,7 +235,9 @@ function WorkerCard({
   mileageRate,
 }: {
   item: WorkerSummary
-  onEdit: (item: WorkerSummary) => void
+  // Absent on a custom range: adjustments belong to a work week, and there is
+  // no single week to write them to.
+  onEdit?: (item: WorkerSummary) => void
   showMileage: boolean
   mileageRate: number
 }) {
@@ -319,19 +331,21 @@ function WorkerCard({
           </Text>
         </View>
 
-        <Pressable
-          onPress={() => onEdit(item)}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 14,
-            backgroundColor: COLORS.tealSoft,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
-          <MaterialCommunityIcons name="pencil-outline" size={24} color={COLORS.teal} />
-        </Pressable>
+        {onEdit ? (
+          <Pressable
+            onPress={() => onEdit(item)}
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              backgroundColor: COLORS.tealSoft,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={24} color={COLORS.teal} />
+          </Pressable>
+        ) : null}
       </View>
     </View>
   )
@@ -349,6 +363,12 @@ export default function ManagerTimeClockScreen() {
   }, [])
   const weekOptions = useMemo(() => buildWeekOptions(16, weekStartDay), [weekStartDay])
   const [selectedWeekKey, setSelectedWeekKey] = useState(weekOptions[0]?.key || '')
+  // Besides the pay-period picker, a manager can look at any two dates: a
+  // month for a cost report, a job's span, a single day. Adjustments stay
+  // tied to the work week, so on a custom range they are shown but not edited.
+  const [rangeMode, setRangeMode] = useState<RangeMode>('week')
+  const [customFrom, setCustomFrom] = useState(() => isoDate(new Date()))
+  const [customTo, setCustomTo] = useState(() => isoDate(new Date()))
   const [userRole, setUserRole] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -377,18 +397,27 @@ export default function ManagerTimeClockScreen() {
   const selectedWeek =
     weekOptions.find((option) => option.key === selectedWeekKey) || weekOptions[0]
 
-  useEffect(() => {
-    if (selectedWeek) {
-      loadScreen(selectedWeek.start, selectedWeek.end)
-    }
-  }, [selectedWeekKey])
+  // The range on screen: the chosen work week, or the custom span (whole days,
+  // phone-local, end inclusive). A backwards custom span is treated as one day.
+  const activeRange = useMemo(() => {
+    if (rangeMode === 'week') return selectedWeek ? { start: selectedWeek.start, end: selectedWeek.end } : null
+    const start = fromIsoDate(customFrom); start.setHours(0, 0, 0, 0)
+    const end = fromIsoDate(customTo >= customFrom ? customTo : customFrom); end.setHours(23, 59, 59, 999)
+    return { start, end }
+  }, [rangeMode, selectedWeek, customFrom, customTo])
 
-  // Live updates while the manager is viewing a week
+  useEffect(() => {
+    if (activeRange) {
+      loadScreen(activeRange.start, activeRange.end, rangeMode === 'week')
+    }
+  }, [activeRange?.start.getTime(), activeRange?.end.getTime(), rangeMode])
+
+  // Live updates while the manager is viewing a range
   const refetchSelectedWeek = () => {
-    if (selectedWeek) loadScreen(selectedWeek.start, selectedWeek.end)
+    if (activeRange) loadScreen(activeRange.start, activeRange.end, rangeMode === 'week')
   }
-  useRealtimeRefetch('time_entries', refetchSelectedWeek, undefined, !!selectedWeek)
-  useRealtimeRefetch('worker_week_adjustments', refetchSelectedWeek, undefined, !!selectedWeek)
+  useRealtimeRefetch('time_entries', refetchSelectedWeek, undefined, !!activeRange)
+  useRealtimeRefetch('worker_week_adjustments', refetchSelectedWeek, undefined, !!activeRange)
 
   function setField<K extends keyof EditForm>(key: K, value: EditForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -400,7 +429,7 @@ export default function ManagerTimeClockScreen() {
     setForm(EMPTY_FORM)
   }
 
-  async function loadScreen(weekStart: Date, weekEnd: Date) {
+  async function loadScreen(weekStart: Date, weekEnd: Date, isWeek = true) {
     setLoading(true)
     setErrorMessage('')
 
@@ -456,10 +485,14 @@ export default function ManagerTimeClockScreen() {
           .in('role', ['owner', 'manager', 'office', 'worker', 'warehouse'])
           .order('first_name', { ascending: true }),
 
-        supabase
-          .from('worker_week_adjustments')
-          .select('id, worker_id, week_start, hours_override, receipts_amount')
-          .eq('week_start', weekStartStr),
+        // Adjustments are per work week. On a custom range there is no one
+        // week to read, so none are applied - the range shows what was worked.
+        isWeek
+          ? supabase
+              .from('worker_week_adjustments')
+              .select('id, worker_id, week_start, hours_override, receipts_amount')
+              .eq('week_start', weekStartStr)
+          : Promise.resolve({ data: [] as WorkerWeekAdjustment[], error: null }),
 
         // Trips in this week, and the rate/threshold they are paid at. Mileage
         // is pay, not a footnote: leaving it out of this screen meant the
@@ -619,11 +652,26 @@ export default function ManagerTimeClockScreen() {
       // threshold in the order they were worked, at the shift's own rate
       // times the multiplier. An override is one number at the flat rate and
       // the rule still applies to it.
-      const otSplit = adjustment?.hours_override != null
-        ? applyOvertime([{ hours: totalHours, rate: wage }], overtime)
-        : applyOvertime([...(grouped?.shifts || [])].sort((a, b) => a.at - b.at), overtime)
-      const labor = otSplit.labor
-      const overtimeHours = otSplit.overtimeHours
+      // On a custom range the shifts may span several work weeks, and the
+      // weekly threshold belongs to each week on its own - so bucket by the
+      // company's week start and apply the rule per bucket. In week mode
+      // every shift lands in the same bucket and this is the old arithmetic.
+      let labor = 0
+      let overtimeHours = 0
+      if (adjustment?.hours_override != null) {
+        const split = applyOvertime([{ hours: totalHours, rate: wage }], overtime)
+        labor = split.labor; overtimeHours = split.overtimeHours
+      } else {
+        const byWeek: Record<string, { at: number; hours: number; rate: number }[]> = {}
+        for (const sh of grouped?.shifts || []) {
+          const k = workWeekStartDate(new Date(sh.at), weekStartDay).toISOString()
+          ;(byWeek[k] = byWeek[k] || []).push(sh)
+        }
+        for (const list of Object.values(byWeek)) {
+          const split = applyOvertime(list.sort((a, b) => a.at - b.at), overtime)
+          labor += split.labor; overtimeHours += split.overtimeHours
+        }
+      }
 
       // Mileage, per trip and driven by the trip type the worker picked:
       //   home↔jobsite legs      → (trip miles − threshold) × rate
@@ -662,7 +710,7 @@ export default function ManagerTimeClockScreen() {
     })
 
     return summaryList.sort((a, b) => a.workerName.localeCompare(b.workerName))
-  }, [entries, profiles, adjustments, reimbursements, projectStates, companyState, overtime, travel, mileageRate, mileageThreshold, travelEnabled, t])
+  }, [entries, profiles, adjustments, reimbursements, projectStates, companyState, overtime, travel, mileageRate, mileageThreshold, travelEnabled, weekStartDay, t])
 
   function openEditModal(item: WorkerSummary) {
     setEditingWorkerId(item.workerId)
@@ -688,7 +736,7 @@ export default function ManagerTimeClockScreen() {
   }
 
   async function handleSaveEdit() {
-    if (!editingWorkerId || !selectedWeek) {
+    if (!editingWorkerId || !selectedWeek || rangeMode !== 'week') {
       Alert.alert(t('error'), t('noWorkerSelected'))
       return
     }
@@ -720,7 +768,7 @@ export default function ManagerTimeClockScreen() {
       Alert.alert(t('success'), t('weeklyAmountsUpdated'))
       setModalVisible(false)
       resetForm()
-      await loadScreen(selectedWeek.start, selectedWeek.end)
+      await loadScreen(selectedWeek.start, selectedWeek.end, true)
     } catch (error: any) {
       Alert.alert(t('error'), error?.message || t('couldNotUpdateWeeklyAmounts'))
     } finally {
@@ -767,7 +815,7 @@ export default function ManagerTimeClockScreen() {
 
         <Pressable
           onPress={() => {
-            if (selectedWeek) loadScreen(selectedWeek.start, selectedWeek.end)
+            if (activeRange) loadScreen(activeRange.start, activeRange.end, rangeMode === 'week')
           }}
           style={{
             backgroundColor: COLORS.navy,
@@ -838,46 +886,76 @@ export default function ManagerTimeClockScreen() {
           </Text>
         </View>
 
-        <Text
-          style={{
-            color: COLORS.navy,
-            fontSize: 18,
-            fontWeight: '800',
-            marginBottom: 10,
-          }}
-        >
-          {t('workWeekHeader')}
-        </Text>
-
-        <View
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            overflow: 'hidden',
-            marginBottom: 18,
-          }}
-        >
-          <Picker
-            selectedValue={selectedWeekKey}
-            onValueChange={(value) => setSelectedWeekKey(String(value))}
-            itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
-            style={{
-              color: COLORS.text,
-              backgroundColor: COLORS.card,
-            }}
-          >
-            {weekOptions.map((option) => (
-              <Picker.Item
-                key={option.key}
-                label={option.label}
-                value={option.key}
-                color={COLORS.text}
-              />
-            ))}
-          </Picker>
+        {/* Work week (pay period + adjustments) or any two dates */}
+        <View style={{ flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 18, padding: 4, marginBottom: 14, borderWidth: 1, borderColor: COLORS.border }}>
+          {(['week', 'custom'] as RangeMode[]).map((m) => {
+            const active = rangeMode === m
+            return (
+              <Pressable
+                key={m}
+                onPress={() => setRangeMode(m)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: active ? COLORS.navy : 'transparent', alignItems: 'center', minHeight: 48, justifyContent: 'center' }}
+              >
+                <Text style={{ color: active ? COLORS.white : COLORS.subtext, fontWeight: '800' }}>
+                  {m === 'week' ? t('payrollWeekTab') : t('payrollCustomTab')}
+                </Text>
+              </Pressable>
+            )
+          })}
         </View>
+
+        {rangeMode === 'week' ? (
+          <>
+            <Text
+              style={{
+                color: COLORS.navy,
+                fontSize: 18,
+                fontWeight: '800',
+                marginBottom: 10,
+              }}
+            >
+              {t('workWeekHeader')}
+            </Text>
+
+            <View
+              style={{
+                backgroundColor: COLORS.card,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+                overflow: 'hidden',
+                marginBottom: 18,
+              }}
+            >
+              <Picker
+                selectedValue={selectedWeekKey}
+                onValueChange={(value) => setSelectedWeekKey(String(value))}
+                itemStyle={Platform.OS === 'ios' ? { color: COLORS.text, fontSize: 18 } : undefined}
+                style={{
+                  color: COLORS.text,
+                  backgroundColor: COLORS.card,
+                }}
+              >
+                {weekOptions.map((option) => (
+                  <Picker.Item
+                    key={option.key}
+                    label={option.label}
+                    value={option.key}
+                    color={COLORS.text}
+                  />
+                ))}
+              </Picker>
+            </View>
+          </>
+        ) : (
+          <View style={{ marginBottom: 18, gap: 8 }}>
+            <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700' }}>{t('fromDate').toUpperCase()}</Text>
+            <DatePickerField value={customFrom} onChange={setCustomFrom} />
+            <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '700' }}>{t('toDate').toUpperCase()}</Text>
+            <DatePickerField value={customTo} onChange={setCustomTo} />
+            <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 4, lineHeight: 17 }}>{t('customRangeNote')}</Text>
+          </View>
+        )}
 
         <Text
           style={{
@@ -901,7 +979,7 @@ export default function ManagerTimeClockScreen() {
             }}
           >
             <Text style={{ color: COLORS.text, textAlign: 'center' }}>
-              {t('noWorkersForWeek')}
+              {rangeMode === 'week' ? t('noWorkersForWeek') : t('noWorkersForRange')}
             </Text>
           </View>
         ) : (
@@ -909,7 +987,7 @@ export default function ManagerTimeClockScreen() {
             <WorkerCard
               key={item.workerId}
               item={item}
-              onEdit={openEditModal}
+              onEdit={rangeMode === 'week' ? openEditModal : undefined}
               showMileage={travelEnabled}
               mileageRate={mileageRate}
             />
