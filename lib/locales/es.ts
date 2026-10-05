@@ -2190,6 +2190,34 @@ const es: Record<TranslationKey, string> = {
   clockedOutOfflineTitle: 'Salida registrada (sin conexión)',
   clockedOutOfflineBody: 'No hay señal ahora. Su hora de salida quedó guardada en este teléfono y llegará a la oficina en cuanto se reconecte.',
 
+
+  // Tarjeta de pago en Mi hoja de tiempo
+  myPay: 'Mi pago',
+  hoursAtRate: '{hours} h a ${rate}/h',
+  oosHoursAtRate: '{hours} h fuera del estado a ${rate}/h',
+  openShiftsUnpriced: '{n} turno(s) abierto(s) - se calcula al marcar salida',
+  noTripsLogged: 'sin viajes registrados',
+  receiptsAndReimbursements: 'Recibos y reembolsos',
+  payEstimateNote: 'Las mismas cifras que la nómina de la oficina. Su gerente confirma el pago final.',
+  payUnavailable: 'No se pudo cargar el pago. Deslice para reintentar.',
+  // Nómina del gerente: semana laboral o fechas personalizadas
+  payrollWeekTab: 'Semana laboral',
+  payrollCustomTab: 'Fechas personalizadas',
+  fromDate: 'Desde',
+  toDate: 'Hasta',
+  customRangeNote: 'Las fechas personalizadas muestran lo trabajado en ese período; las horas extra se aplican por semana laboral. Los ajustes semanales de horas y recibos solo se editan en la vista Semana laboral.',
+  noWorkersForRange: 'No se encontraron trabajadores para estas fechas.',
+  // Trabajadores: salario fuera del estado
+  oosWageField: 'Salario fuera del estado',
+  oosWagePh: 'Salario por hora en trabajos fuera del estado (opcional)',
+  oosWageLabel: 'Fuera del estado:',
+  oosWageHint: 'Se paga en lugar del salario regular en cualquier turno en un proyecto fuera del estado de la empresa. Déjelo en blanco para pagar el salario regular en todas partes.',
+  // Secciones de la lista de proyectos
+  projectsActiveSection: 'Proyectos activos de la empresa',
+  projectsJointSection: 'Proyectos conjuntos',
+  projectsBiddingSection: 'Proyectos en licitación',
+  projectsCompletedSection: 'Proyectos completados',
+  projectsSectionEmpty: 'Nada aquí todavía.',
 }
 
 export default es

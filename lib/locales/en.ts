@@ -2215,6 +2215,33 @@ const en = {
   clockedOutOfflineTitle: 'Clocked out (offline)',
   clockedOutOfflineBody: 'No signal right now. Your clock-out time is saved on this phone and will reach the office as soon as you reconnect.',
 
+  // My Timesheet pay card (priced server-side by my_pay(), same rules as the office)
+  myPay: 'My pay',
+  hoursAtRate: '{hours} h @ ${rate}/h',
+  oosHoursAtRate: '{hours} h out of state @ ${rate}/h',
+  openShiftsUnpriced: '{n} open shift(s) - priced at clock-out',
+  noTripsLogged: 'no trips logged',
+  receiptsAndReimbursements: 'Receipts & reimbursements',
+  payEstimateNote: 'Same figures as the office payroll. Final pay is confirmed by your manager.',
+  payUnavailable: 'Pay could not be loaded. Pull to retry.',
+  // Manager Time & Payroll: work week vs custom dates
+  payrollWeekTab: 'Work week',
+  payrollCustomTab: 'Custom dates',
+  fromDate: 'From',
+  toDate: 'To',
+  customRangeNote: 'Custom dates show what was worked in that span; overtime is applied per work week. Weekly hour and receipt adjustments can only be edited in Work week view.',
+  noWorkersForRange: 'No workers found for these dates.',
+  // Workers: out-of-state wage
+  oosWageField: 'Out-of-state wage',
+  oosWagePh: 'Hourly wage on out-of-state jobs (optional)',
+  oosWageLabel: 'Out of state:',
+  oosWageHint: 'Paid instead of the regular wage on any shift at a project outside the company\'s home state. Leave blank to pay the regular wage everywhere.',
+  // Projects list sections
+  projectsActiveSection: 'Active Company Projects',
+  projectsJointSection: 'Joint Projects',
+  projectsBiddingSection: 'Bidding Projects',
+  projectsCompletedSection: 'Completed Projects',
+  projectsSectionEmpty: 'Nothing here yet.',
 } as const
 
 export default en

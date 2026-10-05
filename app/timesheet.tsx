@@ -12,8 +12,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import DatePickerField from '../components/DatePickerField'
 import { SkeletonList } from '../components/SkeletonCard'
-import { thresholdApplies } from '../components/TravelCard'
-import { entryWage } from '../lib/payrollWage'
 import { useRealtimeRefetch } from '../hooks/useRealtimeRefetch'
 import { useLanguage } from '../lib/i18n'
 import { supabase } from '../lib/supabase'
@@ -40,7 +38,18 @@ type Entry = {
 }
 
 type Project = { id: number; name: string; state?: string | null }
-type TravelSeg = { miles: number | null; kind: string | null }
+
+/** What my_pay() returns: the worker's own pay for the range, priced by the office's rules. */
+type Pay = {
+  wage: number; oos_wage: number
+  hours: number; regular_hours: number; ot_hours: number; oos_hours: number
+  open_hours: number; open_shifts: number
+  labor: number
+  travel_enabled: boolean
+  miles: number; paid_miles: number; trips: number; mileage_rate: number; mileage_threshold: number; mileage: number
+  entry_receipts: number; reimbursements: number; added_receipts: number; receipts: number
+  gross: number
+}
 
 type Mode = 'day' | 'period' | 'custom'
 
@@ -86,14 +95,13 @@ export default function TimesheetScreen() {
   const [projects, setProjects] = useState<Record<number, Project>>({})
   const [loading, setLoading] = useState(true)
   const [snapshotPreview, setSnapshotPreview] = useState<string | null>(null)
-  const [wage, setWage] = useState(0)
-  // Out-of-state rate + the company's home state, so labor here matches the
-  // web payroll instead of paying every hour at the base rate.
-  const [oosWage, setOosWage] = useState(0)
-  const [companyState, setCompanyState] = useState<string | null>(null)
-  const [mileageRate, setMileageRate] = useState(0)
-  const [mileageThreshold, setMileageThreshold] = useState(0)
-  const [travel, setTravel] = useState<TravelSeg[]>([])
+  // Pay is priced on the server (my_pay), never on the phone. This screen used
+  // to read company_settings itself, but workers cannot read that table, so
+  // the mileage rate came back 0 and the home state null: "Mileage $0.00" and
+  // every out-of-state hour at the base rate, while the office saw the right
+  // number. One function, one rule, same figures on every screen.
+  const [pay, setPay] = useState<Pay | null>(null)
+  const [payError, setPayError] = useState(false)
 
   // Resolve the active range based on the current mode.
   const range = useMemo(() => {
@@ -134,21 +142,17 @@ export default function TimesheetScreen() {
     const list = (rows || []) as Entry[]
     setEntries(list)
 
-    // Pay inputs: own wage, company mileage rate + threshold, and travel this range.
-    const [{ data: prof }, { data: cs }, { data: ts }] = await Promise.all([
-      supabase.from('profiles').select('wage, oos_wage').eq('id', user.id).maybeSingle(),
-      supabase.from('company_settings').select('state, mileage_rate, mileage_threshold_miles').limit(1).maybeSingle(),
-      supabase.from('travel_segments').select('miles, kind')
-        .eq('user_id', user.id)
-        .gte('started_at', range.start.toISOString())
-        .lte('started_at', range.end.toISOString()),
-    ])
-    setWage(Number((prof as any)?.wage || 0))
-    setOosWage(Number((prof as any)?.oos_wage || 0))
-    setCompanyState(((cs as any)?.state as string) || null)
-    setMileageRate(Number((cs as any)?.mileage_rate || 0))
-    setMileageThreshold(Number((cs as any)?.mileage_threshold_miles || 0))
-    setTravel((ts as TravelSeg[]) || [])
+    // Pay for the range, priced by the office's rules.
+    const { data: payData, error: payErr } = await supabase.rpc('my_pay', {
+      p_from: range.start.toISOString(),
+      p_to: range.end.toISOString(),
+    })
+    if (payErr) {
+      console.warn('my_pay failed', payErr)
+      setPay(null); setPayError(true)
+    } else {
+      setPay((payData as Pay) || null); setPayError(false)
+    }
 
     const ids = Array.from(new Set(list.map(e => e.project_id).filter((x): x is number => x != null)))
     if (ids.length > 0) {
@@ -164,6 +168,7 @@ export default function TimesheetScreen() {
 
   useEffect(() => { load() }, [load])
   useRealtimeRefetch('time_entries', load)
+  useRealtimeRefetch('travel_segments', load)
 
   // Total hours (open entries count to "now").
   const totals = useMemo(() => {
@@ -178,35 +183,6 @@ export default function TimesheetScreen() {
     const hours = totalMs / 3_600_000
     return { hours, openCount }
   }, [entries])
-
-  // Pay summary for the selected range (mirrors the web payroll math).
-  const pay = useMemo(() => {
-    // Labor is per shift, not per week: an entry on an out-of-state project
-    // pays oos_wage. Open entries count to now, matching the hours total.
-    const labor = entries.reduce((sum, e) => {
-      const start = e.clock_in_time ? new Date(e.clock_in_time).getTime() : 0
-      if (!start) return sum
-      const end = e.clock_out_time ? new Date(e.clock_out_time).getTime() : Date.now()
-      const hours = Math.max(0, end - start) / 3_600_000
-      const projectState = e.project_id != null ? projects[e.project_id]?.state : null
-      return sum + hours * entryWage(e as any, { wage, oos_wage: oosWage }, { projectState, companyState })
-    }, 0)
-    // Gas is not a pay category — mileage covers your own fuel, and gas for
-    // equipment books as a company expense.
-    const receipts = entries.reduce((s, e) => s + (Number((e as any).receipts_amount) || 0), 0)
-    // Mileage per trip, matching web payroll:
-    //   home↔jobsite legs → (trip miles - threshold) x rate
-    //   site-to-site transfers → every mile x rate
-    let miles = 0        // miles actually driven
-    let payMiles = 0     // reimbursable miles after the per-trip threshold
-    for (const ts of travel) {
-      const m = Number(ts.miles) || 0
-      miles += m
-      payMiles += thresholdApplies(ts.kind) ? Math.max(0, m - mileageThreshold) : m
-    }
-    const mileage = payMiles * mileageRate
-    return { labor, mileage, receipts, miles, payMiles, total: labor + mileage + receipts }
-  }, [wage, oosWage, companyState, projects, entries, travel, mileageRate, mileageThreshold])
 
   const money = (n: number) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -314,36 +290,65 @@ export default function TimesheetScreen() {
           <MaterialCommunityIcons name="clock-outline" size={56} color="rgba(255,255,255,0.15)" />
         </View>
 
-        {/* Pay summary */}
+        {/* Pay summary: hours, wages, mileage, receipts, total - the office's figures */}
         <View style={{ backgroundColor: COLORS.card, borderRadius: 18, padding: 18 }}>
-          <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 0.5, marginBottom: 10 }}>MY PAY — {range.label}</Text>
-          {[
-            { label: 'Labor', sub: wage > 0 ? `${formatHours(totals.hours)} h @ $${wage.toFixed(2)}/h` : 'wage not set', value: pay.labor },
-            {
-              label: 'Mileage',
-              sub: pay.miles > 0
-                ? `${pay.miles.toFixed(1)} mi driven · ${pay.payMiles.toFixed(1)} mi paid${mileageRate > 0 ? ` @ $${mileageRate.toFixed(2)}/mi` : ''}`
-                : 'no trips logged',
-              value: pay.mileage,
-            },
-            { label: 'Receipts', value: pay.receipts },
-          ].map(row => (
-            <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-              <View>
-                <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '700' }}>{row.label}</Text>
-                {row.sub ? <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption }}>{row.sub}</Text> : null}
-              </View>
-              <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '800' }}>{money(row.value)}</Text>
-            </View>
-          ))}
-          <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 8 }} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ color: COLORS.navy, fontSize: TYPE.body, fontWeight: '900' }}>Total</Text>
-            <Text style={{ color: COLORS.green, fontSize: 20, fontWeight: '900' }}>{money(pay.total)}</Text>
-          </View>
-          <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, marginTop: 8 }}>
-            Estimate based on your logged time and travel. Final pay is confirmed by your manager.
+          <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, fontWeight: '800', letterSpacing: 0.5, marginBottom: 10 }}>
+            {t('myPay').toUpperCase()} — {range.label}
           </Text>
+          {payError || !pay ? (
+            <Text style={{ color: COLORS.subtext, fontSize: TYPE.body }}>{t('payUnavailable')}</Text>
+          ) : (
+            <>
+              {[
+                {
+                  key: 'regular',
+                  label: t('regularHours'),
+                  sub: pay.wage > 0 ? t('hoursAtRate', { hours: formatHours(pay.regular_hours), rate: pay.wage.toFixed(2) }) : 'wage not set',
+                  value: `${formatHours(pay.regular_hours)} h`,
+                },
+                ...(pay.ot_hours > 0 ? [{ key: 'ot', label: t('overtimeHours'), sub: '', value: `${formatHours(pay.ot_hours)} h` }] : []),
+                ...(pay.oos_hours > 0 ? [{
+                  key: 'oos', label: t('outOfStateHours'),
+                  sub: pay.oos_wage > 0 ? t('oosHoursAtRate', { hours: formatHours(pay.oos_hours), rate: pay.oos_wage.toFixed(2) }) : '',
+                  value: `${formatHours(pay.oos_hours)} h`,
+                }] : []),
+                { key: 'labor', label: t('wages'), sub: '', value: money(pay.labor) },
+                ...(pay.travel_enabled ? [{
+                  key: 'mileage', label: t('mileageLabel'),
+                  sub: pay.miles > 0
+                    ? t('mileageDetail', { driven: pay.miles.toFixed(1), paid: pay.paid_miles.toFixed(1), rate: pay.mileage_rate.toFixed(2) })
+                    : t('noTripsLogged'),
+                  value: money(pay.mileage),
+                }] : []),
+                {
+                  key: 'receipts', label: t('receiptsAndReimbursements'),
+                  sub: pay.added_receipts > 0
+                    ? t('receiptsBreakdown', { submitted: money(pay.entry_receipts + pay.reimbursements), added: money(pay.added_receipts) })
+                    : '',
+                  value: money(pay.receipts),
+                },
+              ].map(row => (
+                <View key={row.key} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '700' }}>{row.label}</Text>
+                    {row.sub ? <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption }}>{row.sub}</Text> : null}
+                  </View>
+                  <Text style={{ color: COLORS.text, fontSize: TYPE.body, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{row.value}</Text>
+                </View>
+              ))}
+              <View style={{ height: 1, backgroundColor: COLORS.border, marginVertical: 8 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ color: COLORS.navy, fontSize: TYPE.body, fontWeight: '900' }}>{t('total')}</Text>
+                <Text style={{ color: COLORS.green, fontSize: 20, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{money(pay.gross)}</Text>
+              </View>
+              {pay.open_shifts > 0 ? (
+                <Text style={{ color: COLORS.amber, fontSize: TYPE.caption, marginTop: 6, fontWeight: '700' }}>
+                  {t('openShiftsUnpriced', { n: pay.open_shifts })}
+                </Text>
+              ) : null}
+              <Text style={{ color: COLORS.subtext, fontSize: TYPE.caption, marginTop: 8 }}>{t('payEstimateNote')}</Text>
+            </>
+          )}
         </View>
 
         {/* Entries */}
