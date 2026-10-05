@@ -30,6 +30,9 @@ type UserProfile = {
   state: string | null
   zip: string | null
   wage: number | null
+  // Second rate, paid instead of wage on any shift at a project outside the
+  // company's home state. Null means the regular wage applies everywhere.
+  oos_wage: number | null
 }
 
 type WorkerRole =
@@ -46,6 +49,7 @@ type UserForm = {
   state: string
   zip: string
   wage: string
+  oos_wage: string
   role: WorkerRole
 }
 
@@ -59,6 +63,7 @@ const EMPTY_FORM: UserForm = {
   state: 'TX',
   zip: '',
   wage: '',
+  oos_wage: '',
   role: 'worker',
 }
 
@@ -245,6 +250,11 @@ function UserCard({
           <Text style={{ color: COLORS.subtext }}>
             {t('wageLabel')} {user.wage !== null && user.wage !== undefined ? t('wagePerHour', { amount: Number(user.wage).toFixed(2) }) : t('emDash')}
           </Text>
+          {user.oos_wage !== null && user.oos_wage !== undefined && Number(user.oos_wage) > 0 ? (
+            <Text style={{ color: COLORS.subtext }}>
+              {t('oosWageLabel')} {t('wagePerHour', { amount: Number(user.oos_wage).toFixed(2) })}
+            </Text>
+          ) : null}
         </View>
 
         <View style={{ gap: 10 }}>
@@ -345,7 +355,7 @@ export default function WorkersManagerScreen() {
       const { data, error } = await supabase
         .from('profiles')
         .select(
-          'id, full_name, role, first_name, last_name, phone, email, street, city, state, zip, wage'
+          'id, full_name, role, first_name, last_name, phone, email, street, city, state, zip, wage, oos_wage'
         )
         .order('created_at', { ascending: true })
 
@@ -374,6 +384,7 @@ export default function WorkersManagerScreen() {
       state: user.state || 'TX',
       zip: user.zip || '',
       wage: user.wage !== null && user.wage !== undefined ? String(user.wage) : '',
+      oos_wage: user.oos_wage !== null && user.oos_wage !== undefined ? String(user.oos_wage) : '',
       // Show what they ARE. Anything unrecognised falls back to worker rather
       // than being silently rewritten on save.
       role: (ROLE_OPTIONS.some(o => o.value === user.role) ? user.role : 'worker') as WorkerRole,
@@ -402,6 +413,11 @@ export default function WorkersManagerScreen() {
       return false
     }
 
+    if (form.oos_wage.trim() && Number.isNaN(Number(form.oos_wage))) {
+      Alert.alert(t('invalidWage'), t('wageMustBeNumber'))
+      return false
+    }
+
     return true
   }
 
@@ -426,6 +442,7 @@ export default function WorkersManagerScreen() {
         state: form.state.trim() || 'TX',
         zip: form.zip.trim() || null,
         wage: form.wage.trim() ? Number(form.wage) : null,
+        oos_wage: form.oos_wage.trim() ? Number(form.oos_wage) : null,
         role: form.role,
       }
 
@@ -740,6 +757,17 @@ export default function WorkersManagerScreen() {
                 placeholder={t('wagePh')}
                 keyboardType="numeric"
               />
+
+              <Field
+                label={t('oosWageField')}
+                value={form.oos_wage}
+                onChangeText={(text) => setField('oos_wage', text)}
+                placeholder={t('oosWagePh')}
+                keyboardType="numeric"
+              />
+              <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: -8, marginBottom: 14, lineHeight: 17 }}>
+                {t('oosWageHint')}
+              </Text>
 
               <RoleSelector
                 value={form.role}
