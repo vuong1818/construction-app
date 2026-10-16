@@ -2210,6 +2210,12 @@ const en = {
   // ── A shift that has run too long ───────────────────────────────────────
   longShiftTitle: 'Still clocked in after {hours} hours',
   longShiftBody: 'If you are done for the day, clock out now. A shift left open is closed automatically and flagged for the office.',
+  stillWorkingTitle: 'Still clocked in?',
+  stillWorkingBody: 'You clocked in {hours} hours ago. Are you still working?',
+  stillWorkingYes: 'Yes, still working',
+  stillWorkingClockOut: 'No, clock me out',
+  autoClockedOutTitle: 'Clocked out automatically',
+  autoClockedOutBody: 'Your shift reached {hours} hours and was closed for you. The office will review it on payroll.',
   overtimeHoursColon: 'Overtime: {hours} h',
 
   // ── Clock-out with no signal ────────────────────────────────────────────

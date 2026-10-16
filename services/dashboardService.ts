@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase'
 import { OffsiteReason } from '../lib/clockLocation'
 import { getTodayRange, getWorkWeekRange } from '../lib/time'
 import { isOnline, queueClockIn, queueClockOut } from '../lib/syncQueue'
+import { cancelShiftReminders, scheduleShiftReminders } from '../lib/shiftReminders'
 import {
   getUserFullName,
   getUserProfile,
@@ -128,10 +129,12 @@ export async function clockIn(
   const online = await isOnline()
   if (!online) {
     await queueClockIn(payload)
+    // The id is not known until the row syncs; the reminders look the shift up.
+    scheduleShiftReminders(null, payload.clock_in_time)
     return { queued: true }
   }
 
-  const { error } = await supabase.from('time_entries').insert(payload)
+  const { data: inserted, error } = await supabase.from('time_entries').insert(payload).select('id').single()
   if (error) {
     // Fetch failures from supabase-js surface as { error: { message: '...' } }.
     // If the message looks network-shaped, fall back to the queue rather
@@ -140,10 +143,15 @@ export async function clockIn(
     const msg = (error.message || '').toLowerCase()
     if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
       await queueClockIn(payload)
+      scheduleShiftReminders(null, payload.clock_in_time)
       return { queued: true }
     }
     throw new Error(error.message)
   }
+  // From twelve hours on the phone asks "still working?" every hour; at the
+  // company cap the office closes the shift. Scheduled now, locally, so it
+  // fires with the app closed and no signal.
+  scheduleShiftReminders((inserted?.id as number) ?? null, payload.clock_in_time)
   return { queued: false }
 }
 
@@ -168,6 +176,7 @@ export async function clockOut(timeEntryId: number, location: ClockLocationPaylo
   const online = await isOnline()
   if (!online) {
     await queueClockOut({ time_entry_id: timeEntryId, ...fields })
+    cancelShiftReminders()
     return { queued: true }
   }
 
@@ -176,10 +185,12 @@ export async function clockOut(timeEntryId: number, location: ClockLocationPaylo
     const msg = (error.message || '').toLowerCase()
     if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch')) {
       await queueClockOut({ time_entry_id: timeEntryId, ...fields })
+      cancelShiftReminders()
       return { queued: true }
     }
     throw new Error(error.message)
   }
+  cancelShiftReminders()
   return { queued: false }
 }
 
@@ -247,6 +258,8 @@ export async function switchProject(
     .update({ switched_to_entry_id: inserted.id })
     .eq('id', currentEntryId)
 
+  // The new shift starts its own clock for the still-working asks.
+  scheduleShiftReminders(inserted.id as number, at)
   return { newEntryId: inserted.id as number }
 }
 

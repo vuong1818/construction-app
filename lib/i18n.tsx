@@ -104,6 +104,15 @@ export function useLanguage() {
   return useContext(LanguageContext)
 }
 
+/** The saved language, for code that runs outside React (scheduled notifications). */
+export async function getSavedLanguage(): Promise<LanguageCode> {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY)
+    if (isSupported(saved)) return saved
+  } catch { /* fall through */ }
+  return 'en'
+}
+
 // ── Backwards compatibility ────────────────────────────────────────────────
 // The original lib/i18n.ts exported `t(language, key)` and `Language`. Keep
 // those exports here so existing call sites keep compiling while we migrate

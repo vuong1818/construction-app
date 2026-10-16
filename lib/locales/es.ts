@@ -2185,6 +2185,12 @@ const es: Record<TranslationKey, string> = {
   // ── Un turno que lleva demasiado tiempo ─────────────────────────────────
   longShiftTitle: 'Sigue registrado después de {hours} horas',
   longShiftBody: 'Si ya terminó por hoy, registre su salida ahora. Un turno abierto se cierra automáticamente y se marca para la oficina.',
+  stillWorkingTitle: '¿Sigue registrado?',
+  stillWorkingBody: 'Registró su entrada hace {hours} horas. ¿Sigue trabajando?',
+  stillWorkingYes: 'Sí, sigo trabajando',
+  stillWorkingClockOut: 'No, registre mi salida',
+  autoClockedOutTitle: 'Salida registrada automáticamente',
+  autoClockedOutBody: 'Su turno llegó a {hours} horas y se cerró por usted. La oficina lo revisará en la nómina.',
   overtimeHoursColon: 'Horas extra: {hours} h',
 
   // ── Salida sin señal ────────────────────────────────────────────────────

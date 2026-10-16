@@ -10,6 +10,9 @@ import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
 import { router } from 'expo-router'
 import { Platform } from 'react-native'
+import { clockOut } from '../services/dashboardService'
+import { readCurrentLocation } from './clockLocation'
+import { ACTION_CLOCK_OUT, ACTION_YES, AUTO_CLOCKED_OUT_KIND, STILL_WORKING_KIND, cancelShiftReminders } from './shiftReminders'
 import { supabase } from './supabase'
 
 let registered: string | null = null
@@ -69,17 +72,60 @@ export async function registerForPush(): Promise<void> {
   }
 }
 
+// "No, clock me out" on a still-working reminder (lib/shiftReminders). The
+// open shift is looked up fresh rather than trusted from the notification: a
+// reminder scheduled for a shift that has since been closed, switched or
+// opened on another phone must not end the wrong one. The GPS fix is best
+// effort - the worker answered "clock me out", and a missing fix must not
+// keep the shift open; the office sees a clock-out with no location, as it
+// does for a logout.
+async function clockOutFromReminder(): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const { data } = await supabase.from('time_entries').select('id')
+      .eq('user_id', session.user.id).is('clock_out_time', null)
+      .order('created_at', { ascending: false }).limit(1)
+    const id = data?.[0]?.id
+    if (!id) { await cancelShiftReminders(); return }
+    let lat: number | null = null, lng: number | null = null
+    try { const loc = await readCurrentLocation(); lat = loc.lat; lng = loc.lng } catch { /* no fix */ }
+    await clockOut(id, { lat, lng, snapshotUrl: null, offsite: false, offsiteReason: null, offsiteNote: null })
+  } catch {
+    // Home shows the truth either way.
+  }
+}
+
+// One response, from the live listener or the cold-start lookup. A cold-start
+// response can be an old one (the last tap, whenever it was), so a clock-out
+// is only honoured when the notification is minutes old - never a stale tap
+// ending a shift that started the next day.
+function handleResponse(resp: Notifications.NotificationResponse, coldStart: boolean) {
+  const data = resp.notification.request.content.data as Record<string, any> | undefined
+  if (data?.kind === STILL_WORKING_KIND) {
+    if (resp.actionIdentifier === ACTION_CLOCK_OUT) {
+      const ageMs = Date.now() - (resp.notification.date || 0) * 1000
+      if (!coldStart || ageMs < 10 * 60 * 1000) clockOutFromReminder()
+      router.push('/' as any)
+    } else if (resp.actionIdentifier !== ACTION_YES) {
+      router.push('/' as any)
+    }
+    return
+  }
+  if (data?.kind === AUTO_CLOCKED_OUT_KIND) { router.push('/timesheet' as any); return }
+  const route = routeForNotification(data)
+  if (route) router.push(route as any)
+}
+
 // Tapping a notification opens what it is about. Returns the unsubscribe.
 export function listenForNotificationTaps(): () => void {
   try {
     const sub = Notifications.addNotificationResponseReceivedListener(resp => {
-      const route = routeForNotification(resp.notification.request.content.data as any)
-      if (route) router.push(route as any)
+      handleResponse(resp, false)
     })
     // The app may have been opened from a notification while closed.
     Notifications.getLastNotificationResponseAsync().then(resp => {
-      const route = resp ? routeForNotification(resp.notification.request.content.data as any) : null
-      if (route) setTimeout(() => router.push(route as any), 400)
+      if (resp) setTimeout(() => handleResponse(resp, true), 400)
     }).catch(() => {})
     return () => sub.remove()
   } catch {

@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { Picker } from '@react-native-picker/picker'
 import { useFocusEffect, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Image,
@@ -41,6 +41,7 @@ import { canStock } from '../../lib/roles'
 import { getWorkWeekStartDay, workWeekStartDate } from '../../lib/workWeek'
 import { clockIn as svcClockIn, clockOut as svcClockOut, switchProject as svcSwitchProject } from '../../services/dashboardService'
 import { drainQueue, startAutoDrain, subscribePending } from '../../lib/syncQueue'
+import { FIRST_ASK_HOURS, cancelShiftReminders, syncShiftReminders } from '../../lib/shiftReminders'
 import { COLORS } from '../../lib/theme'
 import TravelCard from '../../components/TravelCard'
 
@@ -171,6 +172,25 @@ export default function HomeScreen() {
     currentUserId ? `user_id=eq.${currentUserId}` : undefined,
     !!currentUserId,
   )
+
+  // In the app, the same question the notification asks: from twelve hours
+  // on, once per hour, "still working?". Yes keeps the shift open; no clocks
+  // out through the normal path (GPS, fence, offsite reason) so the shift
+  // ends the way every other one does. At the company cap the office closes
+  // it and flags it for payroll.
+  const askedRef = useRef<{ id: number; hour: number } | null>(null)
+  useEffect(() => {
+    if (!activeEntry?.clock_in_time || activeEntry.clock_out_time) return
+    const hours = Math.floor((Date.now() - new Date(activeEntry.clock_in_time).getTime()) / 3600000)
+    if (hours < FIRST_ASK_HOURS) return
+    const asked = askedRef.current
+    if (asked && asked.id === activeEntry.id && asked.hour >= hours) return
+    askedRef.current = { id: activeEntry.id, hour: hours }
+    Alert.alert(t(language, 'stillWorkingTitle'), t(language, 'stillWorkingBody', { hours }), [
+      { text: t(language, 'stillWorkingYes'), style: 'cancel' },
+      { text: t(language, 'stillWorkingClockOut'), style: 'destructive', onPress: () => { handleClockOut() } },
+    ])
+  }, [activeEntry]) // the object, not its fields: re-ask on every load once the next hour has passed
 
   // Picker UI is data-driven from LANGUAGES so adding a new locale
   // (e.g. Vietnamese) here doesn't need any code change in this screen.
@@ -337,6 +357,10 @@ export default function HomeScreen() {
         .limit(1)
 
       setActiveEntry(activeResult.data?.[0] || null)
+      // Pending "still working?" asks follow the open shift: scheduled for
+      // one, cancelled when there is none (closed on the web, by the cron, or
+      // from another phone).
+      syncShiftReminders(activeResult.data?.[0] || null)
 
       const { start, end } = getTodayRange()
 
@@ -642,6 +666,7 @@ export default function HomeScreen() {
       .eq('id', activeEntry.id)
 
     if (error) throw error
+    cancelShiftReminders()
   }
 
   async function handleClockOut() {
