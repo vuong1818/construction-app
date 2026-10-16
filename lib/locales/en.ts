@@ -517,6 +517,7 @@ const en = {
   docNotOnFile: 'not on file',
   confirmSignature: 'Confirm signature',
   mileageLabel: 'Mileage',
+  milesPaidOfDriven: '{paid} of {driven} mi paid',
   myDay: 'My day',
   noJobToday: 'No job yet today. Clock in, or pick a job under Jobs.',
   verbReport: 'Report',

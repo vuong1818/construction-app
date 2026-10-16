@@ -506,6 +506,7 @@ const es: Record<TranslationKey, string> = {
   docNotOnFile: 'no está en expediente',
   confirmSignature: 'Confirmar firma',
   mileageLabel: 'Kilometraje',
+  milesPaidOfDriven: '{paid} de {driven} mi pagadas',
   myDay: 'Mi día',
   noJobToday: 'Aún no hay obra hoy. Marque entrada o elija una obra en Obras.',
   verbReport: 'Reporte',

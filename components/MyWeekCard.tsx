@@ -14,7 +14,7 @@ import { Badge, SectionTitle } from './ui'
 type Shift = { id: number; project_name: string | null; in: string; out: string | null; hours: number; flagged: boolean; auto_closed: boolean; corrected_by: string | null; offsite: boolean }
 type Week = {
   week_start: string; week_end: string; status: 'in_progress' | 'office_review' | 'paid'
-  hours: number; ot_hours: number; oos_hours: number; miles: number; mileage: number; receipts: number; labor: number; gross: number
+  hours: number; ot_hours: number; oos_hours: number; miles: number; paid_miles?: number; mileage: number; receipts: number; labor: number; gross: number
   flagged: number; shifts: Shift[]
 }
 
@@ -75,7 +75,14 @@ export function MyWeekCard({ language }: { language: Language }) {
             {week.ot_hours > 0 ? line(t(language, 'overtimeHours'), `${week.ot_hours.toFixed(2)} h`) : null}
             {week.oos_hours > 0 ? line(t(language, 'outOfStateHours'), `${week.oos_hours.toFixed(2)} h`) : null}
             {line(t(language, 'wages'), money(week.labor))}
-            {week.miles > 0 ? line(`${t(language, 'mileageLabel')} · ${week.miles.toFixed(1)} mi`, money(week.mileage)) : null}
+            {week.miles > 0 ? line(
+              // The office pays (trip miles − threshold) on home↔jobsite legs, so
+              // paid miles can be fewer than driven. Showing only driven miles next
+              // to a smaller dollar figure made the threshold look like a short-pay.
+              `${t(language, 'mileageLabel')} · ${(week.paid_miles ?? week.miles) < week.miles
+                ? t(language, 'milesPaidOfDriven', { paid: (week.paid_miles ?? 0).toFixed(1), driven: week.miles.toFixed(1) })
+                : `${week.miles.toFixed(1)} mi`}`,
+              money(week.mileage)) : null}
             {week.receipts > 0 ? line(t(language, 'receipts'), money(week.receipts)) : null}
             {line(t(language, 'grossThisWeek'), money(week.gross), true)}
 
