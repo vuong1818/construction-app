@@ -14,7 +14,7 @@ type AckRow = {
   id: string;
   acknowledged_at: string;
   profiles: {
-    name: string | null;
+    full_name: string | null;
     email: string | null;
   } | null;
   safety_documents: {
@@ -43,7 +43,7 @@ export default function SafetyDocumentAcknowledgementsScreen() {
           id,
           acknowledged_at,
           profiles:user_id (
-            name,
+            full_name,
             email
           ),
           safety_documents:document_id (
@@ -85,7 +85,7 @@ export default function SafetyDocumentAcknowledgementsScreen() {
         )}
 
         <Text style={styles.worker}>
-          Worker: {item.profiles?.name || item.profiles?.email || 'Unknown User'}
+          Worker: {item.profiles?.full_name || item.profiles?.email || 'Unknown User'}
         </Text>
 
         <Text style={styles.time}>

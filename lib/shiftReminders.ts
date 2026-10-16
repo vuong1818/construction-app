@@ -15,6 +15,7 @@
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 import { getSavedLanguage, t } from './i18n'
+import { supabase } from './supabase'
 
 export const STILL_WORKING_CATEGORY = 'still-working'
 export const STILL_WORKING_KIND = 'still_working'
@@ -28,7 +29,25 @@ export const CAP_HOURS = 23
 
 const HOUR = 3600 * 1000
 let categoryLanguage: string | null = null
-let scheduledFor: { entryId: number | null; clockIn: string } | null = null
+let scheduledFor: { entryId: number | null; clockIn: number } | null = null
+// The company's own cap, read on every dashboard load (my_shift_cap). The
+// asks run up to it and the last notice names it, so a company that chose
+// 12 h is not told "23 hours".
+let capHours = CAP_HOURS
+// Every schedule or cancel starts a new generation. A run that finds itself
+// superseded stops scheduling, so two overlapping runs (clock-in, then the
+// dashboard load it triggers) can never leave two sets of asks pending.
+let generation = 0
+
+/** The cap for the caller's company; falls back to the default. */
+export async function refreshShiftCap(): Promise<number> {
+  try {
+    const { data } = await supabase.rpc('my_shift_cap')
+    const h = Number(data)
+    if (Number.isFinite(h) && h >= 4 && h <= 24) capHours = h
+  } catch { /* keep what we had */ }
+  return capHours
+}
 
 type OpenEntry = { id: number; clock_in_time: string | null; clock_out_time?: string | null }
 
@@ -48,9 +67,7 @@ function isOurs(n: Notifications.NotificationRequest): boolean {
   return kind === STILL_WORKING_KIND || kind === AUTO_CLOCKED_OUT_KIND
 }
 
-/** Drop every pending reminder. Safe to call when nothing is pending. */
-export async function cancelShiftReminders(): Promise<void> {
-  scheduledFor = null
+async function cancelPending(): Promise<void> {
   try {
     if (Platform.OS === 'web') return
     const all = await Notifications.getAllScheduledNotificationsAsync()
@@ -60,26 +77,38 @@ export async function cancelShiftReminders(): Promise<void> {
   }
 }
 
+/** Drop every pending reminder. Safe to call when nothing is pending. */
+export async function cancelShiftReminders(): Promise<void> {
+  generation++
+  scheduledFor = null
+  await cancelPending()
+}
+
 /** Schedule the asks for one shift, replacing whatever was pending. */
 export async function scheduleShiftReminders(entryId: number | null, clockInIso: string): Promise<void> {
+  const gen = ++generation
+  scheduledFor = null
   try {
     if (Platform.OS === 'web') return
-    await cancelShiftReminders()
+    await cancelPending()
+    if (gen !== generation) return
     const { status } = await Notifications.getPermissionsAsync()
     if (status !== 'granted') return
     const clockIn = new Date(clockInIso).getTime()
     if (!Number.isFinite(clockIn)) return
     const language = await getSavedLanguage()
     await ensureCategory()
+    if (gen !== generation) return
     const now = Date.now()
     const trigger = (date: Date): Notifications.DateTriggerInput => ({
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date,
       ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
     })
-    for (let h = FIRST_ASK_HOURS; h < CAP_HOURS; h++) {
+    for (let h = FIRST_ASK_HOURS; h < capHours; h++) {
       const at = new Date(clockIn + h * HOUR)
       if (at.getTime() <= now + 5000) continue
+      if (gen !== generation) return
       await Notifications.scheduleNotificationAsync({
         content: {
           title: t(language, 'stillWorkingTitle'),
@@ -91,19 +120,19 @@ export async function scheduleShiftReminders(entryId: number | null, clockInIso:
         trigger: trigger(at),
       })
     }
-    const capAt = new Date(clockIn + CAP_HOURS * HOUR)
-    if (capAt.getTime() > now + 5000) {
+    const capAt = new Date(clockIn + capHours * HOUR)
+    if (capAt.getTime() > now + 5000 && gen === generation) {
       await Notifications.scheduleNotificationAsync({
         content: {
           title: t(language, 'autoClockedOutTitle'),
-          body: t(language, 'autoClockedOutBody', { hours: CAP_HOURS }),
+          body: t(language, 'autoClockedOutBody', { hours: capHours }),
           data: { kind: AUTO_CLOCKED_OUT_KIND, entry_id: entryId },
           sound: 'default',
         },
         trigger: trigger(capAt),
       })
     }
-    scheduledFor = { entryId, clockIn: clockInIso }
+    if (gen === generation) scheduledFor = { entryId, clockIn }
   } catch {
     // Same: never let a notification problem block a clock-in.
   }
@@ -119,6 +148,9 @@ export async function syncShiftReminders(entry: OpenEntry | null): Promise<void>
     await cancelShiftReminders()
     return
   }
-  if (scheduledFor && scheduledFor.entryId === entry.id && scheduledFor.clockIn === entry.clock_in_time) return
+  const before = capHours
+  await refreshShiftCap()
+  const clockIn = new Date(entry.clock_in_time).getTime()
+  if (capHours === before && scheduledFor && scheduledFor.entryId === entry.id && scheduledFor.clockIn === clockIn) return
   await scheduleShiftReminders(entry.id, entry.clock_in_time)
 }

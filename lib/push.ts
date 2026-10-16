@@ -79,7 +79,7 @@ export async function registerForPush(): Promise<void> {
 // effort - the worker answered "clock me out", and a missing fix must not
 // keep the shift open; the office sees a clock-out with no location, as it
 // does for a logout.
-async function clockOutFromReminder(): Promise<void> {
+async function clockOutFromReminder(expectedId: number | null): Promise<void> {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
@@ -88,6 +88,9 @@ async function clockOutFromReminder(): Promise<void> {
       .order('created_at', { ascending: false }).limit(1)
     const id = data?.[0]?.id
     if (!id) { await cancelShiftReminders(); return }
+    // The reminder named a shift (online clock-ins do); a different one is
+    // open now, so the answer was about a shift that has already ended.
+    if (expectedId != null && id !== expectedId) return
     let lat: number | null = null, lng: number | null = null
     try { const loc = await readCurrentLocation(); lat = loc.lat; lng = loc.lng } catch { /* no fix */ }
     await clockOut(id, { lat, lng, snapshotUrl: null, offsite: false, offsiteReason: null, offsiteNote: null })
@@ -104,12 +107,18 @@ function handleResponse(resp: Notifications.NotificationResponse, coldStart: boo
   const data = resp.notification.request.content.data as Record<string, any> | undefined
   if (data?.kind === STILL_WORKING_KIND) {
     if (resp.actionIdentifier === ACTION_CLOCK_OUT) {
-      const ageMs = Date.now() - (resp.notification.date || 0) * 1000
-      if (!coldStart || ageMs < 10 * 60 * 1000) clockOutFromReminder()
+      // notification.date is seconds on iOS and milliseconds on Android.
+      const raw = Number(resp.notification.date) || 0
+      const firedAt = raw > 1e12 ? raw : raw * 1000
+      const ageMs = Date.now() - firedAt
+      const entryId = typeof data.entry_id === 'number' ? data.entry_id : null
+      if (!coldStart || ageMs < 10 * 60 * 1000) clockOutFromReminder(entryId)
       router.push('/' as any)
     } else if (resp.actionIdentifier !== ACTION_YES) {
       router.push('/' as any)
     }
+    // An answered ask must not be replayed by the next cold start.
+    try { Notifications.clearLastNotificationResponseAsync().catch(() => {}) } catch { /* older binary */ }
     return
   }
   if (data?.kind === AUTO_CLOCKED_OUT_KIND) { router.push('/timesheet' as any); return }
