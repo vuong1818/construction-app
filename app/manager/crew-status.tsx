@@ -1,16 +1,18 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Image, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { SignedImage } from '../../components/SignedImage'
+import { isManagerRole, isSupervisorPlus } from '../../lib/roles'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
 type Open = {
   id: number
+  user_id: string
   user_name: string | null
   project_id: number | null
   clock_in_time: string | null
@@ -19,6 +21,8 @@ type Open = {
   clock_in_snapshot_url: string | null
   clock_in_offsite: boolean | null
 }
+type Worker = { id: string; full_name: string | null }
+type Project = { id: number; name: string }
 
 function since(iso: string | null): string {
   if (!iso) return ''
@@ -40,15 +44,29 @@ export default function CrewStatusScreen() {
   const [projects, setProjects] = useState<Record<number, string>>({})
   const [preview, setPreview] = useState<string | null>(null)
 
+  // Clocking someone in or out from here. A manager may do it for anyone in
+  // the company; a supervisor only on the projects they are assigned to, and
+  // the database says no otherwise. The buttons therefore show for both and
+  // the refusal, when it comes, is the server's own sentence.
+  const [canAct, setCanAct] = useState(false)
+  const [busy, setBusy] = useState<number | 'in' | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [workers, setWorkers] = useState<Worker[]>([])
+  const [jobs, setJobs] = useState<Project[]>([])
+  const [pickWorker, setPickWorker] = useState<string | null>(null)
+  const [pickJob, setPickJob] = useState<number | null>(null)
+
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) { router.replace('/'); return }
-    const { data: me } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
-    if (!['manager', 'owner', 'supervisor'].includes((me as any)?.role)) { setNotAllowed(true); setLoading(false); return }
+    const { data: me } = await supabase.from('profiles').select('role, org_id').eq('id', session.user.id).single()
+    const role = (me as any)?.role as string | undefined
+    if (!isSupervisorPlus(role)) { setNotAllowed(true); setLoading(false); return }
+    setCanAct(isManagerRole(role) || role === 'supervisor')
 
     const { data } = await supabase
       .from('time_entries')
-      .select('id, user_name, project_id, clock_in_time, clock_in_lat, clock_in_lng, clock_in_snapshot_url, clock_in_offsite')
+      .select('id, user_id, user_name, project_id, clock_in_time, clock_in_lat, clock_in_lng, clock_in_snapshot_url, clock_in_offsite')
       .is('clock_out_time', null)
       .order('clock_in_time', { ascending: true })
     const list = (data as Open[]) || []
@@ -60,11 +78,62 @@ export default function CrewStatusScreen() {
       for (const p of (ps || [])) map[(p as any).id] = (p as any).name
       setProjects(map)
     }
+
+    // The pickers: the company's people who clock in (contractual contractors
+    // do not), and its own active jobs. A job shared with us by another
+    // company is not somewhere our hours can be booked.
+    const orgId = (me as any)?.org_id as string | undefined
+    const [{ data: ws }, { data: js }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name').or('pay_type.is.null,pay_type.neq.contractual').order('full_name'),
+      orgId
+        ? supabase.from('projects').select('id, name').eq('org_id', orgId).eq('status', 'active').order('name')
+        : supabase.from('projects').select('id, name').eq('status', 'active').order('name'),
+    ])
+    setWorkers((ws as Worker[]) || [])
+    setJobs((js as Project[]) || [])
     setLoading(false)
   }, [router])
 
   useEffect(() => { load() }, [load])
   useRealtimeRefetch('time_entries', load, undefined, !loading)
+
+  async function clockOut(r: Open) {
+    const name = r.user_name || t('worker')
+    Alert.alert(t('clockOut'), t('clockOutNowConfirm', { name }), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('clockOut'), style: 'destructive',
+        onPress: async () => {
+          setBusy(r.id)
+          try {
+            const { error } = await supabase.rpc('manager_clock_out', { p_entry_id: r.id })
+            if (error) throw error
+            await load()
+          } catch (e: any) {
+            Alert.alert(t('error'), e?.message || t('somethingWrong'))
+          } finally { setBusy(null) }
+        },
+      },
+    ])
+  }
+
+  async function clockIn() {
+    if (!pickWorker || pickJob == null) return
+    setBusy('in')
+    try {
+      const { error } = await supabase.rpc('manager_clock_in', { p_user_id: pickWorker, p_project_id: pickJob })
+      if (error) throw error
+      setPickerOpen(false); setPickWorker(null); setPickJob(null)
+      await load()
+    } catch (e: any) {
+      Alert.alert(t('error'), e?.message || t('somethingWrong'))
+    } finally { setBusy(null) }
+  }
+
+  // Someone already on the clock is not offered again: the server would
+  // refuse, and a list that only shows who CAN be clocked in is the point.
+  const onClock = new Set(rows.map(r => r.user_id))
+  const candidates = workers.filter(w => !onClock.has(w.id))
 
   if (loading) {
     return <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: 'center' }}><ActivityIndicator color={COLORS.teal} /></SafeAreaView>
@@ -88,6 +157,13 @@ export default function CrewStatusScreen() {
           <Text style={{ color: COLORS.white, fontSize: 22, fontWeight: '900' }}>{t('crewStatus')}</Text>
           <Text style={{ color: '#A8C4EE', fontSize: 13, marginTop: 2 }}>{rows.length} {t('onTheClockNow').toLowerCase()}</Text>
         </View>
+        {canAct ? (
+          <Pressable onPress={() => setPickerOpen(true)} accessibilityLabel={t('clockSomeoneIn')}
+            style={{ height: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: COLORS.teal, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <MaterialCommunityIcons name="account-plus" size={20} color={COLORS.white} />
+            <Text style={{ color: COLORS.white, fontWeight: '800', fontSize: 14 }}>{t('clockIn')}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
@@ -122,13 +198,21 @@ export default function CrewStatusScreen() {
                 <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 2 }}>
                   {t('clockedInSinceLabel')} {timeOf(r.clock_in_time)} · {since(r.clock_in_time)}
                 </Text>
-                {hasLoc ? (
-                  <Pressable onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${r.clock_in_lat},${r.clock_in_lng}`)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-                    <Ionicons name="location" size={14} color={COLORS.teal} />
-                    <Text style={{ color: COLORS.teal, fontSize: 13, fontWeight: '700' }}>{t('openInMaps')}</Text>
-                  </Pressable>
-                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
+                  {hasLoc ? (
+                    <Pressable onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${r.clock_in_lat},${r.clock_in_lng}`)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Ionicons name="location" size={14} color={COLORS.teal} />
+                      <Text style={{ color: COLORS.teal, fontSize: 13, fontWeight: '700' }}>{t('openInMaps')}</Text>
+                    </Pressable>
+                  ) : null}
+                  {canAct ? (
+                    <Pressable onPress={() => clockOut(r)} disabled={busy === r.id}
+                      style={{ minHeight: 36, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#FDECEA', borderWidth: 1, borderColor: '#EF9A9A', alignItems: 'center', justifyContent: 'center', opacity: busy === r.id ? 0.6 : 1 }}>
+                      <Text style={{ color: '#B71C1C', fontWeight: '800', fontSize: 13 }}>{busy === r.id ? '…' : t('clockOut')}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             </View>
           )
@@ -139,6 +223,49 @@ export default function CrewStatusScreen() {
         <Pressable onPress={() => setPreview(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           {preview ? <SignedImage bucket="time-entry-snapshots" value={preview} style={{ width: '100%', height: '70%', borderRadius: 12 }} resizeMode="contain" /> : null}
         </Pressable>
+      </Modal>
+
+      {/* Clock someone in: who, then which job. Two lists of big targets, no
+          typing - this is pressed on a jobsite with gloves on. */}
+      <Modal visible={pickerOpen} transparent animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.background, borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '85%', padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ color: COLORS.navy, fontSize: 20, fontWeight: '900' }}>{t('clockSomeoneIn')}</Text>
+              <Pressable onPress={() => setPickerOpen(false)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
+                <MaterialCommunityIcons name="close" size={24} color={COLORS.subtext} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+              <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>{t('worker').toUpperCase()}</Text>
+              {candidates.length === 0 ? (
+                <Text style={{ color: COLORS.subtext, paddingVertical: 8 }}>{t('everyoneIsClockedIn')}</Text>
+              ) : candidates.map(w => {
+                const on = pickWorker === w.id
+                return (
+                  <Pressable key={w.id} onPress={() => setPickWorker(w.id)}
+                    style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 12, backgroundColor: on ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: on ? COLORS.navy : COLORS.border, justifyContent: 'center' }}>
+                    <Text style={{ color: on ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 15 }}>{w.full_name || '—'}</Text>
+                  </Pressable>
+                )
+              })}
+              <Text style={{ color: COLORS.subtext, fontSize: 12, fontWeight: '800', letterSpacing: 0.5, marginTop: 10 }}>{t('project').toUpperCase()}</Text>
+              {jobs.map(j => {
+                const on = pickJob === j.id
+                return (
+                  <Pressable key={j.id} onPress={() => setPickJob(j.id)}
+                    style={{ minHeight: 48, paddingHorizontal: 14, borderRadius: 12, backgroundColor: on ? COLORS.navy : COLORS.card, borderWidth: 1, borderColor: on ? COLORS.navy : COLORS.border, justifyContent: 'center' }}>
+                    <Text style={{ color: on ? COLORS.white : COLORS.text, fontWeight: '700', fontSize: 15 }}>{j.name}</Text>
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+            <Pressable onPress={clockIn} disabled={!pickWorker || pickJob == null || busy === 'in'}
+              style={{ minHeight: 52, borderRadius: 14, backgroundColor: COLORS.teal, alignItems: 'center', justifyContent: 'center', opacity: !pickWorker || pickJob == null || busy === 'in' ? 0.5 : 1 }}>
+              <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 16 }}>{busy === 'in' ? '…' : t('clockIn')}</Text>
+            </Pressable>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   )
