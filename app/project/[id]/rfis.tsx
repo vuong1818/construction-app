@@ -3,12 +3,13 @@ import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
+import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
-import { objectPath } from '../../../lib/storageUrl'
+import { objectPath, signedUrl } from '../../../lib/storageUrl'
 import { SignedImage } from '../../../components/SignedImage'
 import { forwardToSharedJobsite, loadForwardedRfis, loadForwardedRfiPhotos, useForwardTarget, type ForwardedRfi, type ForwardedRfiPhoto } from '../../../lib/sharedJobsite'
 import { isManagerRole } from '../../../lib/roles'
@@ -74,7 +75,21 @@ export default function RfisScreen() {
   const [staged, setStaged] = useState<ImagePicker.ImagePickerAsset[]>([])
   const [answerStaged, setAnswerStaged] = useState<Record<number, ImagePicker.ImagePickerAsset[]>>({})
   const [busyPhotoId, setBusyPhotoId] = useState<number | null>(null)
-  const [viewing, setViewing] = useState<{ value: string; ownerOrg: string | null } | null>(null)
+  // Full-size viewer: the same pinch-zoom lightbox the gallery and job kit use.
+  // It takes plain uris, so the tapped set is signed on open, and it opens on
+  // the photo that was tapped with the rest of that set a swipe away.
+  const [viewer, setViewer] = useState<{ images: { uri: string }[]; index: number } | null>(null)
+  async function openPhotos(photos: { file_path: string | null; file_url: string | null }[], index: number, ownerOrg: string | null = null) {
+    const urls = await Promise.all(
+      photos.map(ph => signedUrl(PHOTO_BUCKET, ph.file_path || ph.file_url, ownerOrg ? { ownerOrg } : undefined)),
+    )
+    const images = urls.filter(Boolean).map(uri => ({ uri: uri as string }))
+    if (!images.length) return
+    // A photo that would not sign drops out, so the tapped one is found again
+    // by counting what survived ahead of it.
+    const before = urls.slice(0, index).filter(Boolean).length
+    setViewer({ images, index: Math.min(before, images.length - 1) })
+  }
   const [toast, setToast] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   // Only what the reader has toggled; everything else follows the status rule
@@ -369,7 +384,7 @@ export default function RfisScreen() {
             </Field>
             <Field label={t('rfiPhotos')}>
               {/* Already on the RFI being edited: removed straight away, since they are saved. */}
-              {editingRfi ? <PhotoRow photos={questionPhotos(editingRfi)} onRemove={removePhoto} onOpen={v => setViewing({ value: v, ownerOrg: null })} /> : null}
+              {editingRfi ? <PhotoRow photos={questionPhotos(editingRfi)} onRemove={removePhoto} onOpen={i => openPhotos(questionPhotos(editingRfi), i)} /> : null}
               {/* Chosen now: previewed from the device, uploaded when the RFI is saved. */}
               <StagedRow assets={staged} onRemove={i => setStaged(s => s.filter((_, j) => j !== i))} />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
@@ -430,7 +445,7 @@ export default function RfisScreen() {
               </Pressable>
               {isExpanded(rfi) && rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
               {isExpanded(rfi) && rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
-              {isExpanded(rfi) ? <PhotoRow photos={qPhotos} onRemove={canEdit(rfi) ? removePhoto : undefined} onOpen={v => setViewing({ value: v, ownerOrg: null })} /> : null}
+              {isExpanded(rfi) ? <PhotoRow photos={qPhotos} onRemove={canEdit(rfi) ? removePhoto : undefined} onOpen={i => openPhotos(qPhotos, i)} /> : null}
               {isExpanded(rfi) && canEdit(rfi) && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   <SmallBtn label={t('rfiEdit')} onPress={() => startEdit(rfi)} />
@@ -468,7 +483,7 @@ export default function RfisScreen() {
                 <View style={{ marginTop: 10, backgroundColor: '#F8F2FA', borderLeftWidth: 3, borderLeftColor: '#7B1FA2', borderRadius: 8, padding: 12 }}>
                   <Text style={{ fontWeight: '800', color: '#4A148C', fontSize: 12, marginBottom: 3 }}>{t('answerFrom', { org: target?.ownerOrgName || '' })}</Text>
                   {copies[rfi.id]?.answer ? <Text style={{ color: '#3B0A5C', lineHeight: 20 }}>{copies[rfi.id].answer}</Text> : null}
-                  <PhotoRow photos={theirPhotos} ownerOrg={target?.ownerOrg || null} onOpen={v => setViewing({ value: v, ownerOrg: target?.ownerOrg || null })} />
+                  <PhotoRow photos={theirPhotos} ownerOrg={target?.ownerOrg || null} onOpen={i => openPhotos(theirPhotos, i, target?.ownerOrg || null)} />
                   <Text style={{ color: '#8E6BA8', fontSize: 11, marginTop: 5 }}>
                     {copies[rfi.id]?.answered_at ? new Date(copies[rfi.id].answered_at as string).toLocaleDateString() : ''}
                   </Text>
@@ -479,7 +494,7 @@ export default function RfisScreen() {
                 <View style={{ marginTop: 10, backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: '#22C55E', borderRadius: 8, padding: 12 }}>
                   <Text style={{ fontWeight: '800', color: '#166534', fontSize: 12, marginBottom: 3 }}>{t('rfiAnswerLabel')}</Text>
                   {rfi.answer ? <Text style={{ color: '#14532D', lineHeight: 20 }}>{rfi.answer}</Text> : null}
-                  <PhotoRow photos={aPhotos} onRemove={isManager ? removePhoto : undefined} onOpen={v => setViewing({ value: v, ownerOrg: null })} />
+                  <PhotoRow photos={aPhotos} onRemove={isManager ? removePhoto : undefined} onOpen={i => openPhotos(aPhotos, i)} />
                   <Text style={{ color: '#6B9080', fontSize: 11, marginTop: 5 }}>
                     {names[rfi.answered_by || ''] || '—'} · {rfi.answered_at ? new Date(rfi.answered_at).toLocaleDateString() : ''}
                   </Text>
@@ -520,13 +535,16 @@ export default function RfisScreen() {
         })}
       </ScrollView>
 
-      {/* Full-size view of one photo. */}
-      <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)}>
-        <Pressable onPress={() => setViewing(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', padding: 12 }}>
-          {viewing ? <SignedImage bucket={PHOTO_BUCKET} value={viewing.value} ownerOrg={viewing.ownerOrg} style={{ width: '100%', height: '80%' }} resizeMode="contain" /> : null}
-          <Text style={{ color: 'white', textAlign: 'center', marginTop: 10, fontWeight: '700' }}>{t('cancel')}</Text>
-        </Pressable>
-      </Modal>
+      {/* Full-size view: pinch to zoom, double-tap to zoom, swipe between the
+          set's photos, swipe down to close. */}
+      <ImageView
+        images={viewer?.images || []}
+        imageIndex={viewer?.index || 0}
+        visible={!!viewer}
+        onRequestClose={() => setViewer(null)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+      />
 
       {toast ? (
         <View style={{ position: 'absolute', bottom: 30, left: 20, right: 20, backgroundColor: COLORS.navy, borderRadius: 12, padding: 14, alignItems: 'center' }}>
@@ -569,18 +587,18 @@ function AddPhotosBtn({ label, onPress, disabled = false }: { label: string; onP
 function PhotoRow({ photos, onRemove, onOpen, ownerOrg = null, size = THUMB }: {
   photos: { id: number; file_path: string | null; file_url: string | null }[]
   onRemove?: (ph: any) => void
-  onOpen: (value: string) => void
+  onOpen: (index: number) => void
   ownerOrg?: string | null
   size?: number
 }) {
   if (!photos.length) return null
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-      {photos.map(ph => {
+      {photos.map((ph, i) => {
         const value = (ph.file_path || ph.file_url) as string
         return (
           <View key={ph.id} style={{ width: size, height: size, position: 'relative' }}>
-            <Pressable onPress={() => onOpen(value)}>
+            <Pressable onPress={() => onOpen(i)}>
               <SignedImage bucket={PHOTO_BUCKET} value={value} ownerOrg={ownerOrg} style={{ width: size, height: size, borderRadius: 8, backgroundColor: COLORS.background }} resizeMode="cover" />
             </Pressable>
             {onRemove ? (

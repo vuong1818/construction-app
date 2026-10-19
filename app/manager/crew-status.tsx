@@ -2,11 +2,13 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native'
+import ImageView from 'react-native-image-viewing'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { SignedImage } from '../../components/SignedImage'
 import { isManagerRole, isSupervisorPlus } from '../../lib/roles'
+import { signedUrl } from '../../lib/storageUrl'
 import { supabase } from '../../lib/supabase'
 import { COLORS } from '../../lib/theme'
 
@@ -42,7 +44,14 @@ export default function CrewStatusScreen() {
   const [notAllowed, setNotAllowed] = useState(false)
   const [rows, setRows] = useState<Open[]>([])
   const [projects, setProjects] = useState<Record<number, string>>({})
+  // Clock-in snapshot, full size and pinch-zoomable: a face you are checking
+  // against a name needs to be looked at closely.
   const [preview, setPreview] = useState<string | null>(null)
+  async function openSnapshot(value: string | null) {
+    if (!value) return
+    const uri = await signedUrl('time-entry-snapshots', value)
+    if (uri) setPreview(uri)
+  }
 
   // Clocking someone in or out from here. A manager may do it for anyone in
   // the company; a supervisor only on the projects they are assigned to, and
@@ -177,7 +186,7 @@ export default function CrewStatusScreen() {
           return (
             <View key={r.id} style={{ backgroundColor: COLORS.card, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 14, flexDirection: 'row', gap: 12 }}>
               {r.clock_in_snapshot_url ? (
-                <Pressable onPress={() => setPreview(r.clock_in_snapshot_url)}>
+                <Pressable onPress={() => openSnapshot(r.clock_in_snapshot_url)}>
                   <SignedImage bucket="time-entry-snapshots" value={r.clock_in_snapshot_url} style={{ width: 64, height: 64, borderRadius: 10, borderWidth: r.clock_in_offsite ? 2 : 1, borderColor: r.clock_in_offsite ? '#E57373' : COLORS.border }} />
                 </Pressable>
               ) : (
@@ -219,11 +228,14 @@ export default function CrewStatusScreen() {
         })}
       </ScrollView>
 
-      <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(null)}>
-        <Pressable onPress={() => setPreview(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          {preview ? <SignedImage bucket="time-entry-snapshots" value={preview} style={{ width: '100%', height: '70%', borderRadius: 12 }} resizeMode="contain" /> : null}
-        </Pressable>
-      </Modal>
+      <ImageView
+        images={preview ? [{ uri: preview }] : []}
+        imageIndex={0}
+        visible={!!preview}
+        onRequestClose={() => setPreview(null)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+      />
 
       {/* Clock someone in: who, then which job. Two lists of big targets, no
           typing - this is pressed on a jobsite with gloves on. */}
