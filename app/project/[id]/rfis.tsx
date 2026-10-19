@@ -3,18 +3,25 @@ import * as ImagePicker from 'expo-image-picker'
 import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { useRealtimeRefetch } from '../../../hooks/useRealtimeRefetch'
-import { ActivityIndicator, Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLanguage } from '../../../lib/i18n'
 import { supabase } from '../../../lib/supabase'
 import { COLORS } from '../../../lib/theme'
+import { objectPath } from '../../../lib/storageUrl'
 import { SignedImage } from '../../../components/SignedImage'
-import { forwardToSharedJobsite, loadForwardedRfis, useForwardTarget, type ForwardedRfi } from '../../../lib/sharedJobsite'
+import { forwardToSharedJobsite, loadForwardedRfis, loadForwardedRfiPhotos, useForwardTarget, type ForwardedRfi, type ForwardedRfiPhoto } from '../../../lib/sharedJobsite'
 import { isManagerRole } from '../../../lib/roles'
 
 // RFI (Request For Information): a field question the office/manager must answer.
 // Any worker assigned to the project can raise one; managers answer. Tracked
 // open → answered → closed. Separate from daily Reports (a log, not a Q&A thread).
+//
+// Photos: an RFI carries as many as it needs, on both sides of the exchange.
+// They are rows in project_photos (source_table = 'rfis'), the way report
+// photos are — source 'rfi' for the question, 'rfi_answer' for the answer. The
+// legacy rfis.photo_url column is kept in step by triggers and never written
+// here.
 type Rfi = {
   id: number; subject: string; question: string | null; plan_ref: string | null
   status: 'open' | 'answered' | 'closed'; answer: string | null
@@ -23,7 +30,16 @@ type Rfi = {
   forwarded_to_id: number | null; author_name: string | null; author_org: string | null
 }
 
+type RfiPhoto = {
+  id: number; source_id: number; source: string | null
+  file_path: string | null; file_url: string | null; caption: string | null
+  uploaded_by: string | null; created_at: string
+}
+
+type Side = 'question' | 'answer'
+
 const PHOTO_BUCKET = 'rfi-photos'
+const THUMB = 104
 
 const STATUS: Record<string, { bg: string; fg: string; key: 'rfiStatusOpen' | 'rfiStatusAnswered' | 'rfiStatusClosed' }> = {
   open:     { bg: '#FEF3C7', fg: '#92400E', key: 'rfiStatusOpen' },
@@ -38,9 +54,14 @@ export default function RfisScreen() {
 
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<Rfi[]>([])
+  const [photos, setPhotos] = useState<Record<number, RfiPhoto[]>>({})
   const [names, setNames] = useState<Record<string, string>>({})
   const [uid, setUid] = useState<string | null>(null)
   const [isManager, setIsManager] = useState(false)
+  // The project OWNER's org: files about a project live under its prefix, so
+  // a company the job was shared with can read them. See web
+  // lib/projectStoragePath.js for the reasoning.
+  const [ownerOrg, setOwnerOrg] = useState<string | null>(null)
 
   const [showForm, setShowForm] = useState(false)
   const [subject, setSubject] = useState('')
@@ -48,8 +69,12 @@ export default function RfisScreen() {
   const [planRef, setPlanRef] = useState('')
   const [saving, setSaving] = useState(false)
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({})
-  const [newPhotoUrl, setNewPhotoUrl] = useState('')
-  const [busyPhoto, setBusyPhoto] = useState(false)
+  // Chosen but not yet uploaded: the form's photos go up once the RFI has an
+  // id; an answer's go up with the answer.
+  const [staged, setStaged] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [answerStaged, setAnswerStaged] = useState<Record<number, ImagePicker.ImagePickerAsset[]>>({})
+  const [busyPhotoId, setBusyPhotoId] = useState<number | null>(null)
+  const [viewing, setViewing] = useState<{ value: string; ownerOrg: string | null } | null>(null)
   const [toast, setToast] = useState('')
   const [editingId, setEditingId] = useState<number | null>(null)
   // Only what the reader has toggled; everything else follows the status rule
@@ -64,6 +89,7 @@ export default function RfisScreen() {
   const willSend = !!target && (sendAlso ?? target.defaults.rfis)
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [copies, setCopies] = useState<Record<number, ForwardedRfi>>({})
+  const [copyPhotos, setCopyPhotos] = useState<Record<number, ForwardedRfiPhoto[]>>({})
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200) }
 
@@ -89,68 +115,99 @@ export default function RfisScreen() {
     return isManager || (rfi.asked_by === uid && rfi.status === 'open')
   }
 
-  function storagePath(url: string | null) {
-    const marker = `/${PHOTO_BUCKET}/`
-    const i = (url || '').indexOf(marker)
-    return i === -1 ? null : (url as string).slice(i + marker.length)
-  }
-  async function deletePhotoObject(url: string | null) {
-    const p = storagePath(url)
-    if (p) await supabase.storage.from(PHOTO_BUCKET).remove([p]).catch(() => {})
-  }
-  // Pick from camera or library, then upload to the rfi-photos bucket → public URL.
-  async function pickAndUpload(): Promise<string | null> {
+  const questionPhotos = (rfi: Rfi) => (photos[rfi.id] || []).filter(p => p.source !== 'rfi_answer')
+  const answerPhotos   = (rfi: Rfi) => (photos[rfi.id] || []).filter(p => p.source === 'rfi_answer')
+
+  // ── Photos ────────────────────────────────────────────────────────────────
+  // Camera takes one; the library lets the crew pick several at once.
+  function pickAssets(): Promise<ImagePicker.ImagePickerAsset[]> {
     return new Promise((resolve) => {
-      Alert.alert('Add photo', undefined, [
-        { text: 'Take photo', onPress: async () => resolve(await runPicker('camera')) },
-        { text: 'Choose from library', onPress: async () => resolve(await runPicker('library')) },
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+      Alert.alert(t('rfiAddPhotos'), undefined, [
+        { text: t('takePhoto'), onPress: async () => resolve(await runPicker('camera')) },
+        { text: t('chooseFromLibrary'), onPress: async () => resolve(await runPicker('library')) },
+        { text: t('cancel'), style: 'cancel', onPress: () => resolve([]) },
       ])
     })
   }
-  async function runPicker(source: 'camera' | 'library'): Promise<string | null> {
+  async function runPicker(source: 'camera' | 'library'): Promise<ImagePicker.ImagePickerAsset[]> {
     const perm = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (!perm.granted) { flash('Permission denied'); return null }
+    if (!perm.granted) { flash(t('rfiPermissionDenied')); return [] }
     const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
-      : await ImagePicker.launchImageLibraryAsync({ quality: 0.6, mediaTypes: ImagePicker.MediaTypeOptions.Images })
-    if (result.canceled || !result.assets?.length) return null
-    const asset = result.assets[0]
-    setBusyPhoto(true)
-    try {
-      const resp = await fetch(asset.uri)
-      const buf = await resp.arrayBuffer()
-      const ext = (asset.uri.split('.').pop() || 'jpg').toLowerCase()
-      const path = `${projectId}/${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
-      if (error) throw error
-      return supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl
-    } catch (e: any) {
-      flash('Upload failed: ' + e.message); return null
-    } finally { setBusyPhoto(false) }
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6 })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, allowsMultipleSelection: true })
+    if (result.canceled || !result.assets?.length) return []
+    return result.assets
   }
 
-  async function addNewPhoto() {
-    const url = await pickAndUpload()
-    if (!url) return
-    if (newPhotoUrl) await deletePhotoObject(newPhotoUrl)
-    setNewPhotoUrl(url)
+  /**
+   * Upload assets against an RFI and write a pot row for each. Returns how
+   * many failed; the caller decides how loud to be about it.
+   */
+  async function uploadRfiPhotos(rfiId: number, assets: ImagePicker.ImagePickerAsset[], side: Side): Promise<number> {
+    let failed = 0
+    let i = 0
+    for (const asset of assets) {
+      try {
+        const ext = (asset.fileName?.split('.').pop() || asset.uri.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+        const name = `rfi-${rfiId}-${Date.now()}-${i++}.${ext}`
+        // Under the owner's prefix when known; otherwise the storage wrapper
+        // prefixes our own org, exactly as every other upload here does.
+        const path = ownerOrg ? `${ownerOrg}/${projectId}/${name}` : `${projectId}/${name}`
+        const resp = await fetch(asset.uri)
+        if (!resp.ok) throw new Error('Could not read the photo file.')
+        const buf = await resp.arrayBuffer()
+        const { error: upErr } = await supabase.storage.from(PHOTO_BUCKET).upload(path, buf, { contentType: asset.mimeType || 'image/jpeg', upsert: false })
+        if (upErr) throw new Error(upErr.message)
+        // Both: the path is what we sign; the url is what the gallery and the
+        // phones still on the old build read.
+        const fileUrl = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl
+        const { error: rowErr } = await supabase.from('project_photos').insert({
+          project_id: projectId,
+          source_table: 'rfis',
+          source_id: rfiId,
+          source: side === 'answer' ? 'rfi_answer' : 'rfi',
+          file_path: path,
+          file_url: fileUrl,
+          uploaded_by: uid,
+        })
+        if (rowErr) {
+          await supabase.storage.from(PHOTO_BUCKET).remove([path]).catch(() => {})
+          throw new Error(rowErr.message)
+        }
+      } catch (e: any) {
+        console.warn('RFI photo upload failed:', e?.message || e)
+        failed++
+      }
+    }
+    return failed
   }
-  async function setRfiPhoto(rfi: Rfi) {
-    const url = await pickAndUpload()
-    if (!url) return
-    const { error } = await supabase.from('rfis').update({ photo_url: url, updated_at: new Date().toISOString() }).eq('id', rfi.id)
-    if (error) { flash(error.message); return }
-    if (rfi.photo_url) await deletePhotoObject(rfi.photo_url)
-    flash('Photo updated'); load()
+
+  // Photos added straight onto an existing RFI's card.
+  async function addPhotosTo(rfi: Rfi, side: Side) {
+    const assets = await pickAssets()
+    if (!assets.length) return
+    setBusyPhotoId(rfi.id)
+    const failed = await uploadRfiPhotos(rfi.id, assets, side)
+    setBusyPhotoId(null)
+    flash(failed ? t('rfiPhotosFailed', { n: failed }) : t('rfiPhotosAdded', { n: assets.length }))
+    // A copy already on their jobsite gets the new question photos too.
+    if (side === 'question' && rfi.forwarded_to_id && target) sendAcross(rfi.id, true)
+    load()
   }
-  async function removeRfiPhoto(rfi: Rfi) {
-    const { error } = await supabase.from('rfis').update({ photo_url: null, updated_at: new Date().toISOString() }).eq('id', rfi.id)
-    if (error) { flash(error.message); return }
-    if (rfi.photo_url) await deletePhotoObject(rfi.photo_url)
-    flash('Photo removed'); load()
+
+  function removePhoto(ph: RfiPhoto) {
+    Alert.alert(t('rfiRemovePhotoTitle'), undefined, [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('remove'), style: 'destructive', onPress: async () => {
+        const { error } = await supabase.from('project_photos').delete().eq('id', ph.id)
+        if (error) { flash(error.message); return }
+        const p = objectPath(ph.file_path || ph.file_url)
+        if (p) await supabase.storage.from(PHOTO_BUCKET).remove([p]).catch(() => {})
+        flash(t('rfiPhotoRemoved')); load()
+      } },
+    ])
   }
 
   const load = useCallback(async () => {
@@ -162,10 +219,23 @@ export default function RfisScreen() {
       const role = (prof as any)?.role
       setIsManager(isManagerRole(role))
     }
-    const { data } = await supabase.from('rfis').select('*').eq('project_id', projectId).order('created_at', { ascending: false })
+    const [{ data }, { data: phRows }, { data: proj }] = await Promise.all([
+      supabase.from('rfis').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
+      supabase.from('project_photos')
+        .select('id, source_id, source, file_path, file_url, caption, uploaded_by, created_at')
+        .eq('project_id', projectId).eq('source_table', 'rfis')
+        .order('created_at', { ascending: true }),
+      supabase.from('projects').select('org_id').eq('id', projectId).maybeSingle(),
+    ])
     const list = (data as Rfi[]) || []
     setRows(list)
-    setCopies(await loadForwardedRfis(list))
+    const byRfi: Record<number, RfiPhoto[]> = {}
+    for (const ph of ((phRows as RfiPhoto[]) || [])) (byRfi[ph.source_id] ||= []).push(ph)
+    setPhotos(byRfi)
+    setOwnerOrg((proj as any)?.org_id ?? null)
+    const theirs = await loadForwardedRfis(list)
+    setCopies(theirs)
+    setCopyPhotos(await loadForwardedRfiPhotos(theirs))
     const ids = [...new Set(list.flatMap(r => [r.asked_by, r.answered_by]).filter(Boolean) as string[])]
     if (ids.length) {
       const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids)
@@ -177,21 +247,18 @@ export default function RfisScreen() {
   useEffect(() => { load() }, [load])
 
   // rfis only started publishing in 20260809000003 — before that this channel
-  // opened and delivered nothing.
-  useRealtimeRefetch(
-    'rfis',
-    load,
-    Number.isFinite(projectId) ? `project_id=eq.${projectId}` : undefined,
-    Number.isFinite(projectId),
-  )
+  // opened and delivered nothing. Photos arrive on their own table.
+  const rtFilter = Number.isFinite(projectId) ? `project_id=eq.${projectId}` : undefined
+  useRealtimeRefetch('rfis', load, rtFilter, Number.isFinite(projectId))
+  useRealtimeRefetch('project_photos', load, rtFilter, Number.isFinite(projectId))
 
-  function resetForm() { setSubject(''); setQuestion(''); setPlanRef(''); setNewPhotoUrl(''); setEditingId(null) }
+  function resetForm() { setSubject(''); setQuestion(''); setPlanRef(''); setStaged([]); setEditingId(null) }
 
   function startEdit(rfi: Rfi) {
     setSubject(rfi.subject || '')
     setQuestion(rfi.question || '')
     setPlanRef(rfi.plan_ref || '')
-    setNewPhotoUrl(rfi.photo_url || '')
+    setStaged([])
     setEditingId(rfi.id)
     setShowForm(true)
   }
@@ -202,41 +269,62 @@ export default function RfisScreen() {
     const fields = {
       subject: subject.trim(),
       question: question.trim() || null, plan_ref: planRef.trim() || null,
-      photo_url: newPhotoUrl || null,
     }
     let error: { message: string } | null = null
-    let createdId: number | null = null
+    let savedId: number | null = editingId
     if (editingId) {
       ;({ error } = await supabase.from('rfis').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', editingId))
     } else {
       const res = await supabase.from('rfis').insert({ project_id: projectId, asked_by: uid, ...fields }).select('id').single()
       error = res.error
-      createdId = (res.data as any)?.id ?? null
+      savedId = (res.data as any)?.id ?? null
     }
+    if (error) { setSaving(false); flash(error.message); return }
+
+    // Photos go up once the row exists to hang them on.
+    let failed = 0
+    if (staged.length && savedId) failed = await uploadRfiPhotos(savedId, staged, 'question')
     setSaving(false)
-    if (error) { flash(error.message); return }
+
     const wasForwarded = editingId ? !!rows.find(r => r.id === editingId)?.forwarded_to_id : false
+    const wasEditing = !!editingId
     resetForm(); setShowForm(false)
-    if (!editingId && target && willSend && createdId) {
-      await sendAcross(createdId, false)
+    if (!wasEditing && target && willSend && savedId) {
+      await sendAcross(savedId, false)
     } else {
-      flash(editingId ? t('rfiUpdated') : t('rfiSubmitted'))
+      flash(wasEditing ? t('rfiUpdated') : t('rfiSubmitted'))
       // An edit to an RFI already over there follows it quietly.
-      if (editingId && wasForwarded && target) await sendAcross(editingId, true)
+      if (wasEditing && wasForwarded && target && savedId) await sendAcross(savedId, true)
     }
+    if (failed) Alert.alert(t('rfiPhotosFailed', { n: failed }))
     load()
   }
 
   async function sendAnswer(rfi: Rfi) {
     const text = (answerDraft[rfi.id] || '').trim()
-    if (!text) { flash(t('rfiAnswerRequired')); return }
+    const assets = answerStaged[rfi.id] || []
+    if (!text && !assets.length) { flash(t('rfiAnswerRequired')); return }
     const { error } = await supabase.from('rfis').update({
-      answer: text, status: 'answered', answered_by: uid,
+      answer: text || null, status: 'answered', answered_by: uid,
       answered_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     }).eq('id', rfi.id)
     if (error) { flash(error.message); return }
+    let failed = 0
+    if (assets.length) {
+      setBusyPhotoId(rfi.id)
+      failed = await uploadRfiPhotos(rfi.id, assets, 'answer')
+      setBusyPhotoId(null)
+    }
     setAnswerDraft(d => ({ ...d, [rfi.id]: '' }))
-    flash(t('rfiAnswerSent')); load()
+    setAnswerStaged(d => ({ ...d, [rfi.id]: [] }))
+    flash(failed ? `${t('rfiAnswerSent')} · ${t('rfiPhotosFailed', { n: failed })}` : t('rfiAnswerSent'))
+    load()
+  }
+
+  async function stageForAnswer(rfi: Rfi) {
+    const assets = await pickAssets()
+    if (!assets.length) return
+    setAnswerStaged(d => ({ ...d, [rfi.id]: [...(d[rfi.id] || []), ...assets] }))
   }
 
   async function setStatus(rfi: Rfi, status: 'open' | 'closed') {
@@ -253,6 +341,8 @@ export default function RfisScreen() {
       </SafeAreaView>
     )
   }
+
+  const editingRfi = editingId ? rows.find(r => r.id === editingId) : undefined
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -277,27 +367,16 @@ export default function RfisScreen() {
             <Field label={t('rfiPlanRef')}>
               <TextInput style={inputStyle} value={planRef} onChangeText={setPlanRef} placeholder={t('rfiPlanRefPlaceholder')} placeholderTextColor={COLORS.subtext} />
             </Field>
-            <View style={{ marginBottom: 12 }}>
-              {newPhotoUrl ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  {/* SignedImage, not a bare Image. pickAndUpload returns a
-                      STORAGE PATH in a private bucket — the same value the
-                      submitted RFI renders below through SignedImage. Handing
-                      that path to <Image> fetches nothing, so the photo went up
-                      fine and the preview stayed blank while Replace and Remove
-                      appeared beside it: the state said a photo was attached and
-                      the picture said it was not. */}
-                  <SignedImage bucket={PHOTO_BUCKET} value={newPhotoUrl} style={{ width: 72, height: 72, borderRadius: 8 }} />
-                  <SmallBtn label={busyPhoto ? '…' : 'Replace'} onPress={addNewPhoto} />
-                  <SmallBtn label="Remove" onPress={async () => { await deletePhotoObject(newPhotoUrl); setNewPhotoUrl('') }} />
-                </View>
-              ) : (
-                <Pressable onPress={addNewPhoto} disabled={busyPhoto} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, alignSelf: 'flex-start' }}>
-                  <MaterialCommunityIcons name="camera-outline" size={18} color={COLORS.navy} />
-                  <Text style={{ color: COLORS.navy, fontWeight: '700' }}>{busyPhoto ? '…' : 'Add photo'}</Text>
-                </Pressable>
-              )}
-            </View>
+            <Field label={t('rfiPhotos')}>
+              {/* Already on the RFI being edited: removed straight away, since they are saved. */}
+              {editingRfi ? <PhotoRow photos={questionPhotos(editingRfi)} onRemove={removePhoto} onOpen={v => setViewing({ value: v, ownerOrg: null })} /> : null}
+              {/* Chosen now: previewed from the device, uploaded when the RFI is saved. */}
+              <StagedRow assets={staged} onRemove={i => setStaged(s => s.filter((_, j) => j !== i))} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+                <AddPhotosBtn label={t('rfiAddPhotos')} onPress={async () => { const a = await pickAssets(); if (a.length) setStaged(s => [...s, ...a]) }} />
+                {staged.length > 0 ? <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{t('rfiPhotosOnSave', { n: staged.length })}</Text> : null}
+              </View>
+            </Field>
             {target && !editingId && (
               <Pressable
                 onPress={() => setSendAlso(!willSend)}
@@ -323,6 +402,12 @@ export default function RfisScreen() {
           </View>
         ) : rows.map(rfi => {
           const s = STATUS[rfi.status] || STATUS.open
+          const qPhotos = questionPhotos(rfi)
+          const aPhotos = answerPhotos(rfi)
+          const photoCount = qPhotos.length + aPhotos.length
+          const busy = busyPhotoId === rfi.id
+          const theirPhotos = copyPhotos[rfi.id] || []
+          const pendingAnswer = answerStaged[rfi.id] || []
           return (
             <View key={rfi.id} style={{ backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 }}>
               <Pressable
@@ -340,17 +425,16 @@ export default function RfisScreen() {
                 ) : null}
                 <Text style={{ fontWeight: '800', color: COLORS.navy, fontSize: 16, flexShrink: 1 }}>{rfi.subject}</Text>
                 {/* Collapsed, these say what is inside without opening it. */}
-                {!isExpanded(rfi) && rfi.photo_url ? <Text style={{ fontSize: 13 }}>📎</Text> : null}
+                {!isExpanded(rfi) && photoCount > 0 ? <Text style={{ fontSize: 13, color: COLORS.subtext }}>📎{photoCount > 1 ? ` ${photoCount}` : ''}</Text> : null}
                 {!isExpanded(rfi) && rfi.answer ? <Text style={{ color: '#166534', fontSize: 11, fontWeight: '700' }}>{t('rfiAnswerLabel')}</Text> : null}
               </Pressable>
               {isExpanded(rfi) && rfi.plan_ref ? <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: 12, marginTop: 6 }}>📐 {rfi.plan_ref}</Text> : null}
               {isExpanded(rfi) && rfi.question ? <Text style={{ color: COLORS.text, marginTop: 6, lineHeight: 20 }}>{rfi.question}</Text> : null}
-              {isExpanded(rfi) && rfi.photo_url ? <SignedImage bucket={PHOTO_BUCKET} value={rfi.photo_url} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 8 }} resizeMode="cover" /> : null}
+              {isExpanded(rfi) ? <PhotoRow photos={qPhotos} onRemove={canEdit(rfi) ? removePhoto : undefined} onOpen={v => setViewing({ value: v, ownerOrg: null })} /> : null}
               {isExpanded(rfi) && canEdit(rfi) && (
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                   <SmallBtn label={t('rfiEdit')} onPress={() => startEdit(rfi)} />
-                  <SmallBtn label={busyPhoto ? '…' : (rfi.photo_url ? 'Replace photo' : '📷 Add photo')} onPress={() => setRfiPhoto(rfi)} />
-                  {rfi.photo_url ? <SmallBtn label="Remove photo" onPress={() => removeRfiPhoto(rfi)} /> : null}
+                  <AddPhotosBtn label={busy ? '…' : t('rfiAddPhotos')} onPress={() => addPhotosTo(rfi, 'question')} disabled={busy} />
                 </View>
               )}
               <Text style={{ color: COLORS.subtext, fontSize: 12, marginTop: 6 }}>
@@ -380,23 +464,30 @@ export default function RfisScreen() {
 
               {/* Their answer to the copy we sent — the question went to them,
                   and this is what came back. */}
-              {isExpanded(rfi) && copies[rfi.id]?.answer ? (
+              {isExpanded(rfi) && (copies[rfi.id]?.answer || theirPhotos.length > 0) ? (
                 <View style={{ marginTop: 10, backgroundColor: '#F8F2FA', borderLeftWidth: 3, borderLeftColor: '#7B1FA2', borderRadius: 8, padding: 12 }}>
                   <Text style={{ fontWeight: '800', color: '#4A148C', fontSize: 12, marginBottom: 3 }}>{t('answerFrom', { org: target?.ownerOrgName || '' })}</Text>
-                  <Text style={{ color: '#3B0A5C', lineHeight: 20 }}>{copies[rfi.id].answer}</Text>
+                  {copies[rfi.id]?.answer ? <Text style={{ color: '#3B0A5C', lineHeight: 20 }}>{copies[rfi.id].answer}</Text> : null}
+                  <PhotoRow photos={theirPhotos} ownerOrg={target?.ownerOrg || null} onOpen={v => setViewing({ value: v, ownerOrg: target?.ownerOrg || null })} />
                   <Text style={{ color: '#8E6BA8', fontSize: 11, marginTop: 5 }}>
-                    {copies[rfi.id].answered_at ? new Date(copies[rfi.id].answered_at as string).toLocaleDateString() : ''}
+                    {copies[rfi.id]?.answered_at ? new Date(copies[rfi.id].answered_at as string).toLocaleDateString() : ''}
                   </Text>
                 </View>
               ) : null}
 
-              {isExpanded(rfi) && rfi.answer ? (
+              {isExpanded(rfi) && (rfi.answer || aPhotos.length > 0) ? (
                 <View style={{ marginTop: 10, backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: '#22C55E', borderRadius: 8, padding: 12 }}>
                   <Text style={{ fontWeight: '800', color: '#166534', fontSize: 12, marginBottom: 3 }}>{t('rfiAnswerLabel')}</Text>
-                  <Text style={{ color: '#14532D', lineHeight: 20 }}>{rfi.answer}</Text>
+                  {rfi.answer ? <Text style={{ color: '#14532D', lineHeight: 20 }}>{rfi.answer}</Text> : null}
+                  <PhotoRow photos={aPhotos} onRemove={isManager ? removePhoto : undefined} onOpen={v => setViewing({ value: v, ownerOrg: null })} />
                   <Text style={{ color: '#6B9080', fontSize: 11, marginTop: 5 }}>
                     {names[rfi.answered_by || ''] || '—'} · {rfi.answered_at ? new Date(rfi.answered_at).toLocaleDateString() : ''}
                   </Text>
+                  {isManager && rfi.status !== 'closed' ? (
+                    <View style={{ marginTop: 8 }}>
+                      <AddPhotosBtn label={busy ? '…' : t('rfiAddToAnswer')} onPress={() => addPhotosTo(rfi, 'answer')} disabled={busy} />
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -406,8 +497,14 @@ export default function RfisScreen() {
                     <>
                       <TextInput style={[inputStyle, { minHeight: 60, textAlignVertical: 'top' }]} value={answerDraft[rfi.id] || ''}
                         onChangeText={txt => setAnswerDraft(d => ({ ...d, [rfi.id]: txt }))} placeholder={t('rfiAnswerPlaceholder')} placeholderTextColor={COLORS.subtext} multiline />
-                      <Pressable onPress={() => sendAnswer(rfi)} style={{ backgroundColor: COLORS.navy, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 8 }}>
-                        <Text style={{ color: 'white', fontWeight: '800' }}>{t('rfiSendAnswer')}</Text>
+                      {/* Photos for the answer — a marked-up sheet, a detail — go up with it. */}
+                      <StagedRow assets={pendingAnswer} size={80} onRemove={i => setAnswerStaged(d => ({ ...d, [rfi.id]: (d[rfi.id] || []).filter((_, j) => j !== i) }))} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                        <AddPhotosBtn label={t('rfiAttachToAnswer')} onPress={() => stageForAnswer(rfi)} />
+                        {pendingAnswer.length > 0 ? <Text style={{ color: COLORS.subtext, fontSize: 12 }}>{t('rfiPhotosWithAnswer', { n: pendingAnswer.length })}</Text> : null}
+                      </View>
+                      <Pressable onPress={() => sendAnswer(rfi)} disabled={busy} style={{ backgroundColor: COLORS.navy, borderRadius: 10, paddingVertical: 11, alignItems: 'center', marginTop: 8, opacity: busy ? 0.6 : 1 }}>
+                        <Text style={{ color: 'white', fontWeight: '800' }}>{busy ? t('sending') : t('rfiSendAnswer')}</Text>
                       </Pressable>
                     </>
                   )}
@@ -422,6 +519,14 @@ export default function RfisScreen() {
           )
         })}
       </ScrollView>
+
+      {/* Full-size view of one photo. */}
+      <Modal visible={!!viewing} transparent animationType="fade" onRequestClose={() => setViewing(null)}>
+        <Pressable onPress={() => setViewing(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', padding: 12 }}>
+          {viewing ? <SignedImage bucket={PHOTO_BUCKET} value={viewing.value} ownerOrg={viewing.ownerOrg} style={{ width: '100%', height: '80%' }} resizeMode="contain" /> : null}
+          <Text style={{ color: 'white', textAlign: 'center', marginTop: 10, fontWeight: '700' }}>{t('cancel')}</Text>
+        </Pressable>
+      </Modal>
 
       {toast ? (
         <View style={{ position: 'absolute', bottom: 30, left: 20, right: 20, backgroundColor: COLORS.navy, borderRadius: 12, padding: 14, alignItems: 'center' }}>
@@ -448,5 +553,61 @@ function SmallBtn({ label, onPress }: { label: string; onPress: () => void }) {
     <Pressable onPress={onPress} style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }}>
       <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13 }}>{label}</Text>
     </Pressable>
+  )
+}
+
+function AddPhotosBtn({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }) {
+  return (
+    <Pressable onPress={onPress} disabled={disabled} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, alignSelf: 'flex-start', opacity: disabled ? 0.6 : 1 }}>
+      <MaterialCommunityIcons name="camera-outline" size={18} color={COLORS.navy} />
+      <Text style={{ color: COLORS.navy, fontWeight: '700', fontSize: 13 }}>{label}</Text>
+    </Pressable>
+  )
+}
+
+/** Stored photos as thumbnails; tap to open, ✕ to remove when allowed. */
+function PhotoRow({ photos, onRemove, onOpen, ownerOrg = null, size = THUMB }: {
+  photos: { id: number; file_path: string | null; file_url: string | null }[]
+  onRemove?: (ph: any) => void
+  onOpen: (value: string) => void
+  ownerOrg?: string | null
+  size?: number
+}) {
+  if (!photos.length) return null
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+      {photos.map(ph => {
+        const value = (ph.file_path || ph.file_url) as string
+        return (
+          <View key={ph.id} style={{ width: size, height: size, position: 'relative' }}>
+            <Pressable onPress={() => onOpen(value)}>
+              <SignedImage bucket={PHOTO_BUCKET} value={value} ownerOrg={ownerOrg} style={{ width: size, height: size, borderRadius: 8, backgroundColor: COLORS.background }} resizeMode="cover" />
+            </Pressable>
+            {onRemove ? (
+              <Pressable onPress={() => onRemove(ph)} hitSlop={6} style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(183,28,28,0.9)', borderRadius: 999, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: 'white', fontWeight: '800', fontSize: 12, lineHeight: 14 }}>✕</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+/** Photos picked on the device and not yet uploaded. */
+function StagedRow({ assets, onRemove, size = THUMB }: { assets: ImagePicker.ImagePickerAsset[]; onRemove: (i: number) => void; size?: number }) {
+  if (!assets.length) return null
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+      {assets.map((a, i) => (
+        <View key={`${a.uri}-${i}`} style={{ width: size, height: size, position: 'relative' }}>
+          <Image source={{ uri: a.uri }} style={{ width: size, height: size, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border }} resizeMode="cover" />
+          <Pressable onPress={() => onRemove(i)} hitSlop={6} style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(13,27,62,0.85)', borderRadius: 999, width: 22, height: 22, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: 'white', fontWeight: '800', fontSize: 12, lineHeight: 14 }}>✕</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
   )
 }

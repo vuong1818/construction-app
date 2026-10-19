@@ -122,21 +122,27 @@ export async function forwardToSharedJobsite(table: ForwardTable, id: number): P
   }
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (table === 'daily_reports') {
+  if (table === 'daily_reports' || table === 'rfis') {
+    // Many photos per record, each a project_photos row. The database listed
+    // the ones not yet across; the object is copied and a row written for each.
     const photos: { id: number; from: string | null; caption: string | null }[] = Array.isArray(data.photos) ? data.photos : []
     for (const ph of photos) {
       const from = objectPath(ph.from)
       if (!from) { out.photosFailed++; continue }
       // The owner's folder, on THEIR project, under the copy's own id.
-      const to = `${data.owner_org}/project-${data.target_project_id}/reports/${data.copy_id}/fwd-${ph.id}-${basename(from)}`
+      const to = table === 'rfis'
+        ? `${data.owner_org}/${data.target_project_id}/fwd-${ph.id}-${basename(from)}`
+        : `${data.owner_org}/project-${data.target_project_id}/reports/${data.copy_id}/fwd-${ph.id}-${basename(from)}`
       const { error: cpErr } = await supabase.storage.from(bucket).copy(from, to)
       if (cpErr) { out.photosFailed++; continue }
       const fileUrl = supabase.storage.from(bucket).getPublicUrl(to).data.publicUrl
       const { error: rowErr } = await supabase.from('project_photos').insert({
         project_id: data.target_project_id,
-        source_table: 'daily_reports',
+        source_table: table,
         source_id: data.copy_id,
-        source: 'forward',
+        // An RFI photo stays an RFI (question) photo on their side, so their
+        // RFI screen and gallery file it the same way we do.
+        source: table === 'rfis' ? 'rfi' : 'forward',
         file_path: to,
         file_url: fileUrl,
         caption: ph.caption || null,
@@ -194,6 +200,33 @@ export async function loadForwardedRfis(rows: { id: number; forwarded_to_id?: nu
   const bySource: Record<number, ForwardedRfi> = {}
   for (const [copyId, sourceId] of pairs) if (byCopy[copyId]) bySource[sourceId] = byCopy[copyId]
   return bySource
+}
+
+export type ForwardedRfiPhoto = { id: number; source_id: number; file_path: string | null; file_url: string | null; caption: string | null; created_at: string }
+
+/**
+ * The photos the GC attached to THEIR answer on the copies we sent, keyed by
+ * OUR RFI's id. Takes the map loadForwardedRfis returned. Readable through the
+ * grant like the copy itself; sign them with the owner's org.
+ */
+export async function loadForwardedRfiPhotos(copiesBySource: Record<number, ForwardedRfi>): Promise<Record<number, ForwardedRfiPhoto[]>> {
+  const entries = Object.entries(copiesBySource || {})
+  if (!entries.length) return {}
+  const copyIds = entries.map(([, c]) => c.id)
+  const { data } = await supabase
+    .from('project_photos')
+    .select('id, source_id, file_path, file_url, caption, created_at')
+    .eq('source_table', 'rfis')
+    .eq('source', 'rfi_answer')
+    .in('source_id', copyIds)
+    .order('created_at', { ascending: true })
+  const sourceByCopy: Record<number, number> = Object.fromEntries(entries.map(([sourceId, c]) => [c.id, Number(sourceId)]))
+  const out: Record<number, ForwardedRfiPhoto[]> = {}
+  for (const ph of ((data as ForwardedRfiPhoto[]) || [])) {
+    const sourceId = sourceByCopy[ph.source_id]
+    if (sourceId != null) (out[sourceId] ||= []).push(ph)
+  }
+  return out
 }
 
 export type ForwardedRequest = { id: number; status: string; fulfilled_at: string | null }
