@@ -2240,6 +2240,23 @@ const es: Record<TranslationKey, string> = {
   projectsBiddingSection: 'Proyectos en licitación',
   projectsCompletedSection: 'Proyectos completados',
   projectsSectionEmpty: 'Nada aquí todavía.',
+  // Gerente → Tiempo y nómina → turnos de un trabajador (WorkerEntriesSheet)
+  shiftsButton: 'Ver y editar turnos',
+  shiftsTitle: 'Turnos',
+  shiftsIntro: 'Cada entrada registrada en el rango mostrado. Toque una para mover su entrada o salida, cambiar el proyecto o eliminarla. Las correcciones quedan marcadas con su nombre.',
+  noShiftsInRange: 'No hay turnos en este rango.',
+  noProject: 'Sin proyecto',
+  stillClockedIn: 'aún registrado',
+  clockOutBlankHint: 'Deje la hora de salida en blanco para mantener el turno abierto.',
+  shiftHours: '{hours} horas',
+  addedByManager: 'Agregado por {name}',
+  editedByManager: 'Editado por {name}',
+  aManager: 'un gerente',
+  entryNeedsClockIn: 'Ingrese la fecha y hora de entrada.',
+  entryClockOutInvalid: 'La fecha y hora de salida no son válidas.',
+  entryClockOutBeforeIn: 'La salida debe ser después de la entrada.',
+  deleteEntryTitle: '¿Eliminar este turno?',
+  deleteEntryBody: 'El turno del {day} se quitará de la nómina. Esto no se puede deshacer.',
 }
 
 export default es

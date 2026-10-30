@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { DatePickerField } from '../../components/DatePickerField'
+import { WorkerEntriesSheet } from '../../components/WorkerEntriesSheet'
 import { useRealtimeRefetch } from '../../hooks/useRealtimeRefetch'
 import { useLanguage } from '../../lib/i18n'
 import { applyOvertime, entryWage, type OvertimeRule } from '../../lib/payrollWage'
@@ -31,10 +32,16 @@ type TimeEntry = {
   clock_in_time: string | null
   clock_out_time: string | null
   receipts_amount: number | null
+  wage_override: number | null
+  // Who typed or corrected it, for the shifts sheet. Null on a phone clock-in.
+  manually_added: boolean | null
+  edited_by: string | null
+  edited_by_name: string | null
+  edited_at: string | null
   created_at: string
 }
 
-type ProjectState = { id: number; state: string | null }
+type ProjectState = { id: number; name: string | null; state: string | null }
 
 /** A worker-submitted expense the company owes back (project_expenses, kind = reimbursement). */
 type ReimbursementExpense = {
@@ -231,6 +238,7 @@ function Field({
 function WorkerCard({
   item,
   onEdit,
+  onEntries,
   showMileage,
   mileageRate,
 }: {
@@ -238,6 +246,8 @@ function WorkerCard({
   // Absent on a custom range: adjustments belong to a work week, and there is
   // no single week to write them to.
   onEdit?: (item: WorkerSummary) => void
+  // Always present: a shift belongs to a day, not to a work week.
+  onEntries: (item: WorkerSummary) => void
   showMileage: boolean
   mileageRate: number
 }) {
@@ -331,21 +341,37 @@ function WorkerCard({
           </Text>
         </View>
 
-        {onEdit ? (
+        <View style={{ gap: 10 }}>
           <Pressable
-            onPress={() => onEdit(item)}
+            onPress={() => onEntries(item)}
+            accessibilityLabel={t('shiftsButton')}
             style={{
               width: 48,
               height: 48,
               borderRadius: 14,
-              backgroundColor: COLORS.tealSoft,
+              backgroundColor: COLORS.navy,
               justifyContent: 'center',
               alignItems: 'center',
             }}
           >
-            <MaterialCommunityIcons name="pencil-outline" size={24} color={COLORS.teal} />
+            <MaterialCommunityIcons name="clock-edit-outline" size={24} color={COLORS.white} />
           </Pressable>
-        ) : null}
+          {onEdit ? (
+            <Pressable
+              onPress={() => onEdit(item)}
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                backgroundColor: COLORS.tealSoft,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="pencil-outline" size={24} color={COLORS.teal} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   )
@@ -393,6 +419,8 @@ export default function ManagerTimeClockScreen() {
   const [editingWorkerId, setEditingWorkerId] = useState<string | null>(null)
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null)
   const [form, setForm] = useState<EditForm>(EMPTY_FORM)
+  // Worker whose shifts sheet is open, or null.
+  const [entriesWorker, setEntriesWorker] = useState<WorkerSummary | null>(null)
 
   const selectedWeek =
     weekOptions.find((option) => option.key === selectedWeekKey) || weekOptions[0]
@@ -414,7 +442,7 @@ export default function ManagerTimeClockScreen() {
 
   // Live updates while the manager is viewing a range
   const refetchSelectedWeek = () => {
-    if (activeRange) loadScreen(activeRange.start, activeRange.end, rangeMode === 'week')
+    if (activeRange) loadScreen(activeRange.start, activeRange.end, rangeMode === 'week', true)
   }
   useRealtimeRefetch('time_entries', refetchSelectedWeek, undefined, !!activeRange)
   useRealtimeRefetch('worker_week_adjustments', refetchSelectedWeek, undefined, !!activeRange)
@@ -429,8 +457,8 @@ export default function ManagerTimeClockScreen() {
     setForm(EMPTY_FORM)
   }
 
-  async function loadScreen(weekStart: Date, weekEnd: Date, isWeek = true) {
-    setLoading(true)
+  async function loadScreen(weekStart: Date, weekEnd: Date, isWeek = true, quiet = false) {
+    if (!quiet) setLoading(true)
     setErrorMessage('')
 
     try {
@@ -474,7 +502,7 @@ export default function ManagerTimeClockScreen() {
       const [entriesResult, profilesResult, adjustmentsResult, travelResult, settingsResult, reimbResult, projectsResult] = await Promise.all([
         supabase
           .from('time_entries')
-          .select('id, project_id, user_id, user_name, clock_in_time, clock_out_time, receipts_amount, wage_override, created_at')
+          .select('id, project_id, user_id, user_name, clock_in_time, clock_out_time, receipts_amount, wage_override, manually_added, edited_by, edited_by_name, edited_at, created_at')
           .gte('clock_in_time', weekStart.toISOString())
           .lte('clock_in_time', weekEnd.toISOString())
           .order('clock_in_time', { ascending: false }),
@@ -523,7 +551,7 @@ export default function ManagerTimeClockScreen() {
 
         // Project states, so a shift on an out-of-state job is paid at the
         // worker's out-of-state rate — the same per-entry rule the web uses.
-        supabase.from('projects').select('id, state'),
+        supabase.from('projects').select('id, name, state'),
       ])
 
       if (entriesResult.error) {
@@ -988,6 +1016,7 @@ export default function ManagerTimeClockScreen() {
               key={item.workerId}
               item={item}
               onEdit={rangeMode === 'week' ? openEditModal : undefined}
+              onEntries={setEntriesWorker}
               showMileage={travelEnabled}
               mileageRate={mileageRate}
             />
@@ -1105,6 +1134,19 @@ export default function ManagerTimeClockScreen() {
           </View>
         </View>
       </Modal>
+
+      <WorkerEntriesSheet
+        visible={entriesWorker != null}
+        workerId={entriesWorker?.workerId ?? null}
+        workerName={entriesWorker?.workerName ?? ''}
+        entries={entries}
+        projects={projectStates}
+        defaultDate={activeRange ? localDateString(activeRange.start) : localDateString(new Date())}
+        onClose={() => setEntriesWorker(null)}
+        onSaved={async () => {
+          if (activeRange) await loadScreen(activeRange.start, activeRange.end, rangeMode === 'week', true)
+        }}
+      />
     </SafeAreaView>
   )
 }

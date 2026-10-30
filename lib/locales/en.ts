@@ -2264,6 +2264,23 @@ const en = {
   projectsBiddingSection: 'Bidding Projects',
   projectsCompletedSection: 'Completed Projects',
   projectsSectionEmpty: 'Nothing here yet.',
+  // Manager → Time & Payroll → a worker's shifts (WorkerEntriesSheet)
+  shiftsButton: 'View and edit shifts',
+  shiftsTitle: 'Shifts',
+  shiftsIntro: 'Every clock-in in the range shown. Tap one to move its clock-in or clock-out, change the project, or delete it. Corrections are stamped with your name.',
+  noShiftsInRange: 'No shifts in this range.',
+  noProject: 'No project',
+  stillClockedIn: 'still clocked in',
+  clockOutBlankHint: 'Leave the clock-out time blank to keep the shift open.',
+  shiftHours: '{hours} hours',
+  addedByManager: 'Added by {name}',
+  editedByManager: 'Edited by {name}',
+  aManager: 'a manager',
+  entryNeedsClockIn: 'Enter a clock-in date and time.',
+  entryClockOutInvalid: 'The clock-out date and time are not valid.',
+  entryClockOutBeforeIn: 'Clock-out must be after clock-in.',
+  deleteEntryTitle: 'Delete this shift?',
+  deleteEntryBody: 'The {day} shift will be removed from payroll. This cannot be undone.',
 } as const
 
 export default en
