@@ -83,7 +83,6 @@ type TimeEntry = {
 type Profile = {
   full_name: string | null
   role: string | null
-  wage: number | null
 }
 
 
@@ -290,14 +289,14 @@ export default function HomeScreen() {
 
       const profileResult = await supabase
         .from('profiles')
-        .select('full_name, role, wage, org_id')
+        .select('full_name, role, org_id')
         .eq('id', currentUserId)
         .maybeSingle()
 
       if (profileResult.data) {
         setProfile(profileResult.data)
       } else {
-        setProfile({ full_name: null, role: null, wage: null })
+        setProfile({ full_name: null, role: null })
       }
 
       // Our own company's jobs only.

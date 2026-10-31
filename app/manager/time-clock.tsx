@@ -1,4 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import type { PayRate } from '../../lib/profileColumns'
 import { Picker } from '@react-native-picker/picker'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -509,7 +510,7 @@ export default function ManagerTimeClockScreen() {
 
         supabase
           .from('profiles')
-          .select('id, first_name, last_name, full_name, wage, oos_wage, role')
+          .select('id, first_name, last_name, full_name, role')
           .in('role', ['owner', 'manager', 'office', 'worker', 'warehouse'])
           .order('first_name', { ascending: true }),
 
@@ -570,7 +571,12 @@ export default function ManagerTimeClockScreen() {
       }
 
       setEntries(entriesResult.data || [])
-      setProfiles(profilesResult.data || [])
+      // Pay rates are their own RPC since 2026-10-31 (finance roles only; the
+      // profiles table no longer exposes wage columns). A caller who may not see
+      // wages gets an empty map and every rate reads as 0 here.
+      const { data: rateRows } = await supabase.rpc('pay_rates')
+      const rateById = new Map<string, PayRate>((rateRows || []).map((r: PayRate) => [r.id, r]))
+      setProfiles((profilesResult.data || []).map((p: any) => ({ ...p, wage: rateById.get(p.id)?.wage ?? null, oos_wage: rateById.get(p.id)?.oos_wage ?? null })))
       setAdjustments(adjustmentsResult.data || [])
       // A failed travel read must not blank the payroll screen — hours and
       // receipts are still correct without it. Mileage shows as zero and the

@@ -99,8 +99,9 @@ export default function RequestTimeOff() {
     if (error) { Alert.alert(t('error'), error.message); return }
     // Notify the manager (fire-and-forget). Include the hours for partial requests.
     const emailReason = partial ? `${fmt12(startTime)}–${fmt12(endTime)}${reason.trim() ? ' · ' + reason.trim() : ''}` : reason.trim()
+    const { data: { session: notifySession } } = await supabase.auth.getSession()
     fetch(`${WEB_BASE}/api/portal/notify-timeoff`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${notifySession?.access_token || ''}` },
       body: JSON.stringify({ workerName: name, startDate: reqStart, endDate: end, reason: emailReason, companyName, companyEmail }),
     }).catch(() => {})
     setReqStart(''); setReqEnd(''); setReason(''); setStartTime('09:00'); setEndTime('12:00')

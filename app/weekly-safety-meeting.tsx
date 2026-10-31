@@ -360,7 +360,7 @@ export default function WeeklySafetyMeetingScreen() {
       if (companyEmail) {
         fetch(`${WEB_BASE}/api/portal/notify-safety`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sess?.access_token || ''}` },
           body: JSON.stringify({
             workerName: workerName.trim(),
             signedAt,

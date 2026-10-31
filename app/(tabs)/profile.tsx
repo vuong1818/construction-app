@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
+import { PROFILE_COLS } from '../../lib/profileColumns'
 import { router } from 'expo-router'
 import React, { useEffect, useState } from 'react'
 import {
@@ -49,10 +50,15 @@ export default function Profile() {
       if (!user) { router.replace('/sign-in'); return }
       setUid(user.id)
       setEmail(user.email || '')
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const [profRes, rateRes] = await Promise.all([
+        supabase.from('profiles').select(PROFILE_COLS).eq('id', user.id).single(),
+        supabase.rpc('my_pay_rate').maybeSingle(),
+      ])
+      const prof = profRes.data as Record<string, any> | null
+      const rate = rateRes.data as { wage: number | null } | null
       if (prof) {
         setRole(prof.role || 'worker')
-        setWage(prof.wage ?? null)
+        setWage(rate?.wage ?? null)
         setFirstName(prof.first_name || '')
         setLastName(prof.last_name || '')
         setPhone(prof.phone || '')
