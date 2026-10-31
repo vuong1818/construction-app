@@ -2257,6 +2257,7 @@ const es: Record<TranslationKey, string> = {
   entryClockOutBeforeIn: 'La salida debe ser después de la entrada.',
   deleteEntryTitle: '¿Eliminar este turno?',
   deleteEntryBody: 'El turno del {day} se quitará de la nómina. Esto no se puede deshacer.',
+  shiftEndsOnDay: 'Termina {day} — revise la fecha de salida',
 }
 
 export default es

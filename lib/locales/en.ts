@@ -2281,6 +2281,7 @@ const en = {
   entryClockOutBeforeIn: 'Clock-out must be after clock-in.',
   deleteEntryTitle: 'Delete this shift?',
   deleteEntryBody: 'The {day} shift will be removed from payroll. This cannot be undone.',
+  shiftEndsOnDay: 'Ends {day} — check the clock-out date',
 } as const
 
 export default en

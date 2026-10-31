@@ -314,6 +314,7 @@ export function WorkerEntriesSheet({
                       {g.rows.map((e) => {
                         const h = hoursBetween(e.clock_in_time, e.clock_out_time)
                         const open = !e.clock_out_time
+                        const crossesDay = !open && localDate(e.clock_out_time) !== localDate(e.clock_in_time)
                         return (
                           <Pressable
                             key={e.id}
@@ -325,6 +326,11 @@ export function WorkerEntriesSheet({
                                 {fmtTime(e.clock_in_time)} → {open ? t('stillClockedIn') : fmtTime(e.clock_out_time)}
                               </Text>
                               <Text style={{ color: COLORS.subtext, fontSize: 13, marginTop: 2 }} numberOfLines={1}>{projectName(e.project_id)}</Text>
+                              {crossesDay && (
+                                <Text style={{ color: '#C2410C', fontSize: 12, fontWeight: '800', marginTop: 2 }}>
+                                  {t('shiftEndsOnDay', { day: fmtDay(localDate(e.clock_out_time)) })}
+                                </Text>
+                              )}
                               {(e.manually_added || e.edited_by) && (
                                 <Text style={{ color: e.manually_added ? '#5E35B1' : '#C2410C', fontSize: 11, fontWeight: '800', marginTop: 4 }}>
                                   {e.manually_added ? t('addedByManager', { name: e.edited_by_name || t('aManager') }) : t('editedByManager', { name: e.edited_by_name || t('aManager') })}
